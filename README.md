@@ -1,14 +1,48 @@
 # KamkmDirStat
 
-A Windows desktop app that shows what is using the disk on an SSH server, in the style of WinDirStat: a size-ordered folder list and a cushion treemap coloured by file type.
+A Windows desktop app that shows what is using the disk, in the style of WinDirStat: a size-ordered folder list and a cushion treemap coloured by file type. It works on this PC or on an SSH server. It can also monitor CPU, memory, GPU, network and processes live, and end processes.
 
 ## Run
 
-Run `KamkmDirStat.exe` on Windows with the Microsoft Edge WebView2 Runtime and Windows OpenSSH installed. Enter an SSH config alias or hostname and an absolute remote path. Leave the username and port blank to use the values from your SSH config. The default authentication mode uses keys loaded in the SSH agent and unencrypted `IdentityFile` keys from your config. You can also choose password or a specific private key with its passphrase.
+Run `KamkmDirStat.exe` on Windows with the Microsoft Edge WebView2 Runtime installed. Windows OpenSSH is needed only for SSH servers.
 
-Select **Connect and scan**, then compare the resolved server and displayed SHA-256 host-key fingerprint with a trusted fingerprint for that server before choosing **Trust for this scan**. Credentials are not saved and an agent never signs an authentication request until after the host key is checked.
+### This PC
+
+Choose **This PC**, then under **Open** choose the disk usage scan, the live activity monitor, or both. Tick one, some or all drives, or enter one folder to scan instead. Fixed drives are ticked at first; removable, network and optical drives are not. Nothing leaves the computer.
+
+Local sizes are file sizes, as in Explorer. Junctions, symbolic links and volumes mounted in a folder are not followed, so nothing is counted twice through them. Hard-linked files are counted at each of their names, so a whole system drive can total more than its used space, mostly because of `C:\Windows\WinSxS`. Folders Windows does not let you read, such as `System Volume Information`, are marked incomplete. Run as administrator to read more of them. Scanning a whole system drive with millions of files can take several minutes.
+
+### SSH server
+
+Choose **SSH server**. Enter an SSH config alias or hostname and an absolute remote path. Leave the username and port blank to use the values from your SSH config. The default authentication mode uses keys loaded in the SSH agent and unencrypted `IdentityFile` keys from your config. You can also choose password or a specific private key with its passphrase.
+
+Under **Open**, choose the disk usage scan, the live activity monitor, or both. Select **Connect**, then compare the resolved server and displayed SHA-256 host-key fingerprint with a trusted fingerprint for that server before choosing **Trust for this scan**. Credentials are not saved and an agent never signs an authentication request until after the host key is checked.
 
 The report appears when the remote scan is complete. Click a folder in the list or the map to open it, use the path at the top to go back up, and hover over the map to see what each block is.
+
+## Activity monitor
+
+The **Activity** tab (Ctrl+2) shows CPU, memory, GPU and network use, updated every second, with the last minute drawn as a line. Below are per-core CPU use, a memory breakdown (used, cache and free, plus swap), each GPU, each network interface, and the busiest processes by CPU and memory. Filter the process list or sort it by any column.
+
+On this PC the monitor uses the same system information as Task Manager. Memory is split into in use, standby (cached file data) and free, with the commit charge below. GPU use comes from the Windows GPU performance counters, which cover NVIDIA, AMD and Intel graphics; `nvidia-smi` adds temperature and power when installed. Process memory is the private working set, as in Task Manager.
+
+On an SSH server, the monitor runs Python 3 over its own SSH connection and reads `/proc`, so it needs a Linux server. GPUs are read with `nvidia-smi` for NVIDIA cards and from sysfs for AMD cards. Nothing is installed or written to disk.
+
+The monitor stops when you select **Stop monitoring**, start again, or close the app.
+
+On this PC, what you can change depends on whether the app runs as administrator:
+
+- **Any user** can end their own processes. **End** asks the program's windows to close, as Task Manager's End task does, so it can save its work; programs without a window must be force-ended. **Force end** stops the process immediately.
+- **As administrator** you can also end other users' processes and **Free cache**, which writes modified memory to disk and clears the standby list. Windows frees standby memory by itself whenever programs need it, so this is rarely needed. Select **Restart as administrator** on the Activity tab to reopen the app with administrator rights; current results are not kept.
+- Windows' own critical processes, and the processes running this app and its window, cannot be ended.
+
+On an SSH server, what you can change depends on the account:
+
+- **Any account** can end its own processes. **End** sends SIGTERM so the program can save its work; **Force end** sends SIGKILL.
+- **root, or a sudo user**, can also end other users' processes and **Free cache**, which writes pending data to disk and clears the page cache (`drop_caches`). Linux frees cache by itself when programs need memory, so this is rarely needed.
+- If sudo needs a password, the app asks for it each time and passes it to `sudo` on the server for that action only. It is never saved. Sudo access is detected only for members of the `sudo`, `wheel` or `admin` groups, so that ordinary accounts do not cause sudo to report "not in sudoers".
+
+Every action asks for confirmation. On servers, init, kernel threads and the processes running the monitor session cannot be ended. A process is only ended if its start time still matches, so a PID reused by a new process is left alone.
 
 ## How scanning works
 
@@ -43,4 +77,4 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags='-H=windowsg
 
 ## Test
 
-Run `go test ./...` and `node ui_test.cjs`. The tests use local test servers. Tests marked Linux verify the remote Python report against the existing tree builder, on-demand folder views, remote permission errors and cancellation, and run the streamed `find` script with zstd, gzip and no compression, plus the SFTP fallback, permission errors, progress and cancellation. They also cover SFTP latency, channel limits, agent authentication, OpenSSH config resolution and host-key rejection. `TestLiveScan` scans a real server when `SSE_LIVE_HOST` is set; it trusts the host key it is shown, so use it only with a server you already trust.
+Run `go test ./...` and `node ui_test.cjs`. The tests use local test servers and temporary folders. On Windows they also sample this PC, end a test process, and check that protected processes and reused process IDs are refused. The Linux monitor tests run the activity monitor over SSH, check its samples, end a process, and check that stale PIDs, protected processes and unprivileged cache requests are refused. Tests marked Linux verify the remote Python report against the existing tree builder, on-demand folder views, remote permission errors and cancellation, and run the streamed `find` script with zstd, gzip and no compression, plus the SFTP fallback, permission errors, progress and cancellation. They also cover SFTP latency, channel limits, agent authentication, OpenSSH config resolution and host-key rejection. `TestLiveScan` scans a real server when `SSE_LIVE_HOST` is set; it trusts the host key it is shown, so use it only with a server you already trust.

@@ -204,6 +204,105 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
 @keyframes fade{from{opacity:0}}
 @keyframes rise{from{opacity:0;transform:translateY(8px) scale(.98)}}
 
+/* Computer choice and drive picker */
+#connect.is-local .remote-only,#connect:not(.is-local) .local-only{display:none!important}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:3px;border:1px solid var(--line);border-radius:8px;background:var(--raised)}
+.seg label{display:block;cursor:pointer}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:flex;align-items:center;justify-content:center;gap:7px;height:30px;border-radius:6px;color:var(--text-2);font-size:12.5px;font-weight:500}
+.seg label:hover span{color:var(--text);background:var(--hover)}
+.seg input:checked+span{background:var(--surface);color:var(--text);box-shadow:0 1px 2px #0003,0 0 0 1px var(--line-2)}
+.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:1px}
+.field-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.field-head span{font-size:11.5px;color:var(--text-3)}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font-size:11.5px}
+.linkbtn:hover{text-decoration:underline}
+.drives{display:flex;flex-direction:column;gap:6px}
+.drive{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;gap:4px 10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--raised);cursor:pointer;font-weight:400;color:var(--text)}
+.drive:hover{border-color:var(--line-2)}
+.drive:has(input:checked){border-color:color-mix(in srgb,var(--accent),transparent 50%);background:var(--accent-soft)}
+.drive input{margin:0;width:15px;height:15px;accent-color:var(--accent)}
+.drive .dname{min-width:0;display:flex;flex-direction:column}
+.drive b{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drive small{color:var(--text-3);font-size:11px;font-variant-numeric:tabular-nums}
+.drive .meter{grid-column:3;height:5px}
+.drive svg.i{color:var(--text-2)}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;padding:3px;margin-left:10px;border:1px solid var(--line);border-radius:8px;background:var(--raised)}
+.tab{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;border:0;border-radius:6px;background:none;color:var(--text-2);cursor:pointer;font-weight:500;white-space:nowrap}
+.tab:hover{color:var(--text);background:var(--hover)}
+.tab[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:0 1px 2px #0003,0 0 0 1px var(--line-2)}
+.tab .live{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+
+/* Activity monitor. Chart series colours were checked for colour-blind separation on both surfaces. */
+:root{--s1:#4f8ff7;--s2:#d9692f}
+@media (prefers-color-scheme:light){:root{--s1:#0a6fc2;--s2:#c2571a}}
+.activity{min-width:0;min-height:0;overflow:auto;padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
+.activity .toolbar{padding-bottom:0}
+.act-title{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;padding:2px 6px}
+.priv{display:inline-flex;align-items:center;gap:4px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:600;line-height:18px;background:var(--hover);color:var(--text-2)}
+.priv[data-level=root],.priv[data-level=sudo],.priv[data-level=sudo-password]{background:var(--accent-soft);color:var(--accent)}
+.notice{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text-2);font-size:12.5px}
+.notice::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.notice.busy::before{width:12px;height:12px;background:none;border:2px solid var(--accent-soft);border-top-color:var(--accent);animation:spin .8s linear infinite}
+.notice.error{color:var(--danger);border-color:color-mix(in srgb,var(--danger),transparent 70%)}
+.notice.error::before{background:var(--danger)}
+.notice span{flex:1;overflow-wrap:anywhere}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tile{min-width:0;display:flex;flex-direction:column;gap:1px;padding:12px 14px 10px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.tile h3,.panel-title{margin:0;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--text-3)}
+.tile h3 .keys{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500}
+.tile .big{font-size:24px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .sub{color:var(--text-2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.spark{position:relative;height:48px;margin-top:8px}
+.spark canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.stip{position:absolute;top:-6px;transform:translate(-50%,-100%);padding:4px 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);box-shadow:var(--shadow);font-size:11.5px;white-space:nowrap;pointer-events:none;z-index:2;font-variant-numeric:tabular-nums}
+.key{display:inline-flex;align-items:center;gap:5px;color:var(--text-2);font-size:11.5px;white-space:nowrap}
+.key i{width:8px;height:8px;border-radius:2px;flex:none}
+.act-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.act-grid .panel,.procs{overflow:visible}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px 14px;flex-wrap:wrap;min-height:44px;padding:7px 12px 7px 14px;border-bottom:1px solid var(--line);background:var(--raised);border-radius:10px 10px 0 0}
+.panel-head small{font-size:12px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panel-body{display:flex;flex-direction:column;gap:12px;padding:12px 14px 14px}
+.meter{display:flex;gap:2px;height:8px;border-radius:4px;background:var(--line-2);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--s1);border-radius:4px;min-width:0}
+.meter i.s2{background:var(--s2)}
+.keyrow{display:flex;flex-wrap:wrap;gap:4px 14px}
+.kvs{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px 14px}
+.kvs div{display:flex;flex-direction:column;min-width:0}
+.kvs span{font-size:11px;color:var(--text-3)}
+.kvs b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cores{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:7px 10px}
+.core{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.core div{display:flex;justify-content:space-between}
+.core .meter{height:6px}
+.gpu{display:flex;flex-direction:column;gap:8px}
+.gpu+.gpu{padding-top:12px;border-top:1px solid var(--line)}
+.gpu b{font-weight:600}
+.meterline{display:grid;grid-template-columns:70px minmax(0,1fr) 120px;align-items:center;gap:10px;font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.meterline span:last-child{text-align:right}
+.muted{color:var(--text-3);margin:0}
+.mini{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.mini th{text-align:right;font-size:11px;font-weight:600;color:var(--text-3);padding:0 0 6px}
+.mini td{text-align:right;padding:5px 0;border-top:1px solid var(--line);color:var(--text-2)}
+.mini th:first-child,.mini td:first-child{text-align:left;color:var(--text)}
+.mini th+th,.mini td+td{padding-left:14px;white-space:nowrap}
+.procs .listing{max-height:480px;border-radius:0 0 10px 10px}
+.procs col.c-pid{width:80px}.procs col.c-user{width:110px}.procs col.c-cpu{width:80px}.procs col.c-mem{width:120px}.procs col.c-act{width:160px}
+.procs td.left,.procs th.left{text-align:left!important}
+.procs .cmd{color:var(--text-3);font-family:var(--mono);font-size:11px;overflow:hidden;text-overflow:ellipsis}
+.procs .name{flex-direction:column;align-items:flex-start;gap:0;justify-content:center}
+.procs .name span{max-width:100%}
+.procs td{height:40px}
+.procs .acts{display:flex;justify-content:flex-end;gap:6px}
+.procs .acts .btn{height:26px;padding:0 9px;font-size:12px}
+.filter{width:200px!important;height:30px!important}
+.dialog .shield.danger{background:var(--danger-soft);color:var(--danger)}
+.btn.primary.danger{background:var(--danger);color:#fff}
+.btn.primary.danger:hover:not(:disabled){background:color-mix(in srgb,var(--danger),#000 12%)}
+@media (max-width:1150px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.act-grid{grid-template-columns:minmax(0,1fr)}}
+
 ::-webkit-scrollbar{width:12px;height:12px}
 ::-webkit-scrollbar-thumb{background:var(--line-2);border:3px solid transparent;background-clip:padding-box;border-radius:6px}
 ::-webkit-scrollbar-thumb:hover{background-color:var(--text-3)}
@@ -223,13 +322,24 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
   <symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 1.75 2.75 3.75v4c0 3.1 2.2 5.4 5.25 6.5 3.05-1.1 5.25-3.4 5.25-6.5v-4z"/><path d="M8 5.25v3M8 10.75h.01"/></symbol>
   <symbol id="i-panel" viewBox="0 0 16 16"><rect x="1.75" y="2.5" width="12.5" height="11" rx="1.5"/><path d="M6 2.5v11"/></symbol>
   <symbol id="i-scan" viewBox="0 0 16 16"><path d="M2 5V3.25C2 2.56 2.56 2 3.25 2H5M11 2h1.75c.69 0 1.25.56 1.25 1.25V5M14 11v1.75c0 .69-.56 1.25-1.25 1.25H11M5 14H3.25C2.56 14 2 13.44 2 12.75V11M5 8h6"/></symbol>
+  <symbol id="i-pc" viewBox="0 0 16 16"><rect x="1.75" y="2.5" width="12.5" height="8.5" rx="1.2"/><path d="M5.5 13.75h5M8 11v2.75"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 16 16"><path d="M1.5 8.5h3l2-5 3 9 2-4h3"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/><rect x="6" y="6" width="4" height="4" rx=".5"/><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"/></symbol>
+  <symbol id="i-mem" viewBox="0 0 16 16"><rect x="1.75" y="4.5" width="12.5" height="6" rx="1"/><path d="M4.5 10.5v2M7 10.5v2M9.5 10.5v2M12 10.5v2M4.5 6.75v1.5M7 6.75v1.5M9.5 6.75v1.5"/></symbol>
+  <symbol id="i-gpu" viewBox="0 0 16 16"><rect x="1.75" y="4" width="12.5" height="7.5" rx="1.2"/><circle cx="9.5" cy="7.75" r="2"/><path d="M4 6.5v2.5M3.5 11.5v2"/></symbol>
+  <symbol id="i-net" viewBox="0 0 16 16"><path d="M5 2.5v10M2.5 10 5 12.5 7.5 10M11 13.5v-10M8.5 6 11 3.5 13.5 6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01"/></symbol>
   <symbol id="i-map" viewBox="0 0 16 16"><rect x="1.75" y="1.75" width="12.5" height="12.5" rx="1.5"/><path d="M8.5 1.75v12.5M8.5 8h5.75M1.75 9.5H8.5M11.5 8v6.25"/></symbol>
 </svg>
 
 <header class="titlebar">
   <div class="brand">
     <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="#5ab8ff"/><rect x="5" y="5" width="8" height="14" rx="1.5" fill="#04182a" opacity=".9"/><rect x="14.5" y="5" width="4.5" height="8" rx="1.5" fill="#04182a" opacity=".65"/><rect x="14.5" y="14.5" width="4.5" height="4.5" rx="1.5" fill="#04182a" opacity=".4"/></svg>
-    <h1>KamkmDirStat</h1><small>Remote disk usage over SSH</small>
+    <h1>KamkmDirStat</h1><small>Disk usage and activity, on this PC or over SSH</small>
+  </div>
+  <div class="tabs" role="tablist" aria-label="View">
+    <button class="tab" id="tabStorage" type="button" role="tab" aria-selected="true" aria-controls="workspace" title="Storage (Ctrl+1)"><svg class="i"><use href="#i-drive"/></svg>Storage</button>
+    <button class="tab" id="tabActivity" type="button" role="tab" aria-selected="false" aria-controls="activity" title="Activity (Ctrl+2)"><svg class="i"><use href="#i-pulse"/></svg>Activity<i class="live hidden" id="liveDot" title="Monitoring"></i></button>
   </div>
   <div class="conn" id="conn" data-state="idle" title="Connection"><i class="dot"></i><span id="connText">Not connected</span></div>
   <button class="icon-btn" id="toggleSide" type="button" aria-pressed="true" aria-controls="side" title="Show or hide the connection panel (Ctrl+B)"><svg class="i"><use href="#i-panel"/></svg></button>
@@ -239,13 +349,20 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
 <aside id="side"><div class="side-inner">
   <form id="connect" class="section" style="gap:16px">
     <div class="section">
+      <h2 class="section-title">Computer</h2>
+      <div class="seg" role="radiogroup" aria-label="Computer to inspect">
+        <label><input type="radio" name="target" id="targetLocal" value="local" checked><span><svg class="i"><use href="#i-pc"/></svg>This PC</span></label>
+        <label><input type="radio" name="target" id="targetRemote" value="remote"><span><svg class="i"><use href="#i-server"/></svg>SSH server</span></label>
+      </div>
+    </div>
+    <div class="section remote-only" id="serverSection">
       <h2 class="section-title">Server</h2>
       <div class="field"><label for="host">Host</label>
         <div class="pair"><div class="input"><svg class="i"><use href="#i-server"/></svg><input id="host" placeholder="SSH alias or hostname" required autocomplete="off" spellcheck="false"></div><input id="port" aria-label="Port override" placeholder="Port" inputmode="numeric"></div></div>
       <div class="field"><label for="user">Username <span class="opt">· optional</span></label>
         <div class="input"><svg class="i"><use href="#i-user"/></svg><input id="user" placeholder="From SSH config" autocomplete="username" spellcheck="false"></div></div>
     </div>
-    <div class="section">
+    <div class="section remote-only" id="authSection">
       <h2 class="section-title">Authentication</h2>
       <div class="field"><label for="method">Method</label><select id="method"><option value="auto">SSH config and agent</option><option value="password">Password</option><option value="key">Private key file</option></select></div>
       <div id="passwordFields" class="field hidden"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>
@@ -255,12 +372,23 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
       </div>
     </div>
     <div class="section">
-      <h2 class="section-title">Scan</h2>
-      <div class="field"><label for="path">Remote folder</label><div class="input"><svg class="i"><use href="#i-folder"/></svg><input id="path" value="/" required spellcheck="false"></div></div>
-      <label class="switch"><input id="skipVirtual" type="checkbox" checked><span><b>Stay on this file system</b><small>Skips /proc, /sys, /dev and other mounts</small></span></label>
+      <h2 class="section-title">Open</h2>
+      <label class="switch"><input id="wantScan" type="checkbox" checked><span><b>Disk usage scan</b><small>Folder sizes and the storage map</small></span></label>
+      <div id="scanFields" class="section">
+        <div class="section local-only" id="localFields">
+          <div class="field"><div class="field-head"><label id="drivesLabel">Drives</label><span><button class="linkbtn" id="allDrives" type="button">All</button> · <button class="linkbtn" id="noDrives" type="button">None</button> · <button class="linkbtn" id="refreshDrives" type="button" title="Look for drives again">Refresh</button></span></div>
+            <div class="drives" id="drives" role="group" aria-labelledby="drivesLabel"><p class="hint">Looking for drives…</p></div></div>
+          <div class="field"><label for="localFolder">Or one folder <span class="opt">· optional, replaces the drives</span></label><div class="input"><svg class="i"><use href="#i-folder"/></svg><input id="localFolder" placeholder="C:\Users\you\Downloads" spellcheck="false"></div></div>
+        </div>
+        <div class="section remote-only">
+          <div class="field"><label for="path">Remote folder</label><div class="input"><svg class="i"><use href="#i-folder"/></svg><input id="path" value="/" spellcheck="false"></div></div>
+          <label class="switch"><input id="skipVirtual" type="checkbox" checked><span><b>Stay on this file system</b><small>Skips /proc, /sys, /dev and other mounts</small></span></label>
+        </div>
+      </div>
+      <label class="switch"><input id="wantMonitor" type="checkbox" checked><span><b>Live activity monitor</b><small>CPU, memory, GPU, network and processes</small></span></label>
     </div>
     <div class="section" style="gap:8px">
-      <button class="btn primary block" id="submit" type="submit"><svg class="i"><use href="#i-scan"/></svg>Connect and scan</button>
+      <button class="btn primary block" id="submit" type="submit"><svg class="i"><use href="#i-scan"/></svg><span id="submitLabel">Connect and open</span></button>
       <button class="btn danger block hidden" id="cancelScanButton" type="button">Cancel scan</button>
     </div>
   </form>
@@ -268,7 +396,7 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
     <div id="status" class="status" role="status" aria-live="polite"></div>
     <div id="progress" class="progress hidden" aria-hidden="true"><i id="progressFill"></i></div>
   </div>
-  <p class="privacy"><svg class="i"><use href="#i-lock"/></svg><span>Credentials are used for this scan only and are never saved. Sizes are listed with <code>find</code> (or SFTP); file contents are never read.</span></p>
+  <p class="privacy"><svg class="i"><use href="#i-lock"/></svg><span>Nothing is uploaded and file contents are never read. SSH credentials are used for this session only and are never saved.</span></p>
 </div></aside>
 
 <main id="workspace" class="idle">
@@ -282,9 +410,9 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
   <section class="panel list"><div class="listing" id="listing">
     <div class="empty welcome">
       <svg class="art" viewBox="0 0 190 120" aria-hidden="true"><rect x="1" y="1" width="188" height="118" rx="10" fill="none" stroke="currentColor" opacity=".35"/><rect x="10" y="10" width="92" height="100" rx="5" fill="#5ab8ff" opacity=".85"/><rect x="108" y="10" width="72" height="56" rx="5" fill="#e8744f" opacity=".85"/><rect x="108" y="72" width="40" height="38" rx="5" fill="#4cc38a" opacity=".85"/><rect x="154" y="72" width="26" height="20" rx="4" fill="#e6b640" opacity=".85"/><rect x="154" y="97" width="26" height="13" rx="3" fill="#a77ee8" opacity=".85"/></svg>
-      <h2>See what is filling your server</h2>
-      <p>Enter an SSH host and folder on the left. The scan runs on the server, then you can browse folders by size and explore the storage map.</p>
-      <div class="steps"><div><b>1</b>Connect with your SSH config, a password or a key.</div><div><b>2</b>Verify the server's host-key fingerprint.</div><div><b>3</b>Click folders in the list or map to drill in.</div></div>
+      <h2>See what is filling your drives</h2>
+      <p>Pick drives on this PC, or connect to an SSH server, using the panel on the left. Then browse folders by size and explore the storage map.</p>
+      <div class="steps"><div><b>1</b>Choose This PC and its drives, or an SSH server.</div><div><b>2</b>For a server, verify its host-key fingerprint.</div><div><b>3</b>Click folders in the list or map to drill in.</div></div>
     </div>
   </div></section>
   <div class="splitter" id="splitter" role="separator" aria-orientation="horizontal" aria-label="Resize list and map" tabindex="0"></div>
@@ -293,9 +421,57 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
     <div class="treemap" id="treemap"><canvas id="map" aria-label="Storage map"></canvas><div id="hoverBox" class="hover hidden"></div><div id="tip" class="tip hidden"></div><div class="empty" id="mapEmpty">The map will show how space is distributed.</div></div>
   </section>
 </main>
+
+<main id="activity" class="activity hidden" role="tabpanel" aria-labelledby="tabActivity">
+  <div class="toolbar">
+    <div class="where">
+      <h2 class="act-title"><span id="actHost">No server</span><span class="priv hidden" id="actPriv"></span></h2>
+      <p id="actSub" class="muted" style="margin:2px 0 0 6px;font-size:12px">Not monitoring.</p>
+    </div>
+    <button class="btn sm hidden" id="elevateButton" type="button" title="Opens a new window with administrator rights and closes this one. Current results are not kept."><svg class="i"><use href="#i-shield"/></svg>Restart as administrator</button>
+    <button class="btn sm hidden" id="stopMonitorButton" type="button">Stop monitoring</button>
+  </div>
+  <div class="notice hidden" id="actNotice" role="status" aria-live="polite"><span id="actNoticeText"></span><button class="icon-btn" id="actNoticeClose" type="button" title="Dismiss" style="width:24px;height:24px">✕</button></div>
+  <div class="empty welcome" id="actEmpty">
+    <svg class="art" viewBox="0 0 190 120" aria-hidden="true"><rect x="1" y="1" width="188" height="118" rx="10" fill="none" stroke="currentColor" opacity=".35"/><path d="M12 84 34 70 52 78 74 40 96 58 118 30 140 50 160 44 178 60" fill="none" stroke="#5ab8ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 100 40 96 66 98 92 90 120 94 150 86 178 90" fill="none" stroke="#d9692f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h2>Watch what the computer is doing</h2>
+    <p>Turn on <b>Live activity monitor</b> and start, for this PC or an SSH server. CPU, memory, GPU and network use update every second, and you can end your own processes. As administrator on Windows, or with root or sudo on a server, you can also end other users' processes and free the memory cache.</p>
+  </div>
+  <div id="actBody" class="hidden" style="display:flex;flex-direction:column;gap:12px">
+    <div class="tiles">
+      <div class="tile"><h3><svg class="i"><use href="#i-cpu"/></svg>CPU</h3><div class="big" id="tCpu">–</div><div class="sub" id="tCpuSub"></div><div class="spark"><canvas id="sCpu" aria-label="CPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
+      <div class="tile"><h3><svg class="i"><use href="#i-mem"/></svg>Memory</h3><div class="big" id="tMem">–</div><div class="sub" id="tMemSub"></div><div class="spark"><canvas id="sMem" aria-label="Memory use over the last minute"></canvas><div class="stip hidden"></div></div></div>
+      <div class="tile"><h3><svg class="i"><use href="#i-gpu"/></svg>GPU</h3><div class="big" id="tGpu">–</div><div class="sub" id="tGpuSub"></div><div class="spark"><canvas id="sGpu" aria-label="GPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
+      <div class="tile"><h3><svg class="i"><use href="#i-net"/></svg>Network<span class="keys"><span class="key"><i style="background:var(--s1)"></i>In</span> &nbsp;<span class="key"><i style="background:var(--s2)"></i>Out</span></span></h3><div class="big" id="tNet">–</div><div class="sub" id="tNetSub"></div><div class="spark"><canvas id="sNet" aria-label="Network traffic over the last minute"></canvas><div class="stip hidden"></div></div></div>
+    </div>
+    <div class="act-grid">
+      <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-cpu"/></svg>Processor <small id="cpuModel"></small></h3></div><div class="panel-body" id="cpuPanel"></div></section>
+      <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-mem"/></svg>Memory</h3><button class="btn sm hidden" id="freeCacheButton" type="button">Free cache</button></div><div class="panel-body" id="memPanel"></div></section>
+      <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-gpu"/></svg>Graphics</h3></div><div class="panel-body" id="gpuPanel"></div></section>
+      <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-net"/></svg>Network interfaces</h3></div><div class="panel-body" id="netPanel"></div></section>
+    </div>
+    <section class="panel procs">
+      <div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-list"/></svg>Processes <small id="procCount"></small></h3><input id="procFilter" class="filter" type="search" placeholder="Filter by name, user, PID" aria-label="Filter processes" spellcheck="false"></div>
+      <div class="listing" id="procList"></div>
+    </section>
+  </div>
+</main>
 </div>
 
-<footer class="statusbar"><span id="footer">Ready</span><span class="keys"><kbd>Backspace</kbd> up a folder &nbsp; <kbd>Ctrl</kbd>+<kbd>B</kbd> panel</span></footer>
+<footer class="statusbar"><span id="footer">Ready</span><span class="keys"><kbd>Backspace</kbd> up a folder &nbsp; <kbd>Ctrl</kbd>+<kbd>1</kbd>/<kbd>2</kbd> view &nbsp; <kbd>Ctrl</kbd>+<kbd>B</kbd> panel</span></footer>
+
+<div id="confirm" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <form class="dialog" id="confirmForm">
+    <div class="dialog-body">
+      <div class="shield danger"><svg class="i"><use href="#i-shield"/></svg></div>
+      <h2 id="confirmTitle"></h2>
+      <p id="confirmText"></p>
+      <div class="kv hidden" id="confirmDetailBox"><span>Process</span><code id="confirmDetail"></code></div>
+      <div class="field hidden" id="sudoField"><label for="sudoPassword" id="sudoLabel">sudo password</label><input id="sudoPassword" type="password" autocomplete="off"><p class="hint">Sent to <code>sudo</code> on the server for this action only. It is not saved.</p></div>
+    </div>
+    <div class="dialog-foot"><button class="btn" id="confirmCancel" type="button">Cancel</button><button class="btn primary danger" id="confirmOk" type="submit">Confirm</button></div>
+  </form>
+</div>
 
 <div id="trust" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="trustTitle">
   <div class="dialog">
@@ -321,9 +497,56 @@ function status(message,error=false,busy=false){$('status').textContent=message;
 function conn(state,text){$('conn').dataset.state=state;$('connText').textContent=text}
 function showTrust(on){$('trust').classList.toggle('hidden',!on);if(on)$('reject').focus()}
 $('method').onchange=()=>{let key=$('method').value==='key';$('passwordFields').classList.toggle('hidden',$('method').value!=='password');$('keyFields').classList.toggle('hidden',!key)};
-function connection(){let method=$('method').value,key=method==='key';return {method,host:$('host').value.trim(),port:$('port').value.trim(),user:$('user').value.trim(),password:method==='password'?$('password').value:'',keyFile:key?$('keyFile').value.trim():'',passphrase:key?$('passphrase').value:'',path:$('path').value.trim()||'/',skipVirtual:$('skipVirtual').checked,serverReport:true}}
+let target='local',drives=[];
+try{if(localStorage.getItem('kamkm.target')==='remote')target='remote'}catch(e){}
+function selectedDrives(){return drives.filter(d=>d.checked).map(d=>d.path)}
+function connection(){
+  if(target==='local'){const folder=$('localFolder').value.trim();return {local:true,paths:folder?[folder]:selectedDrives()}}
+  let method=$('method').value,key=method==='key';return {method,host:$('host').value.trim(),port:$('port').value.trim(),user:$('user').value.trim(),password:method==='password'?$('password').value:'',keyFile:key?$('keyFile').value.trim():'',passphrase:key?$('passphrase').value:'',path:$('path').value.trim()||'/',skipVirtual:$('skipVirtual').checked,serverReport:true}
+}
+function syncTools(){
+  const scan=!!$('wantScan').checked,mon=!!$('wantMonitor').checked,local=target==='local';
+  $('connect').classList.toggle('is-local',local);$('targetLocal').checked=local;$('targetRemote').checked=!local;
+  $('scanFields').classList.toggle('hidden',!scan);$('path').required=scan&&!local;$('host').required=!local;
+  $('submitLabel').textContent=!scan&&!mon?'Choose what to open':local?(scan&&mon?'Scan and monitor':scan?'Scan':'Start monitoring'):(scan&&mon?'Connect and open':scan?'Connect and scan':'Connect and monitor');
+}
+function setTarget(t){target=t;try{localStorage.setItem('kamkm.target',t)}catch(e){}syncTools();if(t==='local'&&!drives.length)loadDrives()}
+$('targetLocal').onchange=()=>setTarget('local');$('targetRemote').onchange=()=>setTarget('remote');
+$('wantScan').onchange=syncTools;$('wantMonitor').onchange=syncTools;
+function driveName(d){return d.path.replace(/\\$/,'')+(d.label?' '+d.label:'')}
+async function loadDrives(){
+  if(typeof listDrives!=='function')return;
+  try{
+    const list=await listDrives()||[],was=new Map(drives.map(d=>[d.path,d.checked]));
+    // Fixed drives start selected; removable, network and optical drives do not.
+    drives=list.map(d=>({...d,checked:was.has(d.path)?was.get(d.path):d.kind==='fixed'}));
+    renderDrives();
+  }catch(e){$('drives').replaceChildren(el('p','hint',String(e)))}
+}
+function renderDrives(){
+  const box=$('drives');
+  if(!drives.length){box.replaceChildren(el('p','hint','No drives found. Enter a folder below instead.'));return}
+  box.replaceChildren(...drives.map(d=>{
+    const row=el('label','drive'),cb=el('input'),name=el('span','dname'),used=d.total-d.free,kind={removable:' · removable',network:' · network',optical:' · disc',ram:' · RAM disk'}[d.kind]||'';
+    cb.type='checkbox';cb.checked=d.checked;cb.onchange=()=>{d.checked=cb.checked};
+    name.append(el('b','',driveName(d)),el('small','',`${size(d.free)} free of ${size(d.total)}${kind}`));
+    row.title=`${d.path} · ${d.fileSystem||'unknown file system'} · ${pct(used,d.total)} used`;
+    row.append(cb,icon(d.kind==='network'?'server':'drive'),name,el('span'),meter([[d.total?100*used/d.total:0]]));
+    return row;
+  }));
+}
+$('allDrives').onclick=()=>{drives.forEach(d=>d.checked=true);renderDrives()};
+$('noDrives').onclick=()=>{drives.forEach(d=>d.checked=false);renderDrives()};
+$('refreshDrives').onclick=loadDrives;
 $('connect').onsubmit=async e=>{
-  e.preventDefault();showTrust(false);$('submit').disabled=true;
+  e.preventDefault();
+  if(!$('wantScan').checked&&!$('wantMonitor').checked){status('Turn on the disk usage scan, the activity monitor, or both.',true);return}
+  if(target==='local'){
+    const c=connection();
+    if($('wantScan').checked&&!c.paths.length){status('Choose at least one drive, or enter a folder.',true);return}
+    $('submit').disabled=true;await begin(c,'This PC');return;
+  }
+  showTrust(false);$('submit').disabled=true;
   const req=connection();
   status('Contacting server and checking its host key…',false,true);conn('busy','Connecting to '+req.host+'…');
   try{
@@ -339,16 +562,21 @@ $('connect').onsubmit=async e=>{
   }catch(e){status(String(e),true);conn('error','Connection failed');$('submit').disabled=false}
 };
 $('reject').onclick=()=>{pending=null;showTrust(false);$('submit').disabled=false;status('Connection cancelled.');conn('idle','Not connected')};
-$('accept').onclick=async()=>{
-  let c=pending;pending=null;showTrust(false);status('Connecting and starting the scan…',false,true);
-  const who=c.user+'@'+c.host+(c.port&&c.port!=='22'?':'+c.port:'');
+$('accept').onclick=()=>{const c=pending;pending=null;showTrust(false);begin(c,c.user+'@'+c.host+(c.port&&c.port!=='22'?':'+c.port:''))};
+// begin starts the chosen tools once the computer is chosen and, for a server, trusted.
+async function begin(c,who){
+  const scanOn=$('wantScan').checked,monOn=$('wantMonitor').checked,local=!!c.local;
+  status(scanOn?(local?'Starting the scan…':'Connecting and starting the scan…'):(local?'Starting the monitor…':'Connecting and starting the monitor…'),false,true);
+  $('connText').dataset.who=who;
   try{
+    if(monOn){await startMonitor(c);beginMonitor(who)}else if(monitorPoll)await endMonitor('Monitoring stopped.');
+    if(!scanOn){$('password').value='';$('passphrase').value='';$('submit').disabled=false;status('Monitoring '+who+'.');conn('busy',(local?'Starting monitor · ':'Connecting monitor · ')+who);setTab('activity');return}
     await startScan(c);$('password').value='';$('passphrase').value='';$('cancelScanButton').classList.remove('hidden');
     viewId=0;lastView=null;mode='';tick=0;conn('busy','Scanning '+who);
-    placeholder('Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
-    $('connText').dataset.who=who;poll=setInterval(pollScan,500);
-  }catch(e){$('submit').disabled=false;status(String(e),true);conn('error','Connection failed')}
-};
+    placeholder(local?'Scanning this PC…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
+    setTab('storage');poll=setInterval(pollScan,500);
+  }catch(e){$('submit').disabled=false;status(String(e),true);conn('error',local?'Could not start':'Connection failed')}
+}
 $('cancelScanButton').onclick=async()=>{try{await cancelScan();status('Cancelling scan…',false,true)}catch(e){status(String(e),true)}};
 function goUp(){if(lastView&&lastView.trail.length>1)go(lastView.trail[lastView.trail.length-2].id)}
 $('up').onclick=goUp;
@@ -356,9 +584,11 @@ $('toggleSide').onclick=()=>{const on=$('layout').classList.toggle('collapsed');
 document.onkeydown=e=>{
   const t=e.target,typing=t&&(t.tagName==='INPUT'||t.tagName==='SELECT'||t.tagName==='TEXTAREA');
   if(!$('trust').classList.contains('hidden')){if(e.key==='Escape')$('reject').click();return}
+  if(!$('confirm').classList.contains('hidden')){if(e.key==='Escape')$('confirmCancel').click();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();$('toggleSide').click();return}
+  if((e.ctrlKey||e.metaKey)&&(e.key==='1'||e.key==='2')){e.preventDefault();setTab(e.key==='1'?'storage':'activity');return}
   if(typing)return;
-  if(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp')){e.preventDefault();goUp()}
+  if(tab==='storage'&&(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp'))){e.preventDefault();goUp()}
 };
 function finishScan(){clearInterval(poll);poll=null;$('cancelScanButton').classList.add('hidden');$('submit').disabled=false;$('progress').classList.add('hidden')}
 // Remote reports publish only on completion. Streaming fallbacks can redraw partial results.
@@ -368,9 +598,9 @@ async function pollScan(){
     const s=await scanStatus(),p=s.progress||{};
     mode=s.mode||p.mode||mode;
     if(s.running){
-      const pc=p.expected?Math.min(99,Math.floor(100*(p.entries||0)/p.expected)):null;
+      const pc=p.expectedBytes?Math.min(99,Math.floor(100*(p.bytes||0)/p.expectedBytes)):p.expected?Math.min(99,Math.floor(100*(p.entries||0)/p.expected)):null;
       $('progress').classList.remove('hidden');$('progress').classList.toggle('indeterminate',pc===null);$('progressFill').style.width=(pc===null?0:pc)+'%';
-      status(s.cancelling?'Cancelling scan…':(p.files||p.directories)?`Scanning${mode==='remote'?' on the server':mode==='sftp'?' over SFTP (slower)':''}${pc!==null?' · about '+pc+'%':''}\n${count(p.files)} files · ${count(p.directories)} folders · ${size(p.bytes)}`+(p.currentPath?'\n'+p.currentPath:''):'Connected. Waiting for the server to list files…',false,true);
+      status(s.cancelling?'Cancelling scan…':(p.files||p.directories)?`Scanning${mode==='remote'?' on the server':mode==='sftp'?' over SFTP (slower)':mode==='local'?' this PC':''}${pc!==null?' · about '+pc+'%':''}\n${count(p.files)} files · ${count(p.directories)} folders · ${size(p.bytes)}`+(p.currentPath?'\n'+p.currentPath:''):'Connected. Waiting for the server to list files…',false,true);
       const d=document.getElementById('scanDetail');if(d)d.textContent=(p.files||p.directories)?`${count(p.files)} files · ${count(p.directories)} folders · ${size(p.bytes)}${pc!==null?' · about '+pc+'%':''}`:'';
       if(mode!=='remote'&&tick++%3===0&&(p.files||p.directories))refresh();
       return;
@@ -381,7 +611,7 @@ async function pollScan(){
     if(s.cancelled){status(mode==='remote'?'Remote scan cancelled. No completed report was downloaded.':'Scan cancelled. Showing what was found before cancelling.');conn('warn','Cancelled · '+who)}
     else if(s.error){status(s.error+(s.files?'\nShowing partial results.':''),true);conn('error','Scan failed · '+who)}
     else{status(s.errorCount?`Scan finished${took}. ${count(s.errorCount)} paths could not be read.`:`Scan complete${took}.`);conn(s.errorCount?'warn':'ok',who)}
-    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
+    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local'?'(file sizes) · scanned on this PC':mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
   }catch(e){finishScan();status(String(e),true);conn('error','Disconnected')}
   finally{polling=false}
 }
@@ -543,4 +773,235 @@ $('splitter').onpointerdown=e=>{
 $('splitter').onkeydown=e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setSplit(splitFraction()+(e.key==='ArrowUp'?-.04:.04))}};
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(redraw,150)});
 if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(redraw,80)}).observe($('treemap'));
+
+// ---- Activity monitor ----
+// The server sends one sample a second. The page keeps the last minute for the sparklines.
+let tab='storage',monitorPoll=null,monitorPolling=false,monitorOwnsConn=false,lastSeq=-1,hello=null,sample=null,actionId=0,procSort={key:'cpu',dir:-1},procFilter='',confirmResolve=null;
+const pendingActions=new Map(),HISTORY=60,hist={cpu:[],mem:[],gpu:[],rx:[],tx:[]},sparks={};
+const rate=n=>size(n)+'/s';
+const pct0=n=>n===null||n===undefined||isNaN(n)?'–':Math.round(n)+'%';
+function duration(s){s=Math.floor(s||0);const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d} d ${h} h`:h?`${h} h ${m} min`:`${m} min`}
+const PRIVILEGE={root:['root','Connected as root: you can end any process and free the cache.'],sudo:['sudo','This account can use sudo without a password: you can end any process and free the cache.'],'sudo-password':['sudo','This account is an administrator. You are asked for its sudo password to end other users\' processes or free the cache.'],none:['standard user','You can end your own processes. Connect as root or a sudo user to end others or free the cache.'],admin:['administrator','Running as administrator: you can end other users\' processes and free the cache.']};
+const onWindows=()=>!!hello&&hello.platform==='windows';
+function privilegeInfo(){const p=privilegeOf();if(p==='none'&&onWindows())return ['standard user','You can end your own processes. Restart as administrator to end others or free the cache.'];return PRIVILEGE[p]||PRIVILEGE.none}
+function privilegeOf(){return hello&&hello.privilege||'none'}
+function canEnd(p,priv){return !!p&&!p.kernel&&!p.protected&&(p.own||priv==='root'||priv==='sudo'||priv==='sudo-password'||priv==='admin')}
+function needsSudoPassword(p,priv){return priv==='sudo-password'&&(!p||!p.own)}
+function canFreeCache(priv){return priv==='root'||priv==='sudo'||priv==='sudo-password'||priv==='admin'}
+function pushHist(k,v){const a=hist[k];a.push(v);if(a.length>HISTORY)a.shift()}
+function gpuAverage(s){const u=(s.gpus||[]).map(g=>g.util).filter(v=>typeof v==='number');return u.length?u.reduce((a,b)=>a+b,0)/u.length:null}
+function netTotals(s){let rx=0,tx=0;for(const n of s.network||[]){rx+=n.rx||0;tx+=n.tx||0}return [rx,tx]}
+function record(s){
+  const m=s.memory||{},[rx,tx]=netTotals(s);
+  pushHist('cpu',s.cpu?s.cpu.total:0);pushHist('mem',m.total?100*m.used/m.total:0);pushHist('gpu',gpuAverage(s));pushHist('rx',rx);pushHist('tx',tx);
+}
+function setTab(t){
+  tab=t;$('workspace').classList.toggle('hidden',t!=='storage');$('activity').classList.toggle('hidden',t!=='activity');
+  $('tabStorage').setAttribute('aria-selected',String(t==='storage'));$('tabActivity').setAttribute('aria-selected',String(t==='activity'));
+  if(t==='storage')setTimeout(redraw,0);else setTimeout(drawSparks,0);
+}
+$('tabStorage').onclick=()=>setTab('storage');$('tabActivity').onclick=()=>setTab('activity');
+function notice(text,kind){const n=$('actNotice');$('actNoticeText').textContent=text;n.classList.toggle('error',kind==='error');n.classList.toggle('busy',kind==='busy');n.classList.toggle('hidden',!text)}
+$('actNoticeClose').onclick=()=>notice('');
+function beginMonitor(who){
+  clearInterval(monitorPoll);hello=null;sample=null;lastSeq=-1;for(const k in hist)hist[k]=[];pendingActions.clear();
+  monitorOwnsConn=!$('wantScan').checked;
+  $('actHost').textContent=who;$('actPriv').classList.add('hidden');$('elevateButton').classList.add('hidden');$('actSub').textContent='Connecting…';notice('');
+  $('actEmpty').classList.add('hidden');$('actBody').classList.add('hidden');$('stopMonitorButton').classList.remove('hidden');$('liveDot').classList.remove('hidden');
+  monitorPoll=setInterval(pollMonitor,1000);pollMonitor();
+}
+async function endMonitor(text,error=false){
+  clearInterval(monitorPoll);monitorPoll=null;$('stopMonitorButton').classList.add('hidden');$('liveDot').classList.add('hidden');
+  const unanswered=pendingActions.size;pendingActions.clear();
+  try{await stopMonitor()}catch(e){}
+  $('actSub').textContent=text;
+  if(error)notice(text,'error');else if(unanswered)notice('Monitoring stopped before the server confirmed the last action.','error');
+  if(!sample){$('actBody').classList.add('hidden');$('actEmpty').classList.remove('hidden')}
+  if(monitorOwnsConn)conn(error?'error':'idle',error?'Monitor disconnected':'Not connected');
+}
+$('stopMonitorButton').onclick=()=>endMonitor('Monitoring stopped. The last values are shown.');
+$('elevateButton').onclick=async()=>{try{notice('Waiting for Windows to grant administrator access…','busy');await restartElevated()}catch(e){notice(String(e),'error')}};
+async function pollMonitor(){
+  if(monitorPolling||!monitorPoll)return;monitorPolling=true;
+  try{
+    const s=await monitorStatus();
+    if(!monitorPoll)return;
+    if(s.hello&&!hello){
+      hello=s.hello;const [label,detail]=privilegeInfo(),p=$('actPriv');
+      $('elevateButton').classList.toggle('hidden',!(onWindows()&&hello.privilege==='none'));
+      p.textContent=label;p.title=detail;p.dataset.level=hello.privilege;p.classList.remove('hidden');
+      $('cpuModel').textContent=hello.cpuModel?'· '+hello.cpuModel:'';
+      if(monitorOwnsConn)conn('ok',$('connText').dataset.who||hello.host);
+    }
+    for(const raw of s.results||[]){
+      if(!pendingActions.has(raw.id))continue;
+      pendingActions.delete(raw.id);notice(raw.message,raw.ok?'ok':'error');
+    }
+    if(s.sample&&s.seq!==lastSeq){lastSeq=s.seq;sample=s.sample;record(sample);renderActivity()}
+    if(!s.running){await endMonitor(s.error||'Monitoring stopped.',!!s.error)}
+    else if(hello&&monitorOwnsConn&&$('conn').dataset.state==='busy')conn('ok',$('connText').dataset.who||hello.host);
+  }catch(e){await endMonitor(String(e),true)}
+  finally{monitorPolling=false}
+}
+function kv(label,value){const d=el('div');d.append(el('span','',label),el('b','',value));return d}
+function meter(parts){const m=el('div','meter');for(const [v,cls] of parts){const i=el('i',cls||'');i.style.width=Math.max(0,Math.min(100,v)).toFixed(2)+'%';m.append(i)}return m}
+function keyChip(color,text){const k=el('span','key'),i=el('i');i.style.background=color;k.append(i,text);return k}
+function meterLine(label,value,text){const d=el('div','meterline');d.append(el('span','',label),meter([[value]]),el('span','',text));return d}
+function renderActivity(){
+  const s=sample,m=s.memory||{},cpu=s.cpu||{},cores=cpu.cores||[],priv=privilegeOf(),[rx,tx]=netTotals(s);
+  $('actEmpty').classList.add('hidden');$('actBody').classList.remove('hidden');
+  $('actSub').textContent=[hello&&hello.system,s.uptime?'up '+duration(s.uptime):'',(s.load||[]).length?'load '+s.load.map(v=>v.toFixed(2)).join(' '):'','updated '+new Date(s.time*1000).toLocaleTimeString()].filter(Boolean).join(' · ');
+  // Tiles
+  $('tCpu').textContent=pct0(cpu.total);$('tCpuSub').textContent=`${cores.length} ${onWindows()?'logical processors':'cores'}${(s.load||[]).length?' · load '+s.load[0].toFixed(2):''}`;
+  $('tMem').textContent=pct0(m.total?100*m.used/m.total:0);$('tMemSub').textContent=`${size(m.used)} of ${size(m.total)} in use`;
+  const gpus=s.gpus||[],g=gpuAverage(s);
+  $('tGpu').textContent=gpus.length?pct0(g):'None';
+  $('tGpuSub').textContent=gpus.length?(gpus.length>1?gpus.length+' GPUs':gpus[0].name)+(gpus[0].memTotal?` · ${size(gpus.reduce((a,x)=>a+(x.memUsed||0),0))} VRAM`:''):(s.gpuNote||'');
+  $('tGpuSub').title=$('tGpuSub').textContent;
+  $('tNet').textContent='↓ '+rate(rx);$('tNetSub').textContent=`↑ ${rate(tx)} · ${(s.network||[]).length} interfaces`;
+  drawSparks();
+  // Processor
+  const cp=$('cpuPanel'),k1=el('div','kvs');
+  k1.append(kv('Total',pct0(cpu.total)),kv('User',pct0(cpu.user)),kv(onWindows()?'Kernel':'System',pct0(cpu.system)));
+  if(cpu.iowait!==undefined)k1.append(kv('I/O wait',pct0(cpu.iowait)));
+  if((s.load||[]).length)k1.append(kv('Load 1 / 5 / 15 min',s.load.map(v=>v.toFixed(2)).join(' / ')));
+  k1.append(kv('Uptime',s.uptime?duration(s.uptime):'–'));
+  const grid=el('div','cores');
+  cores.forEach((v,i)=>{const c=el('div','core'),top=el('div');top.append(el('span','','CPU '+i),el('span','',pct0(v)));c.append(top,meter([[v]]));grid.append(c)});
+  cp.replaceChildren(k1,grid);
+  // Memory
+  const mp=$('memPanel'),cache=(m.cached||0)+(m.buffers||0),keys=el('div','keyrow');
+  keys.append(keyChip('var(--s1)',`In use ${size(m.used)}`),keyChip('var(--s2)',`${onWindows()?'Standby':'Cache'} ${size(cache)}`),keyChip('var(--line-2)',`Free ${size(m.free)}`));
+  const k2=el('div','kvs');k2.append(kv('Total',size(m.total)),kv('Available',size(m.available)));if(m.shmem!==undefined)k2.append(kv('Shared',size(m.shmem)));k2.append(kv(onWindows()?'Modified':'Waiting to be written',size(m.dirty)));
+  const parts=[meter([[m.total?100*m.used/m.total:0],[m.total?100*Math.min(cache,m.total-m.used)/m.total:0,'s2']]),keys,k2];
+  if(m.commitLimit)parts.push(meterLine('Committed',100*m.commitUsed/m.commitLimit,`${size(m.commitUsed)} of ${size(m.commitLimit)}`));
+  else parts.push(m.swapTotal?meterLine('Swap',100*m.swapUsed/m.swapTotal,`${size(m.swapUsed)} of ${size(m.swapTotal)}`):el('p','muted','No swap space is configured.'));
+  if(!canFreeCache(priv))parts.push(el('p','muted',onWindows()?'Freeing the cache needs administrator rights.':'Freeing the cache needs root or sudo access.'));
+  mp.replaceChildren(...parts);
+  $('freeCacheButton').classList.toggle('hidden',!canFreeCache(priv));
+  // Graphics
+  const gp=$('gpuPanel');
+  if(!gpus.length)gp.replaceChildren(el('p','muted',s.gpuNote||'No GPU found.'));
+  else gp.replaceChildren(...gpus.map(x=>{const d=el('div','gpu'),k=el('div','kvs');d.append(el('b','',x.name));
+    d.append(meterLine('Use',x.util||0,typeof x.util==='number'?pct0(x.util):'Not reported'));
+    if(x.memTotal)d.append(meterLine('Memory',100*(x.memUsed||0)/x.memTotal,`${size(x.memUsed)} of ${size(x.memTotal)}`));
+    k.append(kv('Temperature',typeof x.temp==='number'&&x.temp>0?Math.round(x.temp)+' °C':'–'),kv('Power',typeof x.power==='number'?x.power.toFixed(0)+' W':'–'),kv('Vendor',x.vendor||'–'));d.append(k);return d}));
+  // Network
+  const np=$('netPanel'),nets=s.network||[];
+  if(!nets.length)np.replaceChildren(el('p','muted','No network interfaces reported.'));
+  else{const t=el('table','mini'),h=el('tr');for(const x of ['Interface','In','Out','Received','Sent'])h.append(el('th','',x));t.append(h);
+    for(const n of [...nets].sort((a,b)=>(b.rx+b.tx)-(a.rx+a.tx))){const r=el('tr');r.append(el('td','',n.name),el('td','',rate(n.rx)),el('td','',rate(n.tx)),el('td','',size(n.rxTotal)),el('td','',size(n.txTotal)));t.append(r)}
+    np.replaceChildren(t)}
+  renderProcesses();
+}
+const PROC_SORTS={name:(a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}),pid:(a,b)=>a.pid-b.pid,user:(a,b)=>a.user.localeCompare(b.user),cpu:(a,b)=>a.cpu-b.cpu,rss:(a,b)=>a.rss-b.rss};
+function filterProcesses(list,q){q=(q||'').trim().toLowerCase();if(!q)return list;return list.filter(p=>p.name.toLowerCase().includes(q)||String(p.pid)===q||p.user.toLowerCase().includes(q)||(p.cmd||'').toLowerCase().includes(q))}
+function renderProcesses(){
+  if(!sample)return;
+  const priv=privilegeOf(),all=sample.processes||[],list=filterProcesses(all,procFilter).sort((a,b)=>procSort.dir*PROC_SORTS[procSort.key](a,b)||b.cpu-a.cpu||b.rss-a.rss);
+  $('procCount').textContent=`· the busiest ${count(all.length)} of ${count(sample.processCount)}`;
+  const box=$('procList'),scroll=box.scrollTop,table=el('table'),head=el('thead'),hr=el('tr'),body=el('tbody');
+  table.innerHTML='<colgroup><col><col class="c-pid"><col class="c-user"><col class="c-cpu"><col class="c-mem"><col class="c-act"></colgroup>';
+  for(const [key,label] of [['name','Name'],['pid','PID'],['user','User'],['cpu','CPU'],['rss','Memory'],['','']]){
+    const th=el('th',key==='user'?'left':'',label);
+    if(key){if(procSort.key===key){th.setAttribute('aria-sort',procSort.dir<0?'descending':'ascending');th.append(el('span','arrow',procSort.dir<0?'▼':'▲'))}
+      th.onclick=()=>{procSort=procSort.key===key?{key,dir:-procSort.dir}:{key,dir:key==='name'||key==='user'||key==='pid'?1:-1};renderProcesses()}}
+    else th.style.cursor='default';
+    hr.append(th);
+  }
+  head.append(hr);table.append(head);
+  for(const p of list){
+    const tr=el('tr'),nameTd=el('td'),name=el('div','name');
+    name.append(el('span','',p.name));if(p.cmd)name.append(el('span','cmd',p.cmd));nameTd.append(name);nameTd.title=p.cmd||p.name;
+    const acts=el('td'),wrap=el('div','acts'),ok=canEnd(p,priv),why=p.kernel?'Kernel threads cannot be ended.':p.protected?'This process runs the system or this monitoring session.':ok?'':'You can only end your own processes. Connect as root or a sudo user to end this one.';
+    for(const [force,label] of [[false,'End'],[true,'Force end']]){
+      const b=el('button','btn sm'+(force?' danger':''),label);b.type='button';b.disabled=!ok;b.title=why||(force?'Stop immediately (SIGKILL); unsaved work is lost.':'Ask the process to exit (SIGTERM).');
+      b.onclick=e=>{e.stopPropagation();endProcess(p,force)};wrap.append(b);
+    }
+    acts.append(wrap);
+    tr.append(nameTd,cell(String(p.pid),'num'),cell(p.user||'–','left num'),cell(p.cpu.toFixed(1)+'%'),cell(size(p.rss)),acts);
+    body.append(tr);
+  }
+  if(!list.length){const tr=el('tr','more'),td=cell(procFilter?'No matching processes among the busiest shown.':'No processes reported.');td.colSpan=6;tr.append(td);body.append(tr)}
+  table.append(body);box.replaceChildren(table);box.scrollTop=scroll;
+}
+$('procFilter').oninput=()=>{procFilter=$('procFilter').value;renderProcesses()};
+// Confirmation dialog for actions that change the server.
+function confirmAction({title,text,detail,password,label}){
+  $('confirmTitle').textContent=title;$('confirmText').textContent=text;$('confirmOk').textContent=label;
+  $('confirmDetail').textContent=detail||'';$('confirmDetailBox').classList.toggle('hidden',!detail);
+  $('sudoField').classList.toggle('hidden',!password);$('sudoPassword').value='';$('sudoPassword').required=!!password;
+  $('sudoLabel').textContent='sudo password for '+(hello&&hello.user||'this account');
+  $('confirm').classList.remove('hidden');(password?$('sudoPassword'):$('confirmCancel')).focus();
+  return new Promise(resolve=>{confirmResolve=resolve});
+}
+function closeConfirm(result){const r=confirmResolve;confirmResolve=null;$('confirm').classList.add('hidden');$('sudoPassword').value='';if(r)r(result)}
+$('confirmCancel').onclick=()=>closeConfirm(null);
+$('confirmForm').onsubmit=e=>{e.preventDefault();closeConfirm({password:$('sudoPassword').value})};
+async function sendAction(action,label){
+  const id=++actionId;pendingActions.set(id,label);notice(label,'busy');
+  try{await monitorAction({...action,id})}catch(e){pendingActions.delete(id);notice(String(e),'error')}
+}
+async function endProcess(p,force){
+  const priv=privilegeOf(),password=needsSudoPassword(p,priv);
+  const r=await confirmAction({title:(force?'Force end ':'End ')+p.name+'?',label:force?'Force end':'End process',password,
+    text:(force?'The process is stopped immediately and any unsaved work is lost.':onWindows()?'Its windows are asked to close, so it can save its work first. Programs without a window have to be force-ended.':'The process is asked to exit, so it can save its work first. Some programs ignore this; use Force end if it keeps running.')+(p.own?'':' It belongs to '+(p.user||'another account')+(onWindows()?'.':', so sudo is used.')),
+    detail:`PID ${p.pid} · ${p.user} · ${size(p.rss)}\n${p.cmd||p.name}`});
+  if(!r)return;
+  await sendAction({type:'kill',pid:p.pid,start:p.start,signal:force?'KILL':'TERM',password:password?r.password:''},`${force?'Force-ending':'Ending'} ${p.name} (PID ${p.pid})…`);
+}
+$('freeCacheButton').onclick=async()=>{
+  const priv=privilegeOf(),password=needsSudoPassword(null,priv);
+  const r=await confirmAction({title:'Free the memory cache?',label:'Free cache',password,
+    text:onWindows()?'Modified pages are written to disk, then the standby list (file data Windows keeps in spare memory) is cleared. Programs keep their memory. The cache refills as files are read again, so the PC may be slower for a while. Windows frees standby memory by itself whenever programs need it, so this is rarely necessary.':'Pending writes are saved to disk, then the file cache is cleared (drop_caches). Programs keep their memory. The cache refills as files are read again, so the server may be slower for a while. Linux frees cache by itself when programs need memory, so this is rarely necessary.'});
+  if(!r)return;
+  await sendAction({type:'dropcaches',password:password?r.password:''},'Freeing the memory cache…');
+};
+// Sparklines: one value axis per chart, newest sample on the right, with a hover readout.
+function drawSparks(){
+  if(tab!=='activity'||!sample)return;
+  const netMax=Math.max(1024,...hist.rx,...hist.tx);
+  sparks.sCpu={series:[{values:hist.cpu,color:'--s1'}],max:100,fmt:v=>pct0(v[0])};
+  sparks.sMem={series:[{values:hist.mem,color:'--s1'}],max:100,fmt:v=>pct0(v[0])};
+  sparks.sGpu={series:[{values:hist.gpu,color:'--s1'}],max:100,fmt:v=>v[0]===null||v[0]===undefined?'No data':pct0(v[0])};
+  sparks.sNet={series:[{values:hist.rx,color:'--s1'},{values:hist.tx,color:'--s2'}],max:netMax,fmt:v=>`In ${rate(v[0])} · Out ${rate(v[1])}`};
+  for(const id in sparks)drawSpark(id);
+}
+function drawSpark(id){
+  const c=$(id),cfg=sparks[id];if(!c||!cfg||!c.getContext)return;
+  const W=c.clientWidth,H=c.clientHeight;if(W<4||H<4)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1),st=getComputedStyle(document.documentElement);
+  c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);
+  const ctx=c.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle=st.getPropertyValue('--line-2').trim();ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,H-.5);ctx.lineTo(W,H-.5);ctx.stroke();
+  const step=W/(HISTORY-1),y=v=>H-2-Math.min(1,Math.max(0,v/cfg.max))*(H-5);
+  for(const s of cfg.series){
+    const col=st.getPropertyValue(s.color).trim(),off=HISTORY-s.values.length;let started=false,first=0,last=0;
+    ctx.beginPath();
+    s.values.forEach((v,i)=>{if(v===null||v===undefined)return;const x=(off+i)*step;if(!started){ctx.moveTo(x,y(v));first=x;started=true}else ctx.lineTo(x,y(v));last=x});
+    if(!started)continue;
+    ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=col;ctx.stroke();
+    if(cfg.series.length===1){ctx.lineTo(last,H);ctx.lineTo(first,H);ctx.closePath();ctx.globalAlpha=.15;ctx.fillStyle=col;ctx.fill();ctx.globalAlpha=1}
+  }
+  if(c._hover!==undefined&&c._hover!==null){
+    const x=c._hover*step;ctx.strokeStyle=st.getPropertyValue('--text-3').trim();ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,H);ctx.stroke();
+    for(const s of cfg.series){const v=s.values[c._hover-(HISTORY-s.values.length)];if(v===null||v===undefined)continue;
+      ctx.fillStyle=st.getPropertyValue(s.color).trim();ctx.strokeStyle=st.getPropertyValue('--surface').trim();ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y(v),4,0,Math.PI*2);ctx.fill();ctx.stroke()}
+  }
+}
+for(const id of ['sCpu','sMem','sGpu','sNet']){
+  const c=$(id);
+  c.onmousemove=e=>{
+    const cfg=sparks[id];if(!cfg)return;
+    const r=c.getBoundingClientRect(),i=Math.max(0,Math.min(HISTORY-1,Math.round((e.clientX-r.left)/(r.width/(HISTORY-1))))),n=cfg.series[0].values.length,off=HISTORY-n;
+    const tip=c.nextElementSibling;
+    if(i<off){c._hover=null;tip.classList.add('hidden');drawSpark(id);return}
+    c._hover=i;drawSpark(id);
+    tip.textContent=cfg.fmt(cfg.series.map(s=>s.values[i-(HISTORY-s.values.length)]))+' · '+(HISTORY-1-i?(HISTORY-1-i)+' s ago':'now');
+    tip.style.left=Math.max(60,Math.min(r.width-60,i*r.width/(HISTORY-1)))+'px';tip.classList.remove('hidden');
+  };
+  c.onmouseleave=()=>{c._hover=null;c.nextElementSibling.classList.add('hidden');drawSpark(id)};
+}
+window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{redraw();drawSparks()},150)});
+syncTools();if(target==='local')loadDrives();
 </script></body></html>

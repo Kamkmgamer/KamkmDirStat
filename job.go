@@ -36,18 +36,30 @@ var scanState struct {
 }
 
 func startScan(c Connection) error {
-	root, err := cleanRemotePath(c.Path)
-	if err != nil {
-		return err
+	var tree *Tree
+	var localRoots []string
+	if c.Local {
+		roots, err := cleanLocalPaths(c.Paths)
+		if err != nil {
+			return err
+		}
+		localRoots = roots
+		tree = newLocalTree(roots)
+	} else {
+		root, err := cleanRemotePath(c.Path)
+		if err != nil {
+			return err
+		}
+		c.Path = root
+		tree = newTree(root)
 	}
-	c.Path = root
+	root := tree.RootPath
 	scanState.Lock()
 	if scanState.status.Running {
 		scanState.Unlock()
 		return errScanRunning
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	tree := newTree(root)
 	scanState.cancel = cancel
 	oldTree := scanState.tree
 	scanState.tree = tree
@@ -56,11 +68,18 @@ func startScan(c Connection) error {
 	oldTree.close()
 	started := time.Now()
 	go func() {
-		result, err := scanInto(ctx, c, tree, func(p ScanProgress) {
+		report := func(p ScanProgress) {
 			scanState.Lock()
 			scanState.status.Progress = p
 			scanState.Unlock()
-		})
+		}
+		var result ScanResult
+		var err error
+		if c.Local {
+			result, err = localScanInto(ctx, localRoots, tree, report)
+		} else {
+			result, err = scanInto(ctx, c, tree, report)
+		}
 		cancel()
 		s := ScanStatus{RootPath: root, Mode: result.Mode, Errors: result.Errors, ErrorCount: result.ErrorCount, Skipped: result.Skipped, Seconds: time.Since(started).Seconds()}
 		if len(s.Errors) > 5 {

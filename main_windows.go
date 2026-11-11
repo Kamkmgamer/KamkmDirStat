@@ -18,6 +18,7 @@ func main() {
 	}
 	defer w.Destroy()
 	defer closeResults()
+	defer stopMonitor()
 	w.SetTitle("KamkmDirStat")
 	w.SetSize(1320, 850, webview.HintNone)
 	if err := w.Bind("startResolve", startResolve); err != nil {
@@ -45,6 +46,30 @@ func main() {
 		log.Fatal(err)
 	}
 	if err := w.Bind("viewStatus", viewStatus); err != nil {
+		log.Fatal(err)
+	}
+	if err := w.Bind("startMonitor", startMonitor); err != nil {
+		log.Fatal(err)
+	}
+	if err := w.Bind("stopMonitor", stopMonitor); err != nil {
+		log.Fatal(err)
+	}
+	if err := w.Bind("monitorStatus", monitorStatus); err != nil {
+		log.Fatal(err)
+	}
+	if err := w.Bind("monitorAction", monitorAction); err != nil {
+		log.Fatal(err)
+	}
+	if err := w.Bind("listDrives", listDrives); err != nil {
+		log.Fatal(err)
+	}
+	if err := w.Bind("restartElevated", func() error {
+		if err := launchElevated(); err != nil {
+			return err
+		}
+		w.Dispatch(w.Terminate)
+		return nil
+	}); err != nil {
 		log.Fatal(err)
 	}
 	w.SetHtml(page)

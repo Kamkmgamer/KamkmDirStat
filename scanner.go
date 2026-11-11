@@ -31,6 +31,10 @@ type Connection struct {
 	// see mount points, it skips /proc, /sys and /dev when scanning /.
 	SkipVirtual  bool `json:"skipVirtual"`
 	ServerReport bool `json:"serverReport"`
+	// Local scans and monitors this PC instead of an SSH server. Paths lists the drives or
+	// folders to scan.
+	Local bool     `json:"local,omitempty"`
+	Paths []string `json:"paths,omitempty"`
 }
 
 type ScanResult struct {
@@ -52,6 +56,8 @@ type ScanProgress struct {
 	// a whole file system is scanned, and 0 when the total is unknown.
 	Entries  int `json:"entries,omitempty"`
 	Expected int `json:"expected,omitempty"`
+	// ExpectedBytes is the used space on the scanned drives, for a progress estimate.
+	ExpectedBytes int64 `json:"expectedBytes,omitempty"`
 }
 
 func endpoint(c Connection) (string, error) {
@@ -124,6 +130,33 @@ func cleanRemotePath(p string) (string, error) {
 	return path.Clean(p), nil
 }
 
+// connectVerified authenticates only to the server whose host key the user confirmed.
+func connectVerified(ctx context.Context, c Connection) (*ssh.Client, error) {
+	if c.Fingerprint == "" {
+		return nil, errors.New("Verify the host key before connecting.")
+	}
+	auth, agentConn, err := authMethods(c)
+	if err != nil {
+		return nil, err
+	}
+	if agentConn != nil {
+		defer agentConn.Close()
+	}
+	client, err := sshConnectContext(ctx, c, func(_ string, _ net.Addr, k ssh.PublicKey) error {
+		if ssh.FingerprintSHA256(k) != c.Fingerprint {
+			return errors.New("Server host key changed. Connect again and verify the new fingerprint.")
+		}
+		return nil
+	}, auth)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("SSH connection: %w", err)
+	}
+	return client, nil
+}
+
 func scan(c Connection) (ScanResult, error) { return scanWithContext(context.Background(), c, nil) }
 
 func scanWithContext(ctx context.Context, c Connection, report func(ScanProgress)) (ScanResult, error) {
@@ -138,27 +171,9 @@ func scanWithContext(ctx context.Context, c Connection, report func(ScanProgress
 // lost connection, t keeps whatever was found.
 func scanInto(ctx context.Context, c Connection, t *Tree, report func(ScanProgress)) (ScanResult, error) {
 	result := ScanResult{Root: t.Root}
-	if c.Fingerprint == "" {
-		return result, errors.New("Verify the host key before connecting.")
-	}
-	auth, agentConn, err := authMethods(c)
+	client, err := connectVerified(ctx, c)
 	if err != nil {
 		return result, err
-	}
-	if agentConn != nil {
-		defer agentConn.Close()
-	}
-	client, err := sshConnectContext(ctx, c, func(_ string, _ net.Addr, k ssh.PublicKey) error {
-		if ssh.FingerprintSHA256(k) != c.Fingerprint {
-			return errors.New("Server host key changed. Connect again and verify the new fingerprint.")
-		}
-		return nil
-	}, auth)
-	if err != nil {
-		if ctx.Err() != nil {
-			return result, ctx.Err()
-		}
-		return result, fmt.Errorf("SSH connection: %w", err)
 	}
 	retained := false
 	defer func() {

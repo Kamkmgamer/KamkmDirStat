@@ -48,35 +48,45 @@ func (r *remoteReport) close() {
 	r.once.Do(func() { r.closed.Store(true); _ = r.client.Close(); _ = r.session.Close() })
 }
 
-func readReportMessage(src io.Reader) (reportMessage, error) {
-	var message reportMessage
+// readFrame reads one message from the remote scripts: a 4-byte big-endian length, then
+// gzip-compressed JSON. It returns the JSON and the number of bytes read from src.
+func readFrame(src io.Reader) ([]byte, int64, error) {
 	var length uint32
 	if err := binary.Read(src, binary.BigEndian, &length); err != nil {
-		return message, err
+		return nil, 0, err
 	}
 	if length == 0 || length > 8<<20 {
-		return message, errors.New("The remote report frame is too large.")
+		return nil, 0, errors.New("The remote report frame is too large.")
 	}
 	payload := make([]byte, length)
 	if _, err := io.ReadFull(src, payload); err != nil {
-		return message, err
+		return nil, 0, err
 	}
 	z, err := gzip.NewReader(bytes.NewReader(payload))
 	if err != nil {
-		return message, err
+		return nil, 0, err
 	}
 	defer z.Close()
 	data, err := io.ReadAll(io.LimitReader(z, (32<<20)+1))
 	if err != nil {
-		return message, err
+		return nil, 0, err
 	}
 	if len(data) > 32<<20 {
-		return message, errors.New("The remote report is too large.")
+		return nil, 0, errors.New("The remote report is too large.")
+	}
+	return data, int64(length) + 4, nil
+}
+
+func readReportMessage(src io.Reader) (reportMessage, error) {
+	var message reportMessage
+	data, wire, err := readFrame(src)
+	if err != nil {
+		return message, err
 	}
 	if err := json.Unmarshal(data, &message); err != nil {
 		return message, err
 	}
-	message.wireBytes = int64(length) + 4
+	message.wireBytes = wire
 	return message, nil
 }
 
@@ -126,12 +136,14 @@ func (r *remoteReport) view(id int) (DirView, error) {
 	return message.View, nil
 }
 
-func readRemoteReportHeader(r *bufio.Reader) string {
+// readScriptHeader skips any login banner and returns the rest of the first line that
+// starts with prefix.
+func readScriptHeader(r *bufio.Reader, prefix string) string {
 	size := 0
 	for size < 64<<10 {
 		line, err := r.ReadString('\n')
 		size += len(line)
-		if rest, ok := strings.CutPrefix(line, "SSE2 "); ok {
+		if rest, ok := strings.CutPrefix(line, prefix); ok {
 			return strings.TrimSpace(rest)
 		}
 		if err != nil {
@@ -173,7 +185,7 @@ func remoteReportScan(ctx context.Context, client *ssh.Client, c Connection, t *
 	}
 	output := bufio.NewReaderSize(stdout, 64<<10)
 	header := make(chan string, 1)
-	go func() { header <- readRemoteReportHeader(output) }()
+	go func() { header <- readScriptHeader(output, "SSE2 ") }()
 	timer := time.NewTimer(shellHeaderTimeout)
 	defer timer.Stop()
 	select {
