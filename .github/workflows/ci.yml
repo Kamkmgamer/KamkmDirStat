@@ -1,0 +1,48 @@
+name: Test and build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Linux test tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zstd
+      - name: Test Go code on Linux
+        if: runner.os == 'Linux'
+        run: go test -race -count=1 ./...
+      - name: Test Go code on Windows
+        if: runner.os == 'Windows'
+        run: go test -count=1 ./...
+      - name: Check Go code
+        run: go vet ./...
+      - name: Test interface logic
+        run: node ui_test.cjs
+      - name: Build Windows application
+        if: runner.os == 'Windows'
+        env:
+          CGO_ENABLED: '0'
+        run: go build -trimpath -ldflags="-H=windowsgui" -o KamkmDirStat.exe .
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: KamkmDirStat-windows-amd64
+          path: KamkmDirStat.exe

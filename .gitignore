@@ -1,0 +1,14 @@
+# Local builds and test executables
+/*.exe
+/*.test
+/scan-tests-*
+/old-builds/
+
+# Local remote-build bookkeeping and scan output
+/remote-test-*
+/scan-results/
+/coverage.out
+
+# Local environment
+.env
+.env.*

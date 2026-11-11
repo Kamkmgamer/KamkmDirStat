@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KamkmDirStat</title>
+<style>
+:root{color-scheme:dark;font:14px "Segoe UI",sans-serif;background:#171a1d;color:#e7e9ea}*{box-sizing:border-box}body{margin:0}header{height:54px;display:flex;align-items:center;gap:18px;padding:0 22px;border-bottom:1px solid #393e42;background:#202428}h1{font-size:19px;margin:0;font-weight:600}header span{color:#aab2b8;font-size:12px}.layout{display:grid;grid-template-columns:310px 1fr;grid-template-rows:minmax(0,1fr);height:calc(100vh - 54px)}aside{padding:20px;border-right:1px solid #393e42;overflow:auto;background:#202428}h2{font-size:14px;margin:0 0 16px}label{display:block;color:#c4ccd0;font-size:12px;font-weight:600;margin:14px 0 6px}input,select{width:100%;background:#15181a;border:1px solid #515a5f;color:#f4f6f6;border-radius:4px;padding:9px;font:inherit}input:focus,select:focus,button:focus-visible{outline:2px solid #71c6cc;outline-offset:2px}.pair{display:grid;grid-template-columns:1fr 72px;gap:10px}button{border:1px solid #626d70;background:#30383a;color:#fff;border-radius:4px;padding:9px 12px;cursor:pointer;font:inherit}button:hover{background:#414c4d}button:disabled{opacity:.5;cursor:default}.primary{background:#67b9b6;border-color:#67b9b6;color:#102124;font-weight:700;width:100%;margin-top:18px}.primary:hover{background:#8ad1ce}.muted{font-size:12px;line-height:1.5;color:#aeb9bc}.status{min-height:42px;margin:12px 0;color:#c5d2d3;overflow-wrap:anywhere;white-space:pre-line;line-height:1.45}.error{color:#ffb1a8}.hidden{display:none!important}.progress{height:6px;background:#303639;border-radius:3px;overflow:hidden;margin:-4px 0 14px}.progress i{display:block;height:100%;width:0;background:#68bbb7;transition:width .4s}
+main{min-width:0;min-height:0;display:grid;grid-template-rows:auto minmax(150px,36%) minmax(220px,1fr) auto}.toolbar{padding:14px 20px;border-bottom:1px solid #393e42;display:flex;justify-content:space-between;align-items:center;gap:12px}.toolbar p{margin:4px 0 0;color:#aeb9bc;font-size:12px}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:2px;font-size:15px;font-weight:600;min-height:24px}.crumbs button{background:none;border:0;border-radius:3px;padding:2px 5px;color:#8fd3cf;font-weight:600;font-size:15px}.crumbs button:hover{background:#30383a}.crumbs .sep{color:#6f7a7d;padding:0 2px}.crumbs .here{padding:2px 5px;overflow-wrap:anywhere}
+.listing{overflow:auto}.listing table{border-collapse:collapse;width:100%;font-size:13px}.listing th{position:sticky;top:0;background:#292f32;text-align:left;color:#bdc7ca;font-weight:600;z-index:1}.listing th,.listing td{padding:7px 16px;border-bottom:1px solid #303639}.listing th:not(:first-child),.listing td:not(:first-child){text-align:right;white-space:nowrap}.listing tr[data-click]{cursor:pointer}.listing tr[data-click]:hover,.listing tr[data-click]:focus{background:#303b3c;outline:none}.listing .more td{color:#aeb9bc;font-style:italic}.name{overflow-wrap:anywhere}.share{display:flex;align-items:center;justify-content:flex-end;gap:8px}.share .bar{width:72px;height:6px;border-radius:3px;background:#303639;overflow:hidden}.share .bar i{display:block;height:100%;background:#68bbb7}
+.graph{border-top:1px solid #586264;padding:10px 12px 12px;min-height:0;display:flex;flex-direction:column}.graph-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px 14px;flex-wrap:wrap;margin:0 0 8px}.graph-title{font-size:12px;color:#c1cbcd;margin:0}.rowcount{color:#aeb9bc}.legend{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:11px;color:#b9c3c6}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.treemap{flex:1;position:relative;background:#252b2e;overflow:hidden;min-height:0}.treemap canvas{position:absolute;left:0;top:0;display:block;cursor:pointer}.treemap .empty{position:absolute;inset:0}.hover{position:absolute;border:2px solid #fff;box-shadow:0 0 0 1px #000;pointer-events:none}.tip{position:absolute;max-width:440px;pointer-events:none;background:#0f1214f0;border:1px solid #4a5357;padding:6px 8px;border-radius:4px;font-size:12px;line-height:1.4;overflow-wrap:anywhere;white-space:pre-line;z-index:3}
+.empty{height:100%;display:grid;place-items:center;text-align:center;color:#aeb9bc;line-height:1.6;padding:20px}.footer{padding:8px 20px;border-top:1px solid #393e42;color:#aeb9bc;font-size:12px;overflow-wrap:anywhere}.notice{padding:10px;background:#424035;color:#f8e8bb;line-height:1.4;overflow-wrap:anywhere}.notice strong{display:block;margin-bottom:5px}.notice code{display:block;overflow-wrap:anywhere;margin:6px 0}.notice button{margin:4px 6px 0 0}.up{padding:6px 10px;white-space:nowrap}.checkrow{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.4;font-weight:400;margin:12px 0}.checkrow input{width:auto;margin:2px 0 0}.keyhint{font-size:12px;color:#aeb9bc;margin-top:5px}@media(max-width:850px){.layout{grid-template-columns:250px 1fr}aside{padding:14px}.toolbar{padding:12px}}
+</style></head><body>
+<header><h1>KamkmDirStat</h1><span>Remote disk usage</span></header>
+<div class="layout"><aside><h2>Connect to a machine</h2><form id="connect"><label for="host">Host</label><div class="pair"><input id="host" placeholder="SSH alias or hostname" required autocomplete="off"><input id="port" aria-label="Port override" placeholder="Port" inputmode="numeric"></div><label for="user">Username <span class="muted">(optional override)</span></label><input id="user" placeholder="Use SSH config" autocomplete="username"><label for="method">Authentication</label><select id="method"><option value="auto">SSH config and agent</option><option value="password">Password</option><option value="key">Private key</option></select><div id="passwordFields" class="hidden"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div><div id="keyFields" class="hidden"><label for="keyFile">Private key file</label><input id="keyFile" placeholder="C:\Users\you\.ssh\id_ed25519"><label for="passphrase">Key passphrase <span class="muted">(if encrypted)</span></label><input id="passphrase" type="password"><p class="keyhint">Enter the full path to your private key on this PC.</p></div><label for="path">Remote folder</label><input id="path" value="/" required><label class="checkrow"><input id="skipVirtual" type="checkbox" checked><span>Stay on this file system (skips /proc, /sys, /dev and other mounts)</span></label><p class="muted">The server lists file sizes with <code>find</code>, or over SFTP if commands are not allowed. File contents are not downloaded.</p><button class="primary" id="submit" type="submit">Connect and scan</button><button id="cancelScanButton" class="hidden" type="button" style="width:100%;margin-top:8px">Cancel scan</button></form><div id="status" class="status" role="status" aria-live="polite"></div><div id="progress" class="progress hidden" aria-hidden="true"><i id="progressFill"></i></div><div id="trust" class="notice hidden"><strong>Verify the server identity</strong>Compare this fingerprint with the one provided by the server administrator before continuing.<code id="target"></code><code id="fingerprint"></code><button id="accept" type="button">Trust for this scan</button><button id="reject" type="button">Cancel</button></div><p class="muted">Credentials are used for this scan and are not saved.</p></aside>
+<main><div class="toolbar"><div><nav class="crumbs" id="heading" aria-label="Current folder"><span class="here">No scan yet</span></nav><p id="subheading">Connect to a machine to see its storage.</p></div><button class="up hidden" id="up" type="button">Up one folder</button></div><div class="listing" id="listing"><div class="empty">Your scanned folders and files will appear here.</div></div><section class="graph"><div class="graph-head"><p class="graph-title">Storage map <span class="rowcount">· click to open a folder</span></p><div class="legend" id="legend"></div></div><div class="treemap" id="treemap"><canvas id="map" aria-label="Storage map"></canvas><div id="hoverBox" class="hover hidden"></div><div id="tip" class="tip hidden"></div><div class="empty" id="mapEmpty">The map will show how space is distributed.</div></div></section><div id="footer" class="footer">Ready</div></main></div>
+<script>
+const $=id=>document.getElementById(id);
+let pending=null,viewId=null,lastView=null,poll=null,polling=false,refreshing=null,refreshAgain=false,leaves=[],mode='',tick=0,resizeTimer=null;
+const size=n=>{if(!n||n<1)return '0 B';let i=Math.min(4,Math.floor(Math.log(n)/Math.log(1024)));return (n/1024**i).toFixed(i?1:0)+' '+['B','KiB','MiB','GiB','TiB'][i]};
+const count=n=>(n||0).toLocaleString();
+function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error)}
+$('method').onchange=()=>{let key=$('method').value==='key';$('passwordFields').classList.toggle('hidden',$('method').value!=='password');$('keyFields').classList.toggle('hidden',!key)};
+function connection(){let method=$('method').value,key=method==='key';return {method,host:$('host').value.trim(),port:$('port').value.trim(),user:$('user').value.trim(),password:method==='password'?$('password').value:'',keyFile:key?$('keyFile').value.trim():'',passphrase:key?$('passphrase').value:'',path:$('path').value.trim()||'/',skipVirtual:$('skipVirtual').checked,serverReport:true}}
+$('connect').onsubmit=async e=>{e.preventDefault();$('trust').classList.add('hidden');$('submit').disabled=true;status('Contacting server and checking its host key…');try{await startResolve(connection());let resolved;do {await new Promise(resolve=>setTimeout(resolve,200));resolved=await resolveStatus()} while(resolved.running);if(resolved.error)throw resolved.error;let c=resolved.connection;await startFingerprint(c);let f;do {await new Promise(resolve=>setTimeout(resolve,400));f=await fingerprintStatus()} while(f.running);if(f.error)throw f.error;let fingerprint=f.fingerprint;pending={...c,fingerprint};$('target').textContent=c.user+'@'+c.host+':'+c.port;$('fingerprint').textContent=fingerprint;$('trust').classList.remove('hidden');status('Confirm the server fingerprint to continue.')}catch(e){status(String(e),true);$('submit').disabled=false}};
+$('reject').onclick=()=>{pending=null;$('trust').classList.add('hidden');$('submit').disabled=false;status('Connection cancelled.')};
+$('accept').onclick=async()=>{let c=pending;pending=null;$('trust').classList.add('hidden');status('Connecting and starting the scan…');try{await startScan(c);$('password').value='';$('passphrase').value='';$('cancelScanButton').classList.remove('hidden');viewId=0;lastView=null;mode='';tick=0;placeholder('Waiting for the completed report from the server…');$('footer').textContent='Scanning…';poll=setInterval(pollScan,500)}catch(e){$('submit').disabled=false;status(String(e),true)}};
+$('cancelScanButton').onclick=async()=>{try{await cancelScan();status('Cancelling scan…')}catch(e){status(String(e),true)}};
+$('up').onclick=()=>{if(lastView&&lastView.trail.length>1)go(lastView.trail[lastView.trail.length-2].id)};
+// Remote reports publish only on completion. Streaming fallbacks can redraw partial results.
+async function pollScan(){
+  if(polling)return;polling=true;
+  try{
+    const s=await scanStatus(),p=s.progress||{};
+    mode=s.mode||p.mode||mode;
+    if(s.running){
+      const pct=p.expected?Math.min(99,Math.floor(100*(p.entries||0)/p.expected)):null;
+      $('progress').classList.toggle('hidden',pct===null);if(pct!==null)$('progressFill').style.width=pct+'%';
+      status(s.cancelling?'Cancelling scan…':(p.files||p.directories)?`Scanning${mode==='remote'?' on the server':mode==='sftp'?' over SFTP (slower)':''}${pct!==null?' · about '+pct+'%':''}\n${count(p.files)} files · ${count(p.directories)} folders · ${size(p.bytes)}`+(p.currentPath?'\n'+p.currentPath:''):'Connected. Waiting for the server to list files…');
+      if(mode!=='remote'&&tick++%3===0&&(p.files||p.directories))refresh();
+      return;
+    }
+    clearInterval(poll);poll=null;$('cancelScanButton').classList.add('hidden');$('submit').disabled=false;$('progress').classList.add('hidden');
+    if(s.files||!s.error)await refresh();else placeholder('No results.');
+    const took=s.seconds?` in ${s.seconds<10?s.seconds.toFixed(1):Math.round(s.seconds)} s`:'';
+    if(s.cancelled)status(mode==='remote'?'Remote scan cancelled. No completed report was downloaded.':'Scan cancelled. Showing what was found before cancelling.');
+    else if(s.error)status(s.error+(s.files?'\nShowing partial results.':''),true);
+    else status(s.errorCount?`Scan finished${took}. ${count(s.errorCount)} paths could not be read.`:`Scan complete${took}.`);
+    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='remote'?'on disk | aggregated on the server':'on disk | streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot}else $('footer').textContent='Ready';
+  }catch(e){clearInterval(poll);poll=null;$('cancelScanButton').classList.add('hidden');$('submit').disabled=false;$('progress').classList.add('hidden');status(String(e),true)}
+  finally{polling=false}
+}
+async function loadView(id){
+  await startView(id);
+  let state;
+  do{await new Promise(resolve=>setTimeout(resolve,50));state=await viewStatus()}while(state.running);
+  if(state.error)throw state.error;
+  return state.view;
+}
+function refresh(){
+  if(viewId===null)return Promise.resolve();
+  if(refreshing){refreshAgain=true;return refreshing}
+  refreshing=(async()=>{try{do{refreshAgain=false;const v=await loadView(viewId);lastView=v;render(v)}while(refreshAgain)}catch(e){status(String(e),true)}finally{refreshing=null}})();
+  return refreshing;
+}
+function go(id){if(id===undefined||id===null)return;viewId=id;refresh()}
+function placeholder(text){lastView=null;leaves=[];$('heading').replaceChildren(Object.assign(document.createElement('span'),{className:'here',textContent:'Scanning…'}));$('subheading').textContent='';$('up').classList.add('hidden');$('listing').replaceChildren(Object.assign(document.createElement('div'),{className:'empty',textContent:text}));drawMap(null)}
+function cell(text,cls){const td=document.createElement('td');td.textContent=text;if(cls)td.className=cls;return td}
+function render(v){
+  const nav=$('heading');nav.replaceChildren();
+  v.trail.forEach((c,i)=>{if(i)nav.append(Object.assign(document.createElement('span'),{className:'sep',textContent:'›'}));const last=i===v.trail.length-1,el=document.createElement(last?'span':'button');el.textContent=c.name;if(last)el.className='here';else{el.type='button';el.onclick=()=>go(c.id)}nav.append(el)});
+  $('subheading').textContent=`${size(v.size)} · ${count(v.items)} items · ${count(v.files)} files`+(v.incomplete?' · Incomplete':'');
+  $('up').classList.toggle('hidden',v.trail.length<2);
+  const box=$('listing'),scroll=box.scrollTop,table=document.createElement('table'),body=document.createElement('tbody');
+  table.innerHTML='<thead><tr><th>Name</th><th>Size</th><th>Share</th><th>Files</th></tr></thead>';
+  for(const n of v.entries||[]){
+    const tr=document.createElement('tr');
+    if(n.dir){tr.dataset.click='1';tr.tabIndex=0;tr.onclick=()=>go(n.id);tr.onkeydown=e=>{if(e.key==='Enter')go(n.id)}}
+    const pct=v.size?100*n.size/v.size:0,share=document.createElement('td'),wrap=document.createElement('div'),bar=document.createElement('span'),fill=document.createElement('i');
+    wrap.className='share';bar.className='bar';fill.style.width=Math.min(100,pct).toFixed(1)+'%';bar.append(fill);wrap.append(pct.toFixed(1)+'%',bar);share.append(wrap);
+    tr.append(cell((n.dir?'▸  ':'')+n.name+(n.incomplete?' (incomplete)':''),'name'),cell(size(n.size)),share,cell(n.dir?count(n.files):''));body.append(tr);
+  }
+  if(v.moreCount){const tr=document.createElement('tr');tr.className='more';tr.append(cell(`${count(v.moreCount)} more smaller items`),cell(size(v.moreSize)),cell(''),cell(''));body.append(tr)}
+  if(!(v.entries||[]).length){const tr=document.createElement('tr');tr.className='more';tr.append(cell('This folder is empty.'),cell(''),cell(''),cell(''));body.append(tr)}
+  table.append(body);box.replaceChildren(table);box.scrollTop=scroll;
+  drawMap(v);
+}
+// Cushion treemap in the style of WinDirStat (van Wijk and van de Wetering): every level adds a
+// parabolic ridge, so nesting shows as shading. Files are coloured by extension.
+const PAL=['#4a7fd6','#d65a4a','#4fae5b','#d6b43c','#3fb3c4','#b45ad6','#e0883c','#7f72e0','#97c43f','#d65a9c'],OTHER_TYPE='#9a9fa5',SMALL='#6c7378',FOLDER='#7d8a99';
+function ext(name){const i=name.lastIndexOf('.');return i>0&&name.length-i<=12?name.slice(i+1).toLowerCase():''}
+function rgb(hex){const v=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)),f=153/(((v[0]+v[1]+v[2])/3)||1);return v.map(c=>c*f)}
+function squarify(items,x0,y0,x1,y1,cb){
+  let rest=items.reduce((a,k)=>a+k.s,0),i=0;
+  while(i<items.length&&rest>0){
+    const w=x1-x0,h=y1-y0;if(w<=0||h<=0)return;
+    const scale=w*h/rest,side=Math.min(w,h),side2=side*side;
+    let j=i,sum=0,big=0,small=Infinity,worst=Infinity;
+    while(j<items.length){const a=items[j].s*scale,ns=sum+a,nb=Math.max(big,a),nm=Math.min(small,a),r=Math.max(side2*nb/(ns*ns),ns*ns/(side2*nm));if(j>i&&r>worst)break;worst=r;sum=ns;big=nb;small=nm;j++}
+    const thick=sum/side;let pos=0;
+    for(let k=i;k<j;k++){const len=k===j-1?side-pos:items[k].s*scale/thick;if(w>=h)cb(items[k],x0,y0+pos,x0+thick,y0+pos+len);else cb(items[k],x0+pos,y0,x0+pos+len,y0+thick);pos+=len;rest-=items[k].s}
+    if(w>=h)x0+=thick;else y0+=thick;i=j;
+  }
+}
+function drawMap(v){
+  const canvas=$('map'),box=$('treemap'),m=v&&v.map;
+  leaves=[];$('hoverBox').classList.add('hidden');$('tip').classList.add('hidden');
+  const W=box.clientWidth,H=box.clientHeight,empty=!m||!(m.s>0)||W<4||H<4;
+  $('mapEmpty').classList.toggle('hidden',!empty);
+  if(empty){canvas.width=1;canvas.height=1;$('legend').replaceChildren();$('mapEmpty').textContent=v?'Nothing to draw in this folder.':'The map will show how space is distributed.';return}
+  const dpr=Math.min(2,window.devicePixelRatio||1),cw=Math.round(W*dpr),ch=Math.round(H*dpr);
+  canvas.width=cw;canvas.height=ch;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const totals=new Map();(function walk(n){if(n.c)n.c.forEach(walk);if(!n.d)totals.set(ext(n.n),(totals.get(ext(n.n))||0)+n.s)})(m);
+  const ranked=[...totals].sort((a,b)=>b[1]-a[1]).slice(0,PAL.length),colors=new Map(ranked.map(([e],i)=>[e,rgb(PAL[i])])),grey=rgb(OTHER_TYPE),small=rgb(SMALL),folder=rgb(FOLDER);
+  const ctx=canvas.getContext('2d'),img=ctx.createImageData(cw,ch),data=img.data;
+  const ld=Math.sqrt(102),Lx=-1/ld,Ly=-1/ld,Lz=10/ld,Ia=0.13,Is=1-Ia,B=0.88/0.6;
+  function paint(x0,y0,x1,y1,s,col){
+    const X0=Math.max(0,Math.round(x0)),X1=Math.min(cw,Math.round(x1)),Y0=Math.max(0,Math.round(y0)),Y1=Math.min(ch,Math.round(y1)),r=col[0],g=col[1],b=col[2];
+    for(let y=Y0;y<Y1;y++){const ny=-(2*s[1]*(y+.5)+s[3]);let o=(y*cw+X0)*4;for(let x=X0;x<X1;x++,o+=4){const nx=-(2*s[0]*(x+.5)+s[2]);let c=(nx*Lx+ny*Ly+Lz)/Math.sqrt(nx*nx+ny*ny+1);if(c>1)c=1;let p=Is*c;if(p<0)p=0;p=(p+Ia)*B;data[o]=r*p;data[o+1]=g*p;data[o+2]=b*p;data[o+3]=255}}
+  }
+  function ridge(s,x0,y0,x1,y1,h){const w=x1-x0,hh=y1-y0;if(w>0){const f=4*h/w;s[2]+=f*(x1+x0);s[0]-=f}if(hh>0){const f=4*h/hh;s[3]+=f*(y1+y0);s[1]-=f}}
+  function place(n,x0,y0,x1,y1,parent,h,trail,dirId,root){
+    const s=parent.slice();if(!root)ridge(s,x0,y0,x1,y1,h);
+    const kids=(n.c||[]).filter(k=>k.s>0);if(n.o>0)kids.push({n:'',s:n.o,other:true});kids.sort((a,b)=>b.s-a.s);
+    if(n.other||!n.d||!kids.length||x1-x0<3||y1-y0<3){
+      const kind=n.other?'other':n.d?'dir':'file';
+      paint(x0,y0,x1,y1,s,kind==='file'?colors.get(ext(n.n))||grey:kind==='dir'?folder:small);
+      const where=trail.join('/');
+      leaves.push({x0:x0/dpr,y0:y0/dpr,x1:x1/dpr,y1:y1/dpr,size:n.s,dirId:kind==='dir'?n.i:dirId,label:kind==='other'?(where?where+'/':'')+'(smaller items)':kind==='dir'?where+'/':where});
+      return;
+    }
+    const here=root?v.id:n.i;
+    squarify(kids,x0,y0,x1,y1,(k,a,b,c,d)=>place(k,a,b,c,d,s,h*0.91,k.other?trail:trail.concat(k.n),here,false));
+  }
+  place(m,0,0,cw,ch,[0,0,0,0],0.38,[],v.id,true);
+  ctx.putImageData(img,0,0);
+  const chips=ranked.map(([e],i)=>[e?'.'+e:'no extension',PAL[i]]);
+  if([...totals.keys()].length>ranked.length)chips.push(['other types',OTHER_TYPE]);
+  chips.push(['small items',SMALL]);
+  $('legend').replaceChildren(...chips.map(([label,color])=>{const span=document.createElement('span'),sw=document.createElement('i');sw.style.background=color;span.append(sw,label);return span}));
+}
+function hit(x,y){for(let i=leaves.length-1;i>=0;i--){const l=leaves[i];if(x>=l.x0&&x<l.x1&&y>=l.y0&&y<l.y1)return l}return null}
+function mapPoint(e){const r=$('map').getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]}
+$('map').onmousemove=e=>{
+  const [x,y]=mapPoint(e),l=hit(x,y),hb=$('hoverBox'),tip=$('tip');
+  if(!l){hb.classList.add('hidden');tip.classList.add('hidden');return}
+  Object.assign(hb.style,{left:l.x0+'px',top:l.y0+'px',width:Math.max(2,l.x1-l.x0)+'px',height:Math.max(2,l.y1-l.y0)+'px'});hb.classList.remove('hidden');
+  tip.textContent=l.label+'\n'+size(l.size);tip.classList.remove('hidden');
+  const box=$('treemap'),tw=tip.offsetWidth,th=tip.offsetHeight;
+  tip.style.left=Math.max(4,Math.min(box.clientWidth-tw-4,x+14))+'px';tip.style.top=(y+14+th>box.clientHeight?Math.max(4,y-th-10):y+14)+'px';
+};
+$('map').onmouseleave=()=>{$('hoverBox').classList.add('hidden');$('tip').classList.add('hidden')};
+$('map').onclick=e=>{const l=hit(...mapPoint(e));if(l&&l.dirId&&l.dirId!==viewId)go(l.dirId)};
+window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(lastView)drawMap(lastView)},150)});
+</script></body></html>
