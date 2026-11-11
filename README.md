@@ -1,10 +1,16 @@
 # KamkmDirStat
 
-A Windows desktop app that shows what is using the disk, in the style of WinDirStat: a size-ordered folder list and a cushion treemap coloured by file type. It works on this PC or on an SSH server. It can also monitor CPU, memory, GPU, network and processes live, and end processes.
+A desktop app for Windows, Linux and macOS that shows what is using the disk, in the style of WinDirStat: a size-ordered folder list and a cushion treemap coloured by file type. It works on this computer or on an SSH server. It can also monitor CPU, memory, GPU, network and processes live, and end processes.
 
 ## Run
 
-Run `KamkmDirStat.exe` on Windows with the Microsoft Edge WebView2 Runtime installed. Windows OpenSSH is needed only for SSH servers.
+Download the package for your system from the [releases page](https://github.com/Kamkmgamer/KamkmDirStat/releases).
+
+- **Windows** (x64): run `KamkmDirStat.exe`. It needs the Microsoft Edge WebView2 Runtime, which Windows 10 and 11 include. Windows OpenSSH is needed only for SSH servers.
+- **Linux** (x64 or ARM64): unpack `KamkmDirStat-linux-*.tar.gz` and run `./kamkmdirstat`. It needs WebKitGTK 4.1 (`libwebkit2gtk-4.1-0` on Debian and Ubuntu 22.04 or newer, `webkit2gtk4.1` on Fedora, `webkit2gtk-4.1` on Arch) and, for monitoring this computer, Python 3. `INSTALL.txt` in the package explains how to add it to the applications menu.
+- **macOS** 11 or newer (Apple Silicon and Intel): unzip `KamkmDirStat-macos-universal.zip` and move `KamkmDirStat.app` to Applications. The app is not notarized, so the first time macOS blocks it: open **System Settings > Privacy & Security** and choose **Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/KamkmDirStat.app`.
+
+On Linux and macOS the local choice is called **This computer** and **This Mac**; the steps below apply the same way.
 
 ### This PC
 
@@ -62,7 +68,9 @@ OpenSSH resolves the config through `ssh -G`, including `Host`, `Match`, and `In
 
 ## Build
 
-Install the Go version specified in `go.mod`. On Windows, run:
+Install the Go version specified in `go.mod`. Pushing a version tag such as `v0.3.0` runs the release workflow, which builds every package and attaches them to a draft release.
+
+On Windows, run:
 
 ```powershell
 $env:CGO_ENABLED="0"
@@ -74,6 +82,18 @@ On Linux, cross-compile with:
 ```
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags='-H=windowsgui' -o KamkmDirStat.exe .
 ```
+
+On Linux, install a C compiler and the GTK and WebKitGTK development packages (`sudo apt install build-essential libgtk-3-dev libwebkit2gtk-4.1-dev` on Debian and Ubuntu), then run:
+
+```
+PKG_CONFIG_PATH=$PWD/packaging/linux/pkgconfig go build -trimpath -o kamkmdirstat .
+```
+
+The webview library looks for WebKitGTK 4.0, which newer distributions no longer ship; the file in `packaging/linux/pkgconfig` points it at 4.1, which has the same interface.
+
+On macOS, install the Xcode command line tools and run `go build -trimpath -o kamkmdirstat .`. The release workflow shows how to make a universal app bundle.
+
+Builds for Linux and macOS without cgo compile, which the tests use, but cannot open a window.
 
 ## Test
 

@@ -1,0 +1,141 @@
+name: Release
+
+# Pushing a version tag builds every package and attaches them to a draft release for that
+# tag. Publish the draft after checking it.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build, such as v0.3.0
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        env:
+          CGO_ENABLED: '0'
+        run: go build -trimpath -ldflags="-H=windowsgui" -o KamkmDirStat.exe .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: KamkmDirStat.exe
+
+  linux:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x64
+          - runner: ubuntu-22.04-arm
+            arch: arm64
+    # Ubuntu 22.04 keeps the glibc requirement low so the build runs on most current distributions.
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install window libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev xvfb
+      - name: Build
+        env:
+          PKG_CONFIG_PATH: ${{ github.workspace }}/packaging/linux/pkgconfig
+        run: go build -trimpath -ldflags="-s -w" -o kamkmdirstat .
+      - name: Check that the window opens
+        run: |
+          set +e
+          timeout 10 xvfb-run -a ./kamkmdirstat
+          code=$?
+          if [ "$code" -ne 124 ]; then echo "The app exited with status $code instead of staying open."; exit 1; fi
+      - name: Package
+        run: |
+          dir="KamkmDirStat-linux-${{ matrix.arch }}"
+          mkdir "$dir"
+          cp kamkmdirstat packaging/linux/kamkmdirstat.desktop packaging/linux/INSTALL.txt "$dir/"
+          tar -czf "$dir.tar.gz" "$dir"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: KamkmDirStat-linux-${{ matrix.arch }}.tar.gz
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build for Apple Silicon and Intel
+        env:
+          CGO_ENABLED: '1'
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
+        run: |
+          GOARCH=arm64 CC="clang -arch arm64" CXX="clang++ -arch arm64" go build -trimpath -ldflags="-s -w" -o kamkmdirstat-arm64 .
+          GOARCH=amd64 CC="clang -arch x86_64" CXX="clang++ -arch x86_64" go build -trimpath -ldflags="-s -w" -o kamkmdirstat-amd64 .
+          lipo -create -output kamkmdirstat kamkmdirstat-arm64 kamkmdirstat-amd64
+          lipo -info kamkmdirstat
+      - name: Check that the window opens
+        run: |
+          ./kamkmdirstat &
+          pid=$!
+          sleep 10
+          if ! kill -0 "$pid"; then echo "The app exited instead of staying open."; exit 1; fi
+          kill "$pid"
+      - name: Make the app bundle
+        run: |
+          app=KamkmDirStat.app
+          mkdir -p "$app/Contents/MacOS"
+          cp kamkmdirstat "$app/Contents/MacOS/KamkmDirStat"
+          sed "s/@VERSION@/${TAG#v}/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
+          # Ad-hoc signing is required to run on Apple Silicon. The app is not notarized.
+          codesign --force --deep --sign - "$app"
+          codesign --verify --verbose "$app"
+          ditto -c -k --keepParent "$app" KamkmDirStat-macos-universal.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: KamkmDirStat-macos-universal.zip
+
+  release:
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l dist
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --verify-tag --title "KamkmDirStat $TAG" --notes "Release notes to follow."
+          fi
+          gh release upload "$TAG" dist/* --clobber

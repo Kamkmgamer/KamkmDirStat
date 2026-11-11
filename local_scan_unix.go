@@ -5,7 +5,10 @@ package main
 import (
 	"io/fs"
 	"os"
+	"path/filepath"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // listLocalDir skips symbolic links and other file systems mounted inside the scan.
@@ -48,4 +51,15 @@ func deviceOf(path string) uint64 {
 	return 0
 }
 
-func volumeUsedBytes(string) int64 { return 0 }
+// volumeUsedBytes is the used space when path is the top of a mounted file system, and 0
+// otherwise.
+func volumeUsedBytes(path string) int64 {
+	if path != "/" && deviceOf(path) == deviceOf(filepath.Dir(path)) {
+		return 0
+	}
+	var st unix.Statfs_t
+	if unix.Statfs(path, &st) != nil {
+		return 0
+	}
+	return int64(st.Blocks-st.Bfree) * int64(st.Bsize)
+}

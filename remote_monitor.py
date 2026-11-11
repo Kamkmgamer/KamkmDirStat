@@ -244,6 +244,8 @@ def process_table(previous, elapsed, cores, total_memory, me):
                      'mem': round(100.0 * rss / total_memory, 2) if total_memory else 0,
                      'kernel': pid == 2 or ppid == 2})
     guarded = protected_pids()
+    # When the app runs this on its own computer, its window processes are its children too.
+    launcher = os.getppid() if os.environ.get('KAMKM_LOCAL') == '1' else None
     chosen = {}
     # The busiest processes, plus this session's own so it is clear why they cannot be ended.
     busiest = sorted(rows, key=lambda r: -r['cpu'])[:TOP] + sorted(rows, key=lambda r: -r['rss'])[:TOP]
@@ -255,7 +257,7 @@ def process_table(previous, elapsed, cores, total_memory, me):
         except OSError:
             command = ''
         row['cmd'] = command[:300]
-        row['protected'] = row['pid'] in guarded
+        row['protected'] = row['pid'] in guarded or row['ppid'] == launcher
     return list(chosen.values()), len(rows), current
 
 
@@ -352,7 +354,7 @@ def run():
         user = pwd.getpwuid(me).pw_name
     except KeyError:
         user = str(me)
-    send({'type': 'hello', 'privilege': level, 'user': user, 'host': uname.nodename,
+    send({'type': 'hello', 'platform': 'linux', 'privilege': level, 'user': user, 'host': uname.nodename,
           'system': uname.sysname + ' ' + uname.release, 'machine': uname.machine, 'cpuModel': model})
 
     requests = queue.Queue()

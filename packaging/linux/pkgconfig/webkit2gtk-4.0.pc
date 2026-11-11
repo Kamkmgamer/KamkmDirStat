@@ -1,0 +1,7 @@
+# The webview library asks pkg-config for webkit2gtk-4.0, which newer distributions no
+# longer ship. WebKitGTK 4.1 has the same API apart from libsoup, which webview does not
+# use, so this file lets it build against 4.1. Put this folder first in PKG_CONFIG_PATH.
+Name: webkit2gtk-4.0
+Description: WebKitGTK 4.1 under the name the webview library expects
+Version: 2.40.0
+Requires: webkit2gtk-4.1 gtk+-3.0

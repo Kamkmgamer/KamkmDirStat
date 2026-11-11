@@ -2,15 +2,6 @@ package main
 
 import "golang.org/x/sys/windows"
 
-type Drive struct {
-	Path       string `json:"path"`
-	Label      string `json:"label"`
-	FileSystem string `json:"fileSystem"`
-	Kind       string `json:"kind"`
-	Total      int64  `json:"total"`
-	Free       int64  `json:"free"`
-}
-
 // listDrives returns the drives that are ready to scan. Empty card readers and optical
 // drives without a disc are left out.
 func listDrives() []Drive {

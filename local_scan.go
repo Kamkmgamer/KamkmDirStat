@@ -34,9 +34,6 @@ type localEntry struct {
 // More workers than this mostly contend inside the file system on Windows.
 const localScanWorkers = 8
 
-// localRootName is the top of the report when several drives or folders are scanned.
-const localRootName = "This PC"
-
 // cleanLocalPaths checks the folders chosen for a local scan and removes any that are inside
 // another chosen folder.
 func cleanLocalPaths(paths []string) ([]string, error) {
@@ -89,7 +86,7 @@ func newLocalTree(roots []string) *Tree {
 	if len(roots) == 1 {
 		return newTree(roots[0])
 	}
-	t := newTree(localRootName)
+	t := newTree(localRootName())
 	for _, r := range roots {
 		t.addChild(t.Root, r, true, 0)
 	}

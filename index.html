@@ -351,7 +351,7 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
     <div class="section">
       <h2 class="section-title">Computer</h2>
       <div class="seg" role="radiogroup" aria-label="Computer to inspect">
-        <label><input type="radio" name="target" id="targetLocal" value="local" checked><span><svg class="i"><use href="#i-pc"/></svg>This PC</span></label>
+        <label><input type="radio" name="target" id="targetLocal" value="local" checked><span><svg class="i"><use href="#i-pc"/></svg><span id="localTargetName">This PC</span></span></label>
         <label><input type="radio" name="target" id="targetRemote" value="remote"><span><svg class="i"><use href="#i-server"/></svg>SSH server</span></label>
       </div>
     </div>
@@ -458,7 +458,7 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
 </main>
 </div>
 
-<footer class="statusbar"><span id="footer">Ready</span><span class="keys"><kbd>Backspace</kbd> up a folder &nbsp; <kbd>Ctrl</kbd>+<kbd>1</kbd>/<kbd>2</kbd> view &nbsp; <kbd>Ctrl</kbd>+<kbd>B</kbd> panel</span></footer>
+<footer class="statusbar"><span id="footer">Ready</span><span class="keys" id="footerKeys"><kbd>Backspace</kbd> up a folder &nbsp; <kbd>Ctrl</kbd>+<kbd>1</kbd>/<kbd>2</kbd> view &nbsp; <kbd>Ctrl</kbd>+<kbd>B</kbd> panel</span></footer>
 
 <div id="confirm" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
   <form class="dialog" id="confirmForm">
@@ -497,7 +497,14 @@ function status(message,error=false,busy=false){$('status').textContent=message;
 function conn(state,text){$('conn').dataset.state=state;$('connText').textContent=text}
 function showTrust(on){$('trust').classList.toggle('hidden',!on);if(on)$('reject').focus()}
 $('method').onchange=()=>{let key=$('method').value==='key';$('passwordFields').classList.toggle('hidden',$('method').value!=='password');$('keyFields').classList.toggle('hidden',!key)};
-let target='local',drives=[];
+let target='local',drives=[],platform='windows';
+const localName=()=>platform==='darwin'?'This Mac':platform==='linux'?'This computer':'This PC';
+// The page starts with Windows wording and adjusts once the app reports its platform.
+function applyPlatform(){
+  $('localTargetName').textContent=localName();
+  $('localFolder').placeholder=platform==='windows'?'C:\\Users\\you\\Downloads':platform==='darwin'?'/Users/you/Downloads':'/home/you/Downloads';
+  if(platform==='darwin')$('footerKeys').innerHTML='<kbd>⌫</kbd> up a folder &nbsp; <kbd>⌘</kbd>+<kbd>1</kbd>/<kbd>2</kbd> view &nbsp; <kbd>⌘</kbd>+<kbd>B</kbd> panel';
+}
 try{if(localStorage.getItem('kamkm.target')==='remote')target='remote'}catch(e){}
 function selectedDrives(){return drives.filter(d=>d.checked).map(d=>d.path)}
 function connection(){
@@ -527,7 +534,7 @@ function renderDrives(){
   const box=$('drives');
   if(!drives.length){box.replaceChildren(el('p','hint','No drives found. Enter a folder below instead.'));return}
   box.replaceChildren(...drives.map(d=>{
-    const row=el('label','drive'),cb=el('input'),name=el('span','dname'),used=d.total-d.free,kind={removable:' · removable',network:' · network',optical:' · disc',ram:' · RAM disk'}[d.kind]||'';
+    const row=el('label','drive'),cb=el('input'),name=el('span','dname'),used=d.total-d.free,kind={removable:' · removable',network:' · network',optical:' · disc',ram:' · RAM disk',boot:' · boot'}[d.kind]||'';
     cb.type='checkbox';cb.checked=d.checked;cb.onchange=()=>{d.checked=cb.checked};
     name.append(el('b','',driveName(d)),el('small','',`${size(d.free)} free of ${size(d.total)}${kind}`));
     row.title=`${d.path} · ${d.fileSystem||'unknown file system'} · ${pct(used,d.total)} used`;
@@ -544,7 +551,7 @@ $('connect').onsubmit=async e=>{
   if(target==='local'){
     const c=connection();
     if($('wantScan').checked&&!c.paths.length){status('Choose at least one drive, or enter a folder.',true);return}
-    $('submit').disabled=true;await begin(c,'This PC');return;
+    $('submit').disabled=true;await begin(c,localName());return;
   }
   showTrust(false);$('submit').disabled=true;
   const req=connection();
@@ -573,7 +580,7 @@ async function begin(c,who){
     if(!scanOn){$('password').value='';$('passphrase').value='';$('submit').disabled=false;status('Monitoring '+who+'.');conn('busy',(local?'Starting monitor · ':'Connecting monitor · ')+who);setTab('activity');return}
     await startScan(c);$('password').value='';$('passphrase').value='';$('cancelScanButton').classList.remove('hidden');
     viewId=0;lastView=null;mode='';tick=0;conn('busy','Scanning '+who);
-    placeholder(local?'Scanning this PC…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
+    placeholder(local?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
     setTab('storage');poll=setInterval(pollScan,500);
   }catch(e){$('submit').disabled=false;status(String(e),true);conn('error',local?'Could not start':'Connection failed')}
 }
@@ -611,7 +618,7 @@ async function pollScan(){
     if(s.cancelled){status(mode==='remote'?'Remote scan cancelled. No completed report was downloaded.':'Scan cancelled. Showing what was found before cancelling.');conn('warn','Cancelled · '+who)}
     else if(s.error){status(s.error+(s.files?'\nShowing partial results.':''),true);conn('error','Scan failed · '+who)}
     else{status(s.errorCount?`Scan finished${took}. ${count(s.errorCount)} paths could not be read.`:`Scan complete${took}.`);conn(s.errorCount?'warn':'ok',who)}
-    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local'?'(file sizes) · scanned on this PC':mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
+    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local'?'(file sizes) · scanned on '+localName().toLowerCase():mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
   }catch(e){finishScan();status(String(e),true);conn('error','Disconnected')}
   finally{polling=false}
 }
@@ -872,7 +879,7 @@ function renderActivity(){
   // Memory
   const mp=$('memPanel'),cache=(m.cached||0)+(m.buffers||0),keys=el('div','keyrow');
   keys.append(keyChip('var(--s1)',`In use ${size(m.used)}`),keyChip('var(--s2)',`${onWindows()?'Standby':'Cache'} ${size(cache)}`),keyChip('var(--line-2)',`Free ${size(m.free)}`));
-  const k2=el('div','kvs');k2.append(kv('Total',size(m.total)),kv('Available',size(m.available)));if(m.shmem!==undefined)k2.append(kv('Shared',size(m.shmem)));k2.append(kv(onWindows()?'Modified':'Waiting to be written',size(m.dirty)));
+  const k2=el('div','kvs');k2.append(kv('Total',size(m.total)),kv('Available',size(m.available)));if(m.shmem!==undefined)k2.append(kv('Shared',size(m.shmem)));if(m.dirty!==undefined)k2.append(kv(onWindows()?'Modified':'Waiting to be written',size(m.dirty)));if(m.wired!==undefined)k2.append(kv('Wired',size(m.wired)),kv('Compressed',size(m.compressed)));
   const parts=[meter([[m.total?100*m.used/m.total:0],[m.total?100*Math.min(cache,m.total-m.used)/m.total:0,'s2']]),keys,k2];
   if(m.commitLimit)parts.push(meterLine('Committed',100*m.commitUsed/m.commitLimit,`${size(m.commitUsed)} of ${size(m.commitLimit)}`));
   else parts.push(m.swapTotal?meterLine('Swap',100*m.swapUsed/m.swapTotal,`${size(m.swapUsed)} of ${size(m.swapTotal)}`):el('p','muted','No swap space is configured.'));
@@ -953,7 +960,7 @@ async function endProcess(p,force){
 $('freeCacheButton').onclick=async()=>{
   const priv=privilegeOf(),password=needsSudoPassword(null,priv);
   const r=await confirmAction({title:'Free the memory cache?',label:'Free cache',password,
-    text:onWindows()?'Modified pages are written to disk, then the standby list (file data Windows keeps in spare memory) is cleared. Programs keep their memory. The cache refills as files are read again, so the PC may be slower for a while. Windows frees standby memory by itself whenever programs need it, so this is rarely necessary.':'Pending writes are saved to disk, then the file cache is cleared (drop_caches). Programs keep their memory. The cache refills as files are read again, so the server may be slower for a while. Linux frees cache by itself when programs need memory, so this is rarely necessary.'});
+    text:hello&&hello.platform==='darwin'?'Runs purge, which writes pending data to disk and clears the file cache. Programs keep their memory. The cache refills as files are read again, so the Mac may be slower for a while. macOS frees cached memory by itself whenever programs need it, so this is rarely necessary.':onWindows()?'Modified pages are written to disk, then the standby list (file data Windows keeps in spare memory) is cleared. Programs keep their memory. The cache refills as files are read again, so the PC may be slower for a while. Windows frees standby memory by itself whenever programs need it, so this is rarely necessary.':'Pending writes are saved to disk, then the file cache is cleared (drop_caches). Programs keep their memory. The cache refills as files are read again, so the server may be slower for a while. Linux frees cache by itself when programs need memory, so this is rarely necessary.'});
   if(!r)return;
   await sendAction({type:'dropcaches',password:password?r.password:''},'Freeing the memory cache…');
 };
@@ -1004,4 +1011,5 @@ for(const id of ['sCpu','sMem','sGpu','sNet']){
 }
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{redraw();drawSparks()},150)});
 syncTools();if(target==='local')loadDrives();
+if(typeof appPlatform==='function')appPlatform().then(p=>{platform=p;applyPlatform()}).catch(()=>{});
 </script></body></html>

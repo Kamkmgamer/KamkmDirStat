@@ -191,6 +191,13 @@ func runMonitor(ctx context.Context, c Connection, writes <-chan []byte, update 
 	if err := session.Start(command); err != nil {
 		return fmt.Errorf("The server does not allow running commands, which monitoring needs: %w", err)
 	}
+	return monitorProtocol(ctx, input, stdout, func() { _ = client.Close() }, "the server", writes, update)
+}
+
+// monitorProtocol talks to remote_monitor.py over its standard input and output, whether
+// it runs on a server or, on Linux, on this computer. abort unblocks stalled reads.
+func monitorProtocol(ctx context.Context, input io.Writer, stdout io.Reader, abort func(), where string,
+	writes <-chan []byte, update func(func(*MonitorStatus)) bool) error {
 	output := bufio.NewReaderSize(stdout, 64<<10)
 	header := make(chan string, 1)
 	go func() { header <- readScriptHeader(output, "SSM1 ") }()
@@ -201,14 +208,14 @@ func runMonitor(ctx context.Context, c Connection, writes <-chan []byte, update 
 		switch line {
 		case "gzip":
 		case "unsupported":
-			return errors.New("Monitoring needs a Linux server; this one has no /proc file system.")
+			return fmt.Errorf("Monitoring needs Linux; %s has no /proc file system.", where)
 		default:
-			return errors.New("Monitoring needs Python 3 on the server.")
+			return fmt.Errorf("Monitoring needs Python 3 on %s.", where)
 		}
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-timer.C:
-		return errors.New("The server did not start the monitor in time.")
+		return fmt.Errorf("The monitor did not start on %s in time.", where)
 	}
 
 	go func() {
@@ -218,7 +225,7 @@ func runMonitor(ctx context.Context, c Connection, writes <-chan []byte, update 
 				return
 			case line := <-writes:
 				if _, err := input.Write(line); err != nil {
-					_ = client.Close()
+					abort()
 					return
 				}
 			}
@@ -231,14 +238,14 @@ func runMonitor(ctx context.Context, c Connection, writes <-chan []byte, update 
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			return fmt.Errorf("The monitor connection closed: %w", err)
+			return fmt.Errorf("The monitor stopped unexpectedly: %w", err)
 		}
 		var head struct {
 			Type  string `json:"type"`
 			Error string `json:"error"`
 		}
 		if err := json.Unmarshal(data, &head); err != nil {
-			return errors.New("The server sent an invalid monitor message.")
+			return errors.New("The monitor sent an invalid message.")
 		}
 		raw := json.RawMessage(data)
 		current := true
@@ -252,7 +259,7 @@ func runMonitor(ctx context.Context, c Connection, writes <-chan []byte, update 
 		case "error":
 			return errors.New(head.Error)
 		default:
-			return errors.New("The server sent an unknown monitor message.")
+			return errors.New("The monitor sent an unknown message.")
 		}
 		if !current {
 			return context.Canceled

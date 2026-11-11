@@ -78,11 +78,11 @@ func TestLocalScanSeveralRoots(t *testing.T) {
 	if _, err := localScanInto(context.Background(), roots, tree, nil); err != nil {
 		t.Fatal(err)
 	}
-	if tree.Root.Name != localRootName || len(tree.Root.Children) != 2 || tree.Root.Size != sizeA+sizeB || tree.Root.Files != filesA+filesB {
+	if tree.Root.Name != localRootName() || len(tree.Root.Children) != 2 || tree.Root.Size != sizeA+sizeB || tree.Root.Files != filesA+filesB {
 		t.Fatalf("root %q children=%d size=%d files=%d", tree.Root.Name, len(tree.Root.Children), tree.Root.Size, tree.Root.Files)
 	}
 	v, err := tree.view(tree.Root.Children[0].id)
-	if err != nil || len(v.Trail) != 2 || v.Trail[0].Name != localRootName {
+	if err != nil || len(v.Trail) != 2 || v.Trail[0].Name != localRootName() {
 		t.Fatalf("drive view trail %+v err %v", v.Trail, err)
 	}
 }

@@ -2,7 +2,7 @@
 
 ## Platform and stack
 
-Windows desktop application written in Go with a WebView2 interface. It inspects this PC or SSH-accessible machines. The Windows executable can be cross-compiled on Linux.
+Desktop application for Windows, Linux and macOS written in Go. The interface is one HTML page shown with WebView2 on Windows, WebKitGTK on Linux and WebKit on macOS. It inspects this computer or SSH-accessible machines. The Windows executable can be cross-compiled on Linux.
 
 ## Purpose
 
@@ -23,3 +23,5 @@ A Python sampler on the Linux server reads `/proc` and GPU tools over a separate
 ## This PC
 
 Local scans list folders directly with FindFirstFileEx and do not follow junctions, symbolic links or mounted volumes. The local monitor uses the same system queries as Task Manager, DXGI and the GPU performance counters. Running as administrator stands in for root: it allows ending other users' processes and clearing the standby cache, and the app offers to restart itself elevated.
+
+On Linux the local monitor runs the same Python sampler as on servers. On macOS it uses Mach and libproc statistics, with GPU use from the I/O Registry; administrators are asked for their password to end other users' processes or run purge.

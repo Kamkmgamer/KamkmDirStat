@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !windows && !linux && !(darwin && cgo)
 
 package main
 
@@ -8,5 +8,5 @@ import (
 )
 
 func runLocalMonitor(context.Context, <-chan []byte, func(func(*MonitorStatus)) bool) error {
-	return errors.New("Monitoring this computer is only available on Windows.")
+	return errors.New("Monitoring this computer is not available on this system.")
 }

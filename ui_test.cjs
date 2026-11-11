@@ -79,5 +79,9 @@ console.log('UI treemap layout passed');
  assert.equal(lc.local,true);assert.deepEqual([...lc.paths],['C:\\','E:\\']);assert.equal(lc.password,undefined);
  element('localFolder').value='  D:\\Games  ';lc=vm.runInContext('connection()',context);assert.deepEqual([...lc.paths],['D:\\Games']);
  element('wantScan').checked=true;element('wantMonitor').checked=true;vm.runInContext('syncTools()',context);assert.equal(element('submitLabel').textContent,'Scan and monitor');
+ for(const [p,name,hint] of [['darwin','This Mac','/Users/you/Downloads'],['linux','This computer','/home/you/Downloads'],['windows','This PC','C:\\Users\\you\\Downloads']]){
+  vm.runInContext(`platform='${p}';applyPlatform()`,context);
+  assert.equal(element('localTargetName').textContent,name);assert.equal(element('localFolder').placeholder,hint);
+ }
  console.log('UI activity monitor rules passed');
 }

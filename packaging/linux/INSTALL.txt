@@ -1,0 +1,16 @@
+KamkmDirStat for Linux
+
+1. Install WebKitGTK 4.1 if it is not already installed:
+     Debian, Ubuntu 22.04 or newer:  sudo apt install libwebkit2gtk-4.1-0
+     Fedora:                         sudo dnf install webkit2gtk4.1
+     Arch:                           sudo pacman -S webkit2gtk-4.1
+   Monitoring this computer also needs Python 3, which most distributions include.
+
+2. Run ./kamkmdirstat from this folder.
+
+3. Optional: add it to your applications menu.
+     install -Dm755 kamkmdirstat ~/.local/bin/kamkmdirstat
+     install -Dm644 kamkmdirstat.desktop ~/.local/share/applications/kamkmdirstat.desktop
+   Make sure ~/.local/bin is on your PATH.
+
+See https://github.com/Kamkmgamer/KamkmDirStat for details.

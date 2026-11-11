@@ -3,13 +3,10 @@
 package main
 
 import (
-	_ "embed"
-	webview "github.com/jchv/go-webview2"
 	"log"
-)
 
-//go:embed index.html
-var page string
+	webview "github.com/jchv/go-webview2"
+)
 
 func main() {
 	w := webview.New(false)
@@ -17,61 +14,17 @@ func main() {
 		log.Fatal("Microsoft Edge WebView2 Runtime is required")
 	}
 	defer w.Destroy()
-	defer closeResults()
-	defer stopMonitor()
-	w.SetTitle("KamkmDirStat")
-	w.SetSize(1320, 850, webview.HintNone)
-	if err := w.Bind("startResolve", startResolve); err != nil {
+	w.SetSize(windowWidth, windowHeight, webview.HintNone)
+	err := runWindow(w, map[string]interface{}{
+		"restartElevated": func() error {
+			if err := launchElevated(); err != nil {
+				return err
+			}
+			w.Dispatch(w.Terminate)
+			return nil
+		},
+	})
+	if err != nil {
 		log.Fatal(err)
 	}
-	if err := w.Bind("startFingerprint", startFingerprint); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("startScan", startScan); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("resolveStatus", resolveStatus); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("fingerprintStatus", fingerprintStatus); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("cancelScan", cancelScan); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("scanStatus", scanStatus); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("startView", startView); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("viewStatus", viewStatus); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("startMonitor", startMonitor); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("stopMonitor", stopMonitor); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("monitorStatus", monitorStatus); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("monitorAction", monitorAction); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("listDrives", listDrives); err != nil {
-		log.Fatal(err)
-	}
-	if err := w.Bind("restartElevated", func() error {
-		if err := launchElevated(); err != nil {
-			return err
-		}
-		w.Dispatch(w.Terminate)
-		return nil
-	}); err != nil {
-		log.Fatal(err)
-	}
-	w.SetHtml(page)
-	w.Run()
 }

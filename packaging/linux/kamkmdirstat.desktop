@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=KamkmDirStat
+Comment=Disk usage and activity, on this computer or over SSH
+Exec=kamkmdirstat
+Icon=drive-harddisk
+Terminal=false
+Categories=System;Utility;Monitor;

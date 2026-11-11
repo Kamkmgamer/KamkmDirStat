@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -23,15 +23,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Install Linux test tools
+      - name: Install Linux test and window libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y zstd
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd libgtk-3-dev libwebkit2gtk-4.1-dev xvfb
+          echo "PKG_CONFIG_PATH=$GITHUB_WORKSPACE/packaging/linux/pkgconfig" >> "$GITHUB_ENV"
       - name: Test Go code on Linux
         if: runner.os == 'Linux'
         run: go test -race -count=1 ./...
-      - name: Test Go code on Windows
-        if: runner.os == 'Windows'
-        run: go test -count=1 ./...
+      - name: Test Go code
+        if: runner.os != 'Linux'
+        run: go test -count=1 -v ./...
       - name: Check Go code
         run: go vet ./...
       - name: Test interface logic
@@ -41,6 +44,24 @@ jobs:
         env:
           CGO_ENABLED: '0'
         run: go build -trimpath -ldflags="-H=windowsgui" -o KamkmDirStat.exe .
+      # The window must open and stay open; an app that cannot create it exits at once.
+      - name: Build and start Linux application
+        if: runner.os == 'Linux'
+        run: |
+          go build -trimpath -o kamkmdirstat .
+          set +e
+          timeout 10 xvfb-run -a ./kamkmdirstat
+          code=$?
+          if [ "$code" -ne 124 ]; then echo "The app exited with status $code instead of staying open."; exit 1; fi
+      - name: Build and start macOS application
+        if: runner.os == 'macOS'
+        run: |
+          go build -trimpath -o kamkmdirstat .
+          ./kamkmdirstat &
+          pid=$!
+          sleep 10
+          if ! kill -0 "$pid"; then echo "The app exited instead of staying open."; exit 1; fi
+          kill "$pid"
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with:
