@@ -301,7 +301,10 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
 .dialog .shield.danger{background:var(--danger-soft);color:var(--danger)}
 .btn.primary.danger{background:var(--danger);color:#fff}
 .btn.primary.danger:hover:not(:disabled){background:color-mix(in srgb,var(--danger),#000 12%)}
-@media (max-width:1150px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.act-grid{grid-template-columns:minmax(0,1fr)}}
+.no-gpu .gpu-only{display:none}
+.no-gpu .tiles{grid-template-columns:repeat(3,minmax(0,1fr))}
+.no-gpu .net-panel{grid-column:1/-1}
+@media (max-width:1150px){.tiles,.no-gpu .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.act-grid{grid-template-columns:minmax(0,1fr)}}
 
 ::-webkit-scrollbar{width:12px;height:12px}
 ::-webkit-scrollbar-thumb{background:var(--line-2);border:3px solid transparent;background-clip:padding-box;border-radius:6px}
@@ -335,11 +338,11 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
 <header class="titlebar">
   <div class="brand">
     <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6" fill="#5ab8ff"/><rect x="5" y="5" width="8" height="14" rx="1.5" fill="#04182a" opacity=".9"/><rect x="14.5" y="5" width="4.5" height="8" rx="1.5" fill="#04182a" opacity=".65"/><rect x="14.5" y="14.5" width="4.5" height="4.5" rx="1.5" fill="#04182a" opacity=".4"/></svg>
-    <h1>KamkmDirStat</h1><small>Disk usage and activity, on this PC or over SSH</small>
+    <h1>KamkmDirStat</h1>
   </div>
   <div class="tabs" role="tablist" aria-label="View">
-    <button class="tab" id="tabStorage" type="button" role="tab" aria-selected="true" aria-controls="workspace" title="Storage (Ctrl+1)"><svg class="i"><use href="#i-drive"/></svg>Storage</button>
-    <button class="tab" id="tabActivity" type="button" role="tab" aria-selected="false" aria-controls="activity" title="Activity (Ctrl+2)"><svg class="i"><use href="#i-pulse"/></svg>Activity<i class="live hidden" id="liveDot" title="Monitoring"></i></button>
+    <button class="tab" id="tabActivity" type="button" role="tab" aria-selected="true" aria-controls="activity" title="Activity (Ctrl+2)"><svg class="i"><use href="#i-pulse"/></svg>Activity<i class="live hidden" id="liveDot" title="Monitoring"></i></button>
+    <button class="tab" id="tabStorage" type="button" role="tab" aria-selected="false" aria-controls="workspace" title="Storage (Ctrl+1)"><svg class="i"><use href="#i-drive"/></svg>Storage</button>
   </div>
   <div class="conn" id="conn" data-state="idle" title="Connection"><i class="dot"></i><span id="connText">Not connected</span></div>
   <button class="icon-btn" id="toggleSide" type="button" aria-pressed="true" aria-controls="side" title="Show or hide the connection panel (Ctrl+B)"><svg class="i"><use href="#i-panel"/></svg></button>
@@ -372,8 +375,7 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
       </div>
     </div>
     <div class="section">
-      <h2 class="section-title">Open</h2>
-      <label class="switch"><input id="wantScan" type="checkbox" checked><span><b>Disk usage scan</b><small>Folder sizes and the storage map</small></span></label>
+      <h2 class="section-title">Scan</h2>
       <div id="scanFields" class="section">
         <div class="section local-only" id="localFields">
           <div class="field"><div class="field-head"><label id="drivesLabel">Drives</label><span><button class="linkbtn" id="allDrives" type="button">All</button> · <button class="linkbtn" id="noDrives" type="button">None</button> · <button class="linkbtn" id="refreshDrives" type="button" title="Look for drives again">Refresh</button></span></div>
@@ -385,10 +387,9 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
           <label class="switch"><input id="skipVirtual" type="checkbox" checked><span><b>Stay on this file system</b><small>Skips /proc, /sys, /dev and other mounts</small></span></label>
         </div>
       </div>
-      <label class="switch"><input id="wantMonitor" type="checkbox" checked><span><b>Live activity monitor</b><small>CPU, memory, GPU, network and processes</small></span></label>
     </div>
     <div class="section" style="gap:8px">
-      <button class="btn primary block" id="submit" type="submit"><svg class="i"><use href="#i-scan"/></svg><span id="submitLabel">Connect and open</span></button>
+      <button class="btn primary block" id="submit" type="submit"><svg class="i"><use href="#i-scan"/></svg><span id="submitLabel">Scan</span></button>
       <button class="btn danger block hidden" id="cancelScanButton" type="button">Cancel scan</button>
     </div>
   </form>
@@ -396,10 +397,10 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
     <div id="status" class="status" role="status" aria-live="polite"></div>
     <div id="progress" class="progress hidden" aria-hidden="true"><i id="progressFill"></i></div>
   </div>
-  <p class="privacy"><svg class="i"><use href="#i-lock"/></svg><span>Nothing is uploaded and file contents are never read. SSH credentials are used for this session only and are never saved.</span></p>
+  <p class="privacy"><svg class="i"><use href="#i-lock"/></svg><span>Nothing is uploaded. Credentials are never saved.</span></p>
 </div></aside>
 
-<main id="workspace" class="idle">
+<main id="workspace" class="idle hidden" role="tabpanel" aria-labelledby="tabStorage">
   <div class="toolbar">
     <div class="where">
       <nav class="crumbs" id="heading" aria-label="Current folder"><span class="here">No scan yet</span></nav>
@@ -422,7 +423,7 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
   </section>
 </main>
 
-<main id="activity" class="activity hidden" role="tabpanel" aria-labelledby="tabActivity">
+<main id="activity" class="activity" role="tabpanel" aria-labelledby="tabActivity">
   <div class="toolbar">
     <div class="where">
       <h2 class="act-title"><span id="actHost">No server</span><span class="priv hidden" id="actPriv"></span></h2>
@@ -435,20 +436,20 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
   <div class="empty welcome" id="actEmpty">
     <svg class="art" viewBox="0 0 190 120" aria-hidden="true"><rect x="1" y="1" width="188" height="118" rx="10" fill="none" stroke="currentColor" opacity=".35"/><path d="M12 84 34 70 52 78 74 40 96 58 118 30 140 50 160 44 178 60" fill="none" stroke="#5ab8ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 100 40 96 66 98 92 90 120 94 150 86 178 90" fill="none" stroke="#d9692f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <h2>Watch what the computer is doing</h2>
-    <p>Turn on <b>Live activity monitor</b> and start, for this PC or an SSH server. CPU, memory, GPU and network use update every second, and you can end your own processes. As administrator on Windows, or with root or sudo on a server, you can also end other users' processes and free the memory cache.</p>
+    <p>CPU, memory, GPU and network use for this computer, or for an SSH server once you connect.</p>
   </div>
   <div id="actBody" class="hidden" style="display:flex;flex-direction:column;gap:12px">
     <div class="tiles">
       <div class="tile"><h3><svg class="i"><use href="#i-cpu"/></svg>CPU</h3><div class="big" id="tCpu">–</div><div class="sub" id="tCpuSub"></div><div class="spark"><canvas id="sCpu" aria-label="CPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
       <div class="tile"><h3><svg class="i"><use href="#i-mem"/></svg>Memory</h3><div class="big" id="tMem">–</div><div class="sub" id="tMemSub"></div><div class="spark"><canvas id="sMem" aria-label="Memory use over the last minute"></canvas><div class="stip hidden"></div></div></div>
-      <div class="tile"><h3><svg class="i"><use href="#i-gpu"/></svg>GPU</h3><div class="big" id="tGpu">–</div><div class="sub" id="tGpuSub"></div><div class="spark"><canvas id="sGpu" aria-label="GPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
+      <div class="tile gpu-only"><h3><svg class="i"><use href="#i-gpu"/></svg>GPU</h3><div class="big" id="tGpu">–</div><div class="sub" id="tGpuSub"></div><div class="spark"><canvas id="sGpu" aria-label="GPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
       <div class="tile"><h3><svg class="i"><use href="#i-net"/></svg>Network<span class="keys"><span class="key"><i style="background:var(--s1)"></i>In</span> &nbsp;<span class="key"><i style="background:var(--s2)"></i>Out</span></span></h3><div class="big" id="tNet">–</div><div class="sub" id="tNetSub"></div><div class="spark"><canvas id="sNet" aria-label="Network traffic over the last minute"></canvas><div class="stip hidden"></div></div></div>
     </div>
     <div class="act-grid">
       <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-cpu"/></svg>Processor <small id="cpuModel"></small></h3></div><div class="panel-body" id="cpuPanel"></div></section>
       <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-mem"/></svg>Memory</h3><button class="btn sm hidden" id="freeCacheButton" type="button">Free cache</button></div><div class="panel-body" id="memPanel"></div></section>
-      <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-gpu"/></svg>Graphics</h3></div><div class="panel-body" id="gpuPanel"></div></section>
-      <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-net"/></svg>Network interfaces</h3></div><div class="panel-body" id="netPanel"></div></section>
+      <section class="panel gpu-only"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-gpu"/></svg>Graphics</h3></div><div class="panel-body" id="gpuPanel"></div></section>
+      <section class="panel net-panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-net"/></svg>Network interfaces</h3></div><div class="panel-body" id="netPanel"></div></section>
     </div>
     <section class="panel procs">
       <div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-list"/></svg>Processes <small id="procCount"></small></h3><input id="procFilter" class="filter" type="search" placeholder="Filter by name, user, PID" aria-label="Filter processes" spellcheck="false"></div>
@@ -493,7 +494,7 @@ const count=n=>(n||0).toLocaleString();
 const pct=(a,b)=>b?(100*a/b).toFixed(1)+'%':'0.0%';
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 function icon(name,cls){const ns='http://www.w3.org/2000/svg',s=document.createElementNS(ns,'svg'),u=document.createElementNS(ns,'use');s.setAttribute('class','i'+(cls?' '+cls:''));u.setAttribute('href','#i-'+name);s.append(u);return s}
-function status(message,error=false,busy=false){$('status').textContent=message;$('status').classList.toggle('error',error);$('status').classList.toggle('busy',busy&&!error)}
+function status(message,error=false,busy=false){$('status').textContent=message;$('status').title='';$('status').classList.toggle('error',error);$('status').classList.toggle('busy',busy&&!error)}
 function conn(state,text){$('conn').dataset.state=state;$('connText').textContent=text}
 function showTrust(on){$('trust').classList.toggle('hidden',!on);if(on)$('reject').focus()}
 $('method').onchange=()=>{let key=$('method').value==='key';$('passwordFields').classList.toggle('hidden',$('method').value!=='password');$('keyFields').classList.toggle('hidden',!key)};
@@ -512,14 +513,13 @@ function connection(){
   let method=$('method').value,key=method==='key';return {method,host:$('host').value.trim(),port:$('port').value.trim(),user:$('user').value.trim(),password:method==='password'?$('password').value:'',keyFile:key?$('keyFile').value.trim():'',passphrase:key?$('passphrase').value:'',path:$('path').value.trim()||'/',skipVirtual:$('skipVirtual').checked,serverReport:true}
 }
 function syncTools(){
-  const scan=!!$('wantScan').checked,mon=!!$('wantMonitor').checked,local=target==='local';
+  const local=target==='local';
   $('connect').classList.toggle('is-local',local);$('targetLocal').checked=local;$('targetRemote').checked=!local;
-  $('scanFields').classList.toggle('hidden',!scan);$('path').required=scan&&!local;$('host').required=!local;
-  $('submitLabel').textContent=!scan&&!mon?'Choose what to open':local?(scan&&mon?'Scan and monitor':scan?'Scan':'Start monitoring'):(scan&&mon?'Connect and open':scan?'Connect and scan':'Connect and monitor');
+  $('path').required=!local;$('host').required=!local;
+  $('submitLabel').textContent=local?'Scan':'Connect';
 }
 function setTarget(t){target=t;try{localStorage.setItem('kamkm.target',t)}catch(e){}syncTools();if(t==='local'&&!drives.length)loadDrives()}
 $('targetLocal').onchange=()=>setTarget('local');$('targetRemote').onchange=()=>setTarget('remote');
-$('wantScan').onchange=syncTools;$('wantMonitor').onchange=syncTools;
 function driveName(d){return d.path.replace(/\\$/,'')+(d.label?' '+d.label:'')}
 async function loadDrives(){
   if(typeof listDrives!=='function')return;
@@ -547,10 +547,9 @@ $('noDrives').onclick=()=>{drives.forEach(d=>d.checked=false);renderDrives()};
 $('refreshDrives').onclick=loadDrives;
 $('connect').onsubmit=async e=>{
   e.preventDefault();
-  if(!$('wantScan').checked&&!$('wantMonitor').checked){status('Turn on the disk usage scan, the activity monitor, or both.',true);return}
   if(target==='local'){
     const c=connection();
-    if($('wantScan').checked&&!c.paths.length){status('Choose at least one drive, or enter a folder.',true);return}
+    if(!c.paths.length){status('Choose at least one drive, or enter a folder.',true);return}
     $('submit').disabled=true;await begin(c,localName());return;
   }
   showTrust(false);$('submit').disabled=true;
@@ -572,11 +571,11 @@ $('reject').onclick=()=>{pending=null;showTrust(false);$('submit').disabled=fals
 $('accept').onclick=()=>{const c=pending;pending=null;showTrust(false);begin(c,c.user+'@'+c.host+(c.port&&c.port!=='22'?':'+c.port:''))};
 // begin starts the chosen tools once the computer is chosen and, for a server, trusted.
 async function begin(c,who){
-  const scanOn=$('wantScan').checked,monOn=$('wantMonitor').checked,local=!!c.local;
+  const scanOn=true,monOn=true,local=!!c.local;
   status(scanOn?(local?'Starting the scan…':'Connecting and starting the scan…'):(local?'Starting the monitor…':'Connecting and starting the monitor…'),false,true);
   $('connText').dataset.who=who;
   try{
-    if(monOn){await startMonitor(c);beginMonitor(who)}else if(monitorPoll)await endMonitor('Monitoring stopped.');
+    if(monOn){if(!(local&&monitorPoll&&monitorTarget==='local')){await startMonitor(c);beginMonitor(who,local)}else monitorOwnsConn=!scanOn}else if(monitorPoll)await endMonitor('Monitoring stopped.');
     if(!scanOn){$('password').value='';$('passphrase').value='';$('submit').disabled=false;status('Monitoring '+who+'.');conn('busy',(local?'Starting monitor · ':'Connecting monitor · ')+who);setTab('activity');return}
     await startScan(c);$('password').value='';$('passphrase').value='';$('cancelScanButton').classList.remove('hidden');
     viewId=0;lastView=null;mode='';tick=0;conn('busy','Scanning '+who);
@@ -607,7 +606,9 @@ async function pollScan(){
     if(s.running){
       const pc=p.expectedBytes?Math.min(99,Math.floor(100*(p.bytes||0)/p.expectedBytes)):p.expected?Math.min(99,Math.floor(100*(p.entries||0)/p.expected)):null;
       $('progress').classList.remove('hidden');$('progress').classList.toggle('indeterminate',pc===null);$('progressFill').style.width=(pc===null?0:pc)+'%';
-      status(s.cancelling?'Cancelling scan…':(p.files||p.directories)?`Scanning${mode==='remote'?' on the server':mode==='sftp'?' over SFTP (slower)':mode==='local'?' this PC':''}${pc!==null?' · about '+pc+'%':''}\n${count(p.files)} files · ${count(p.directories)} folders · ${size(p.bytes)}`+(p.currentPath?'\n'+p.currentPath:''):'Connected. Waiting for the server to list files…',false,true);
+      // Two short lines; the folder being read is shown on hover.
+      status(s.cancelling?'Cancelling…':(p.files||p.directories)?`Scanning${pc!==null?' · '+pc+'%':'…'}\n${count(p.files)} files · ${size(p.bytes)}`:mode==='local'||p.mode==='local'?'Starting…':'Waiting for the server…',false,true);
+      $('status').title=p.currentPath||'';
       const d=document.getElementById('scanDetail');if(d)d.textContent=(p.files||p.directories)?`${count(p.files)} files · ${count(p.directories)} folders · ${size(p.bytes)}${pc!==null?' · about '+pc+'%':''}`:'';
       if(mode!=='remote'&&tick++%3===0&&(p.files||p.directories))refresh();
       return;
@@ -617,8 +618,8 @@ async function pollScan(){
     const took=s.seconds?` in ${s.seconds<10?s.seconds.toFixed(1):Math.round(s.seconds)} s`:'',who=$('connText').dataset.who||'server';
     if(s.cancelled){status(mode==='remote'?'Remote scan cancelled. No completed report was downloaded.':'Scan cancelled. Showing what was found before cancelling.');conn('warn','Cancelled · '+who)}
     else if(s.error){status(s.error+(s.files?'\nShowing partial results.':''),true);conn('error','Scan failed · '+who)}
-    else{status(s.errorCount?`Scan finished${took}. ${count(s.errorCount)} paths could not be read.`:`Scan complete${took}.`);conn(s.errorCount?'warn':'ok',who)}
-    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local'?'(file sizes) · scanned on '+localName().toLowerCase():mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
+    else{status((s.errorCount?`Scan finished${took}. ${count(s.errorCount)} paths could not be read.`:`Scan complete${took}.`)+((s.notes||[]).length?'\n'+s.notes.join('\n'):''));conn(s.errorCount?'warn':'ok',who)}
+    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local-ntfs'?'(file sizes) · read from the NTFS file table':mode==='local'?'(file sizes) · scanned on '+localName().toLowerCase():mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
   }catch(e){finishScan();status(String(e),true);conn('error','Disconnected')}
   finally{polling=false}
 }
@@ -783,7 +784,7 @@ if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{clearTimeout(resi
 
 // ---- Activity monitor ----
 // The server sends one sample a second. The page keeps the last minute for the sparklines.
-let tab='storage',monitorPoll=null,monitorPolling=false,monitorOwnsConn=false,lastSeq=-1,hello=null,sample=null,actionId=0,procSort={key:'cpu',dir:-1},procFilter='',confirmResolve=null;
+let tab='activity',monitorTarget=null,monitorPoll=null,monitorPolling=false,monitorOwnsConn=false,lastSeq=-1,hello=null,sample=null,actionId=0,procSort={key:'cpu',dir:-1},procFilter='',confirmResolve=null;
 const pendingActions=new Map(),HISTORY=60,hist={cpu:[],mem:[],gpu:[],rx:[],tx:[]},sparks={};
 const rate=n=>size(n)+'/s';
 const pct0=n=>n===null||n===undefined||isNaN(n)?'–':Math.round(n)+'%';
@@ -810,15 +811,16 @@ function setTab(t){
 $('tabStorage').onclick=()=>setTab('storage');$('tabActivity').onclick=()=>setTab('activity');
 function notice(text,kind){const n=$('actNotice');$('actNoticeText').textContent=text;n.classList.toggle('error',kind==='error');n.classList.toggle('busy',kind==='busy');n.classList.toggle('hidden',!text)}
 $('actNoticeClose').onclick=()=>notice('');
-function beginMonitor(who){
+function beginMonitor(who,local=false,ownsConn=false){
+  monitorTarget=local?'local':'remote';
   clearInterval(monitorPoll);hello=null;sample=null;lastSeq=-1;for(const k in hist)hist[k]=[];pendingActions.clear();
-  monitorOwnsConn=!$('wantScan').checked;
+  monitorOwnsConn=ownsConn;
   $('actHost').textContent=who;$('actPriv').classList.add('hidden');$('elevateButton').classList.add('hidden');$('actSub').textContent='Connecting…';notice('');
   $('actEmpty').classList.add('hidden');$('actBody').classList.add('hidden');$('stopMonitorButton').classList.remove('hidden');$('liveDot').classList.remove('hidden');
   monitorPoll=setInterval(pollMonitor,1000);pollMonitor();
 }
 async function endMonitor(text,error=false){
-  clearInterval(monitorPoll);monitorPoll=null;$('stopMonitorButton').classList.add('hidden');$('liveDot').classList.add('hidden');
+  clearInterval(monitorPoll);monitorPoll=null;monitorTarget=null;$('stopMonitorButton').classList.add('hidden');$('liveDot').classList.add('hidden');
   const unanswered=pendingActions.size;pendingActions.clear();
   try{await stopMonitor()}catch(e){}
   $('actSub').textContent=text;
@@ -862,6 +864,7 @@ function renderActivity(){
   $('tCpu').textContent=pct0(cpu.total);$('tCpuSub').textContent=`${cores.length} ${onWindows()?'logical processors':'cores'}${(s.load||[]).length?' · load '+s.load[0].toFixed(2):''}`;
   $('tMem').textContent=pct0(m.total?100*m.used/m.total:0);$('tMemSub').textContent=`${size(m.used)} of ${size(m.total)} in use`;
   const gpus=s.gpus||[],g=gpuAverage(s);
+  $('actBody').classList.toggle('no-gpu',!gpus.length);
   $('tGpu').textContent=gpus.length?pct0(g):'None';
   $('tGpuSub').textContent=gpus.length?(gpus.length>1?gpus.length+' GPUs':gpus[0].name)+(gpus[0].memTotal?` · ${size(gpus.reduce((a,x)=>a+(x.memUsed||0),0))} VRAM`:''):(s.gpuNote||'');
   $('tGpuSub').title=$('tGpuSub').textContent;
@@ -1011,5 +1014,17 @@ for(const id of ['sCpu','sMem','sGpu','sNet']){
 }
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{redraw();drawSparks()},150)});
 syncTools();if(target==='local')loadDrives();
-if(typeof appPlatform==='function')appPlatform().then(p=>{platform=p;applyPlatform()}).catch(()=>{});
+// Monitoring starts locally even when the last selected connection was an SSH server.
+async function startLocalMonitoring(){
+  if(typeof startMonitor!=='function')return;
+  $('submit').disabled=true;
+  try{
+    await startMonitor({local:true});
+    $('connText').dataset.who=localName();conn('busy','Starting monitor: '+localName());
+    beginMonitor(localName(),true,true);
+  }catch(e){$('actSub').textContent='Could not start monitoring.';notice(String(e),'error');conn('error','Monitor failed to start')}
+  finally{$('submit').disabled=false}
+}
+startLocalMonitoring();
+if(typeof appPlatform==='function')appPlatform().then(p=>{platform=p;applyPlatform();if(monitorTarget==='local'){$('actHost').textContent=localName();$('connText').dataset.who=localName()}}).catch(()=>{});
 </script></body></html>

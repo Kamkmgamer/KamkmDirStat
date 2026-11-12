@@ -34,6 +34,9 @@ type localEntry struct {
 // More workers than this mostly contend inside the file system on Windows.
 const localScanWorkers = 8
 
+// localScanDirect allows reading NTFS drives directly. Tests turn it off to compare.
+var localScanDirect = true
+
 // cleanLocalPaths checks the folders chosen for a local scan and removes any that are inside
 // another chosen folder.
 func cleanLocalPaths(paths []string) ([]string, error) {
@@ -198,10 +201,40 @@ func localScanInto(ctx context.Context, roots []string, t *Tree, report func(Sca
 			}
 		}
 	}
+	usedNTFS, needAdmin := false, false
 	for _, s := range starts {
+		if ctx.Err() != nil {
+			break
+		}
+		handled, damaged, err := false, 0, errNotNTFS
+		if localScanDirect {
+			handled, damaged, err = scanNTFSRoot(ctx, s.path, s.node, t, &files, &dirs, &bytes, &current)
+		}
+		if handled {
+			if err != nil {
+				break // cancelled
+			}
+			usedNTFS = true
+			if damaged > 0 {
+				result.Notes = append(result.Notes, fmt.Sprintf("%d damaged file records on %s were skipped.", damaged, s.path))
+			}
+			continue
+		}
+		switch {
+		case errors.Is(err, errNeedsAdmin):
+			needAdmin = true
+		case err != nil && !errors.Is(err, errNotNTFS):
+			result.Notes = append(result.Notes, fmt.Sprintf("Could not read the NTFS file table of %s (%v), so its folders were listed instead.", s.path, err))
+		}
 		walk(s.node, s.path, deviceOf(s.path))
 	}
 	wg.Wait()
+	if usedNTFS {
+		result.Mode = "local-ntfs"
+	}
+	if needAdmin {
+		result.Notes = append(result.Notes, "Run KamkmDirStat as administrator to read NTFS drives directly, which is much faster.")
+	}
 	close(stopReports)
 	<-reported
 	result.Files = int(files.Load())
@@ -209,4 +242,51 @@ func localScanInto(ctx context.Context, roots []string, t *Tree, report func(Sca
 		report(progress())
 	}
 	return result, ctx.Err()
+}
+
+// scanNTFSRoot reads an NTFS drive's file table into node. It reports handled=false, with
+// the reason, when the drive cannot be read directly and its folders should be listed.
+func scanNTFSRoot(ctx context.Context, path string, node *Node, t *Tree, files, dirs, bytes *atomic.Int64, current *atomic.Value) (handled bool, damaged int, err error) {
+	r, closeVolume, err := openNTFSVolume(path)
+	if err != nil {
+		return false, 0, err
+	}
+	defer closeVolume()
+	v, err := openNTFS(r)
+	if err != nil {
+		return false, 0, err
+	}
+	current.Store("Reading the NTFS file table of " + path)
+	var mu sync.Mutex
+	var seenFiles, seenBytes int64
+	idx, err := v.read(ctx, func(_, f, b int64) {
+		mu.Lock()
+		defer mu.Unlock()
+		if f > seenFiles {
+			files.Add(f - seenFiles)
+			seenFiles = f
+		}
+		if b > seenBytes {
+			bytes.Add(b - seenBytes)
+			seenBytes = b
+		}
+	})
+	if err != nil {
+		files.Add(-seenFiles)
+		bytes.Add(-seenBytes)
+		if ctx.Err() != nil {
+			return true, 0, ctx.Err()
+		}
+		return false, 0, err
+	}
+	t.mu.Lock()
+	beforeDirs, beforeSize := len(t.dirs), node.Size
+	added := idx.addToTree(t, node, ntfsRootRecord)
+	newDirs, size := len(t.dirs)-beforeDirs, node.Size-beforeSize
+	t.mu.Unlock()
+	// Replace the running totals, which counted the whole table, with what was added.
+	files.Add(int64(added) - seenFiles)
+	bytes.Add(size - seenBytes)
+	dirs.Add(int64(newDirs) + 1)
+	return true, idx.damaged, nil
 }

@@ -22,6 +22,6 @@ A Python sampler on the Linux server reads `/proc` and GPU tools over a separate
 
 ## This PC
 
-Local scans list folders directly with FindFirstFileEx and do not follow junctions, symbolic links or mounted volumes. The local monitor uses the same system queries as Task Manager, DXGI and the GPU performance counters. Running as administrator stands in for root: it allows ending other users' processes and clearing the standby cache, and the app offers to restart itself elevated.
+Local scans of whole NTFS drives read the master file table directly when the app runs as administrator; otherwise they list folders with FindFirstFileEx. Neither follows junctions, symbolic links or mounted volumes. The local monitor uses the same system queries as Task Manager, DXGI and the GPU performance counters. Running as administrator stands in for root: it allows ending other users' processes and clearing the standby cache, and the app offers to restart itself elevated.
 
 On Linux the local monitor runs the same Python sampler as on servers. On macOS it uses Mach and libproc statistics, with GPU use from the I/O Registry; administrators are asked for their password to end other users' processes or run purge.

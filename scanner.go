@@ -43,7 +43,8 @@ type ScanResult struct {
 	ErrorCount int
 	Files      int
 	Skipped    []string
-	Mode       string // "shell" (find on the server) or "sftp"
+	Mode       string // "remote", "shell" (find on the server), "sftp", "local" or "local-ntfs"
+	Notes      []string
 }
 
 type ScanProgress struct {

@@ -27,8 +27,15 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd libgtk-3-dev libwebkit2gtk-4.1-dev xvfb
+          sudo apt-get install -y zstd libgtk-3-dev libwebkit2gtk-4.1-dev xvfb ntfs-3g
           echo "PKG_CONFIG_PATH=$GITHUB_WORKSPACE/packaging/linux/pkgconfig" >> "$GITHUB_ENV"
+      - name: Build an NTFS test image
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$RUNNER_TEMP/ntfs"
+          sudo sh testdata/make_ntfs_image.sh "$RUNNER_TEMP/ntfs"
+          sudo chown -R "$(id -u)" "$RUNNER_TEMP/ntfs"
+          echo "KAMKM_NTFS_IMAGE_DIR=$RUNNER_TEMP/ntfs" >> "$GITHUB_ENV"
       - name: Test Go code on Linux
         if: runner.os == 'Linux'
         run: go test -race -count=1 ./...

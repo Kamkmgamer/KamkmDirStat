@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const html = fs.readFileSync('index.html', 'utf8');
 const elements = new Map();
 function element(id) {
-  if (!elements.has(id)) elements.set(id, {value:'', textContent:'', classList:{values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name)},add(name){this.values.add(name)},remove(name){this.values.delete(name)}}});
+  if (!elements.has(id)) elements.set(id, {value:'', textContent:'', dataset:{}, setAttribute(){}, classList:{values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name)},add(name){this.values.add(name)},remove(name){this.values.delete(name)}}});
   return elements.get(id);
 }
 const context = vm.createContext({document:{getElementById:element}, window:{addEventListener(){}}, setTimeout, clearTimeout, console});
@@ -67,9 +67,7 @@ console.log('UI treemap layout passed');
  assert.equal(filter(procs,'').length,2);assert.deepEqual(filter(procs,'TRAIN').map(p=>p.pid),[7]);assert.deepEqual(filter(procs,'42').map(p=>p.pid),[42]);assert.deepEqual(filter(procs,'www').map(p=>p.pid),[42]);
  const duration=vm.runInContext('duration',context);
  assert.equal(duration(59),'0 min');assert.equal(duration(3*3600+5*60),'3 h 5 min');assert.equal(duration(2*86400+3600),'2 d 1 h');
- element('wantScan').checked=false;element('wantMonitor').checked=true;vm.runInContext('syncTools()',context);
- assert.equal(element('submitLabel').textContent,'Connect and monitor');assert.equal(element('scanFields').classList.values.has('hidden'),true);assert.equal(element('path').required,false);
- element('wantScan').checked=true;vm.runInContext('syncTools()',context);assert.equal(element('submitLabel').textContent,'Connect and open');
+ vm.runInContext('syncTools()',context);assert.equal(element('submitLabel').textContent,'Connect');assert.equal(element('path').required,true);
  assert.equal(canEnd(theirs,'admin'),true);assert.equal(canFreeCache('admin'),true);assert.equal(needsSudoPassword(theirs,'admin'),false);
  // This PC: drives that are ticked, or one folder that replaces them.
  vm.runInContext("setTarget('local')",context);
@@ -78,10 +76,23 @@ console.log('UI treemap layout passed');
  element('localFolder').value='';let lc=vm.runInContext('connection()',context);
  assert.equal(lc.local,true);assert.deepEqual([...lc.paths],['C:\\','E:\\']);assert.equal(lc.password,undefined);
  element('localFolder').value='  D:\\Games  ';lc=vm.runInContext('connection()',context);assert.deepEqual([...lc.paths],['D:\\Games']);
- element('wantScan').checked=true;element('wantMonitor').checked=true;vm.runInContext('syncTools()',context);assert.equal(element('submitLabel').textContent,'Scan and monitor');
+ vm.runInContext('syncTools()',context);assert.equal(element('submitLabel').textContent,'Scan');
  for(const [p,name,hint] of [['darwin','This Mac','/Users/you/Downloads'],['linux','This computer','/home/you/Downloads'],['windows','This PC','C:\\Users\\you\\Downloads']]){
   vm.runInContext(`platform='${p}';applyPlatform()`,context);
   assert.equal(element('localTargetName').textContent,name);assert.equal(element('localFolder').placeholder,hint);
  }
  console.log('UI activity monitor rules passed');
 }
+
+// Opening the app starts local monitoring without requiring a disk scan.
+(async()=>{
+ const calls=[];
+ const startup=vm.createContext({document:{getElementById:element},window:{addEventListener(){}},setTimeout,clearTimeout,setInterval:()=>1,clearInterval(){},console,
+   startMonitor:async c=>calls.push(c),monitorStatus:async()=>({running:true}),appPlatform:async()=> 'windows'});
+ vm.runInContext(html.split('<script>')[1].split('</script>')[0],startup);
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(calls.length,1,'monitor starts on launch');
+ assert.equal(calls[0].local,true,'monitor starts on this computer');
+ assert.equal(vm.runInContext('tab',startup),'activity','activity is the opening view');
+ console.log('UI automatic monitoring passed');
+})().catch(err=>{console.error(err);process.exitCode=1});

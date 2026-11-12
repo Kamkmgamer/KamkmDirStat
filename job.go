@@ -25,6 +25,7 @@ type ScanStatus struct {
 	Errors     []string     `json:"errors,omitempty"`
 	ErrorCount int          `json:"errorCount,omitempty"`
 	Skipped    []string     `json:"skipped,omitempty"`
+	Notes      []string     `json:"notes,omitempty"`
 	Seconds    float64      `json:"seconds,omitempty"`
 }
 
@@ -81,7 +82,7 @@ func startScan(c Connection) error {
 			result, err = scanInto(ctx, c, tree, report)
 		}
 		cancel()
-		s := ScanStatus{RootPath: root, Mode: result.Mode, Errors: result.Errors, ErrorCount: result.ErrorCount, Skipped: result.Skipped, Seconds: time.Since(started).Seconds()}
+		s := ScanStatus{RootPath: root, Mode: result.Mode, Errors: result.Errors, ErrorCount: result.ErrorCount, Skipped: result.Skipped, Notes: result.Notes, Seconds: time.Since(started).Seconds()}
 		if len(s.Errors) > 5 {
 			s.Errors = s.Errors[:5]
 		}
