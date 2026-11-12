@@ -13,7 +13,7 @@ assert.equal(vm.runInContext('target',context),'local','This PC is the default')
 vm.runInContext("setTarget('remote')",context);assert.equal(element('connect').classList.values.has('is-local'),false);assert.equal(element('host').required,true);
 element('method').value='auto'; element('host').value='buildbox'; element('password').value='should-not-be-sent'; element('path').value='/';
 let c=vm.runInContext('connection()',context);
-assert.equal(c.serverReport,true);assert.equal(c.method,'auto'); assert.equal(c.host,'buildbox'); assert.equal(c.password,'');
+assert.equal(c.serverReport,true);assert.equal(c.serverHelper,false);element('serverHelper').checked=true;assert.equal(vm.runInContext('connection()',context).serverHelper,true);assert.equal(c.method,'auto'); assert.equal(c.host,'buildbox'); assert.equal(c.password,'');
 element('method').value='password';element('method').onchange(); c=vm.runInContext('connection()',context);
 assert.equal(c.password,'should-not-be-sent'); assert.equal(element('passwordFields').classList.values.has('hidden'),false);assert.equal(element('keyFields').classList.values.has('hidden'),true);
 element('method').value='key';element('keyFile').value='C:\\key';element('method').onchange();c=vm.runInContext('connection()',context);

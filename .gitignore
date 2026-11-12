@@ -12,3 +12,6 @@
 # Local environment
 .env
 .env.*
+
+# Native server scanner builds made by go run ./tools/buildhelper
+/helperbin/*.gz

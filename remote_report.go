@@ -156,9 +156,22 @@ func readScriptHeader(r *bufio.Reader, prefix string) string {
 // remoteReportScan keeps the detailed tree on the server. Only progress, the completed
 // root report, and subsequent requested folder views cross the network.
 func remoteReportScan(ctx context.Context, client *ssh.Client, c Connection, t *Tree, result *ScanResult, report func(ScanProgress)) (bool, error) {
+	one := "0"
+	if c.SkipVirtual {
+		one = "1"
+	}
+	command := "if command -v python3 >/dev/null 2>&1; then exec python3 -u -c " + shellQuote(remoteReportScript) + " " + shellQuote(t.RootPath) + " " + one + "; else printf 'SSE2 unavailable\\n'; fi"
+	_, handled, err := runRemoteReport(ctx, client, command, t, result, report)
+	return handled, err
+}
+
+// runRemoteReport runs a report program, the Python script or the native helper, and
+// reads its report. It returns the program's header line, and handled=false if the header
+// was not "gzip", which means this program cannot scan here.
+func runRemoteReport(ctx context.Context, client *ssh.Client, command string, t *Tree, result *ScanResult, report func(ScanProgress)) (string, bool, error) {
 	session, err := client.NewSession()
 	if err != nil {
-		return false, nil
+		return "", false, nil
 	}
 	keep := false
 	defer func() {
@@ -168,35 +181,31 @@ func remoteReportScan(ctx context.Context, client *ssh.Client, c Connection, t *
 	}()
 	input, err := session.StdinPipe()
 	if err != nil {
-		return false, nil
+		return "", false, nil
 	}
 	stdout, err := session.StdoutPipe()
 	if err != nil {
-		return false, nil
+		return "", false, nil
 	}
 	session.Stderr = io.Discard
-	one := "0"
-	if c.SkipVirtual {
-		one = "1"
-	}
-	command := "if command -v python3 >/dev/null 2>&1; then exec python3 -u -c " + shellQuote(remoteReportScript) + " " + shellQuote(t.RootPath) + " " + one + "; else printf 'SSE2 unavailable\\n'; fi"
 	if err := session.Start(command); err != nil {
-		return false, nil
+		return "", false, nil
 	}
 	output := bufio.NewReaderSize(stdout, 64<<10)
 	header := make(chan string, 1)
 	go func() { header <- readScriptHeader(output, "SSE2 ") }()
 	timer := time.NewTimer(shellHeaderTimeout)
 	defer timer.Stop()
+	var line string
 	select {
-	case line := <-header:
+	case line = <-header:
 		if line != "gzip" {
-			return false, nil
+			return line, false, nil
 		}
 	case <-ctx.Done():
-		return true, ctx.Err()
+		return "", true, ctx.Err()
 	case <-timer.C:
-		return false, nil
+		return "", false, nil
 	}
 	result.Mode = "remote"
 	var received int64
@@ -205,9 +214,9 @@ func remoteReportScan(ctx context.Context, client *ssh.Client, c Connection, t *
 		received += message.wireBytes
 		if err != nil {
 			if ctx.Err() != nil {
-				return true, ctx.Err()
+				return line, true, ctx.Err()
 			}
-			return true, fmt.Errorf("reading completed remote report: %w", err)
+			return line, true, fmt.Errorf("reading completed remote report: %w", err)
 		}
 		switch message.Type {
 		case "progress":
@@ -215,13 +224,13 @@ func remoteReportScan(ctx context.Context, client *ssh.Client, c Connection, t *
 				report(message.Progress)
 			}
 		case "error":
-			return true, errors.New(message.Error)
+			return line, true, errors.New(message.Error)
 		case "done":
 			if ctx.Err() != nil {
-				return true, ctx.Err()
+				return line, true, ctx.Err()
 			}
 			if message.View.ID != 0 || len(message.View.Trail) != 1 {
-				return true, errors.New("The remote machine returned an invalid overview.")
+				return line, true, errors.New("The remote machine returned an invalid overview.")
 			}
 			result.Files = message.View.Files
 			result.Errors = message.Errors
@@ -238,9 +247,9 @@ func remoteReportScan(ctx context.Context, client *ssh.Client, c Connection, t *
 				report(message.Progress)
 			}
 			keep = true
-			return true, nil
+			return line, true, nil
 		default:
-			return true, errors.New("The remote machine returned an invalid report message.")
+			return line, true, errors.New("The remote machine returned an invalid report message.")
 		}
 	}
 }

@@ -12,12 +12,24 @@ import time
 
 # This process owns the scan and detailed results for one SSH session. Nothing is
 # installed or written to disk. Requests after completion retrieve one folder.
+#
+# Folders are Node objects. Files are (size, name) tuples in their folder's children, which
+# is much cheaper with hundreds of thousands of files; the helpers below read either.
 class Node:
     __slots__ = ('name', 'parent', 'directory', 'size', 'files', 'children', 'incomplete', 'id')
-    def __init__(self, name, parent=None, directory=False, size=0):
-        self.name, self.parent, self.directory, self.size = name, parent, directory, size
-        self.files = 0 if directory else 1
-        self.children, self.incomplete, self.id = [], False, 0
+    def __init__(self, name, parent=None):
+        self.name, self.parent, self.directory, self.size = name, parent, True, 0
+        self.files, self.children, self.incomplete, self.id = 0, [], False, 0
+
+
+def sort_key(child):
+    if child.__class__ is Node:
+        return (-child.size, child.name)
+    return (-child[0], child[1])
+
+
+def entry_size(child):
+    return child.size if child.__class__ is Node else child[0]
 
 
 def send(value):
@@ -37,8 +49,11 @@ def folder_view(dirs, index):
         p = p.parent
     entries = []
     for child in node.children[:500]:
-        entries.append({'name': child.name, 'size': child.size, 'dir': child.directory,
-                        'id': child.id, 'files': child.files, 'incomplete': child.incomplete})
+        if child.__class__ is Node:
+            entries.append({'name': child.name, 'size': child.size, 'dir': True,
+                            'id': child.id, 'files': child.files, 'incomplete': child.incomplete})
+        else:
+            entries.append({'name': child[1], 'size': child[0], 'dir': False, 'id': 0, 'files': 1, 'incomplete': False})
     map_root = {'n': node.name, 's': node.size, 'd': True, 'i': node.id}
     queue = collections.deque([(node, map_root)])
     threshold, budget = max(node.size // 4000, 1), 12000
@@ -46,15 +61,18 @@ def folder_view(dirs, index):
         current, mapped = queue.popleft()
         children, other = [], 0
         for child in current.children:
-            if child.size < threshold or budget <= 0:
-                other += child.size
+            folder = child.__class__ is Node
+            size = child.size if folder else child[0]
+            if size < threshold or budget <= 0:
+                other += size
                 continue
             budget -= 1
-            item = {'n': child.name, 's': child.size}
-            if child.directory:
-                item.update(d=True, i=child.id)
+            if folder:
+                item = {'n': child.name, 's': size, 'd': True, 'i': child.id}
                 if child.children:
                     queue.append((child, item))
+            else:
+                item = {'n': child[1], 's': size}
             children.append(item)
         if children:
             mapped['c'] = children
@@ -63,7 +81,7 @@ def folder_view(dirs, index):
     return {'id': index, 'trail': trail[::-1], 'size': node.size, 'files': node.files,
             'items': len(node.children), 'incomplete': node.incomplete, 'entries': entries,
             'moreCount': max(0, len(node.children) - 500),
-            'moreSize': sum(child.size for child in node.children[500:]), 'map': map_root}
+            'moreSize': sum(entry_size(child) for child in node.children[500:]), 'map': map_root}
 
 
 def run():
@@ -81,7 +99,7 @@ def run():
         print('SSE2 unavailable', flush=True)
         return
     print('SSE2 gzip', flush=True)
-    root = Node(root_path, directory=True)
+    root = Node(root_path)
     dirs, stack, rels, by_path, seen = [root], [root], [''], {'': root}, set()
     errors, error_paths = [], []
     error_count, bad = 0, 0
@@ -118,70 +136,79 @@ def run():
     error_reader.start()
     last_report = time.monotonic()
     send({'type': 'progress', 'progress': progress})
-    def apply(raw):
-        nonlocal bad
-        try:
-            kind = raw[:1]
-            fields = raw.split(b' ', 4 if kind == b'h' else 3)
-            if kind == b'h':
-                _, inode, blocks, depth, name = fields
-            else:
-                _, blocks, depth, name = fields
-                inode = None
-            blocks, depth = int(blocks), int(depth)
-            if blocks < 0 or blocks > (2**63 - 1) // 512 or depth < 0 or depth > 4096 or not name or (depth > 0 and b'/' in name):
-                raise ValueError('invalid find record')
-            progress['entries'] += 1
-            size = blocks * 512
-            if depth == 0:
-                if kind == b'd':
-                    root.size += size
-                    progress['bytes'] += size
-                return
-            if depth > len(stack):
-                raise ValueError('missing parent directory')
-            parent, relative = stack[depth - 1], rels[depth - 1]
-            del stack[depth:]
-            del rels[depth:]
-            if kind == b'l':
-                return
-            name = name.decode('utf-8', 'replace')
-            if inode is not None:
-                if inode in seen:
-                    size = 0
-                else:
-                    seen.add(inode)
-            node = Node(name, parent, kind == b'd', size)
-            parent.children.append(node)
-            if node.directory:
-                node.id = len(dirs)
-                dirs.append(node)
-                relative = relative + '/' + name if relative else name
-                stack.append(node)
-                rels.append(relative)
-                by_path[relative] = node
-                progress['directories'] += 1
-            else:
-                parent.files += 1
-                parent.size += size
-                progress['files'] += 1
-            progress['bytes'] += size
-        except (ValueError, IndexError):
-            bad += 1
     try:
         pending = b''
+        entries = files = directories = total = 0
+        max_blocks = (2**63 - 1) // 512
+        decode = bytes.decode
         while True:
             chunk = proc.stdout.read1(256 * 1024)
             if not chunk:
                 break
             records = (pending + chunk).split(b'\0')
             pending = records.pop()
-            for record in records:
-                apply(record)
+            # The hot loop: one find record each, so it avoids function calls and objects
+            # for files. Records are "<type> <blocks> <depth> <name>", or for files with
+            # several hard links "h <dev:inode> <blocks> <depth> <name>".
+            for raw in records:
+                try:
+                    if raw[:1] == b'h':
+                        kind, inode, blocks, depth, name = raw.split(b' ', 4)
+                    else:
+                        kind, blocks, depth, name = raw.split(b' ', 3)
+                        inode = None
+                    blocks, depth = int(blocks), int(depth)
+                except ValueError:
+                    bad += 1
+                    continue
+                if blocks < 0 or blocks > max_blocks or depth < 0 or depth > 4096 or not name or (depth and b'/' in name):
+                    bad += 1
+                    continue
+                entries += 1
+                size = blocks * 512
+                if depth == 0:
+                    if kind == b'd':
+                        root.size += size
+                        total += size
+                    continue
+                if depth > len(stack):
+                    bad += 1
+                    continue
+                if len(stack) > depth:
+                    del stack[depth:]
+                    del rels[depth:]
+                if kind == b'l':
+                    continue
+                parent = stack[-1]
+                name = decode(name, 'utf-8', 'replace')
+                if kind == b'd':
+                    node = Node(name, parent)
+                    node.size = size
+                    node.id = len(dirs)
+                    dirs.append(node)
+                    parent.children.append(node)
+                    relative = rels[-1] + '/' + name if rels[-1] else name
+                    stack.append(node)
+                    rels.append(relative)
+                    by_path[relative] = node
+                    directories += 1
+                else:
+                    if inode is not None:
+                        if inode in seen:
+                            size = 0
+                        else:
+                            seen.add(inode)
+                    parent.children.append((size, name))
+                    parent.files += 1
+                    parent.size += size
+                    files += 1
+                total += size
             now = time.monotonic()
             if now - last_report >= 0.75:
+                progress.update(entries=entries, files=files, directories=directories, bytes=total)
                 send({'type': 'progress', 'progress': progress})
                 last_report = now
+        progress.update(entries=entries, files=files, directories=directories, bytes=total)
         if pending:
             bad += 1
         code = proc.wait()
@@ -209,7 +236,7 @@ def run():
             root.incomplete = True
         # Children precede parents in this reverse pass, so each subtree is summed once.
         for node in reversed(dirs):
-            node.children.sort(key=lambda n: (-n.size, n.name))
+            node.children.sort(key=sort_key)
             if node.parent is not None:
                 node.parent.size += node.size
                 node.parent.files += node.files

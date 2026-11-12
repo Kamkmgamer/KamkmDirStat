@@ -385,6 +385,7 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
         <div class="section remote-only">
           <div class="field"><label for="path">Remote folder</label><div class="input"><svg class="i"><use href="#i-folder"/></svg><input id="path" value="/" spellcheck="false"></div></div>
           <label class="switch"><input id="skipVirtual" type="checkbox" checked><span><b>Stay on this file system</b><small>Skips /proc, /sys, /dev and other mounts</small></span></label>
+          <label class="switch"><input id="serverHelper" type="checkbox" checked><span><b>Fast server scan</b><small>Keeps a 1 MB scanner in ~/.cache/kamkmdirstat on Linux servers; several times faster</small></span></label>
         </div>
       </div>
     </div>
@@ -397,7 +398,7 @@ kbd{font-family:var(--mono);font-size:10.5px;padding:0 4px;border:1px solid var(
     <div id="status" class="status" role="status" aria-live="polite"></div>
     <div id="progress" class="progress hidden" aria-hidden="true"><i id="progressFill"></i></div>
   </div>
-  <p class="privacy"><svg class="i"><use href="#i-lock"/></svg><span>Nothing is uploaded. Credentials are never saved.</span></p>
+  <p class="privacy"><svg class="i"><use href="#i-lock"/></svg><span>Your files are never uploaded. Credentials are never saved.</span></p>
 </div></aside>
 
 <main id="workspace" class="idle hidden" role="tabpanel" aria-labelledby="tabStorage">
@@ -510,7 +511,7 @@ try{if(localStorage.getItem('kamkm.target')==='remote')target='remote'}catch(e){
 function selectedDrives(){return drives.filter(d=>d.checked).map(d=>d.path)}
 function connection(){
   if(target==='local'){const folder=$('localFolder').value.trim();return {local:true,paths:folder?[folder]:selectedDrives()}}
-  let method=$('method').value,key=method==='key';return {method,host:$('host').value.trim(),port:$('port').value.trim(),user:$('user').value.trim(),password:method==='password'?$('password').value:'',keyFile:key?$('keyFile').value.trim():'',passphrase:key?$('passphrase').value:'',path:$('path').value.trim()||'/',skipVirtual:$('skipVirtual').checked,serverReport:true}
+  let method=$('method').value,key=method==='key';return {method,host:$('host').value.trim(),port:$('port').value.trim(),user:$('user').value.trim(),password:method==='password'?$('password').value:'',keyFile:key?$('keyFile').value.trim():'',passphrase:key?$('passphrase').value:'',path:$('path').value.trim()||'/',skipVirtual:$('skipVirtual').checked,serverReport:true,serverHelper:!!$('serverHelper').checked}
 }
 function syncTools(){
   const local=target==='local';
@@ -610,16 +611,16 @@ async function pollScan(){
       status(s.cancelling?'Cancelling…':(p.files||p.directories)?`Scanning${pc!==null?' · '+pc+'%':'…'}\n${count(p.files)} files · ${size(p.bytes)}`:mode==='local'||p.mode==='local'?'Starting…':'Waiting for the server…',false,true);
       $('status').title=p.currentPath||'';
       const d=document.getElementById('scanDetail');if(d)d.textContent=(p.files||p.directories)?`${count(p.files)} files · ${count(p.directories)} folders · ${size(p.bytes)}${pc!==null?' · about '+pc+'%':''}`:'';
-      if(mode!=='remote'&&tick++%3===0&&(p.files||p.directories))refresh();
+      if(!mode.startsWith('remote')&&tick++%3===0&&(p.files||p.directories))refresh();
       return;
     }
     finishScan();
     if(s.files||!s.error)await refresh();else placeholder('No results.',true);
     const took=s.seconds?` in ${s.seconds<10?s.seconds.toFixed(1):Math.round(s.seconds)} s`:'',who=$('connText').dataset.who||'server';
-    if(s.cancelled){status(mode==='remote'?'Remote scan cancelled. No completed report was downloaded.':'Scan cancelled. Showing what was found before cancelling.');conn('warn','Cancelled · '+who)}
+    if(s.cancelled){status(mode.startsWith('remote')?'Remote scan cancelled. No completed report was downloaded.':'Scan cancelled. Showing what was found before cancelling.');conn('warn','Cancelled · '+who)}
     else if(s.error){status(s.error+(s.files?'\nShowing partial results.':''),true);conn('error','Scan failed · '+who)}
     else{status((s.errorCount?`Scan finished${took}. ${count(s.errorCount)} paths could not be read.`:`Scan complete${took}.`)+((s.notes||[]).length?'\n'+s.notes.join('\n'):''));conn(s.errorCount?'warn':'ok',who)}
-    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local-ntfs'?'(file sizes) · read from the NTFS file table':mode==='local'?'(file sizes) · scanned on '+localName().toLowerCase():mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
+    if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local-ntfs'?'(file sizes) · read from the NTFS file table':mode==='local'?'(file sizes) · scanned on '+localName().toLowerCase():mode==='remote-native'?'on disk · aggregated on the server by the fast scanner':mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
   }catch(e){finishScan();status(String(e),true);conn('error','Disconnected')}
   finally{polling=false}
 }

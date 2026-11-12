@@ -27,6 +27,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Build the native server scanner
+        run: go run ./tools/buildhelper
       - name: Build
         env:
           CGO_ENABLED: '0'
@@ -53,6 +55,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Build the native server scanner
+        run: go run ./tools/buildhelper
       - name: Install window libraries
         run: |
           sudo apt-get update
@@ -87,6 +91,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Build the native server scanner
+        run: go run ./tools/buildhelper
       - name: Build for Apple Silicon and Intel
         env:
           CGO_ENABLED: '1'

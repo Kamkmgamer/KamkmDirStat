@@ -21,7 +21,8 @@ func TestLiveScan(t *testing.T) {
 	if root == "" {
 		root = "/"
 	}
-	c, err := resolveSSH(Connection{Host: host, Method: "auto", Path: root, SkipVirtual: true, ServerReport: true})
+	// SSE_LIVE_HELPER=1 uses the native scanner, storing it on the server if needed.
+	c, err := resolveSSH(Connection{Host: host, Method: "auto", Path: root, SkipVirtual: true, ServerReport: true, ServerHelper: os.Getenv("SSE_LIVE_HELPER") == "1"})
 	if err != nil {
 		t.Fatal(err)
 	}

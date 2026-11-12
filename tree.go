@@ -53,6 +53,35 @@ func (t *Tree) addChild(parent *Node, name string, directory bool, size int64) *
 	return n
 }
 
+// addEntries adds one folder's listing under parent in a single step: one allocation for
+// all the new nodes and one walk up the ancestors for the totals, instead of one per file.
+// It returns the new folder nodes in listing order. It must be called with t.mu held for
+// writing.
+func (t *Tree) addEntries(parent *Node, entries []localEntry) (subs []*Node, files, size int64) {
+	nodes := make([]Node, len(entries))
+	parent.Children = slices.Grow(parent.Children, len(entries))
+	for i, e := range entries {
+		n := &nodes[i]
+		n.Name, n.Parent = e.name, parent
+		if e.kind == localDir {
+			n.Directory = true
+			n.id = len(t.dirs)
+			t.dirs = append(t.dirs, n)
+			subs = append(subs, n)
+		} else {
+			n.Size, n.Files = e.size, 1
+			files++
+			size += e.size
+		}
+		parent.Children = append(parent.Children, n)
+	}
+	for p := parent; p != nil; p = p.Parent {
+		p.Size += size
+		p.Files += int(files)
+	}
+	return subs, files, size
+}
+
 // addOwnSize counts the space a directory entry itself occupies, as du does. It must be
 // called with t.mu held for writing.
 func (t *Tree) addOwnSize(dir *Node, size int64) {

@@ -14,7 +14,7 @@ Support SSH config aliases, agent authentication, passwords, and private keys. V
 
 ## Remote reports
 
-Complete scans and size aggregation on the SSH machine before reporting back. Detailed results remain in the remote session, and the desktop app requests completed folder reports on demand. Use streamed listings or SFTP as fallbacks when remote aggregation is unavailable.
+Complete scans and size aggregation on the SSH machine before reporting back. On Linux servers a native scanner, stored in ~/.cache/kamkmdirstat when the user allows it, walks folders in parallel; otherwise Python 3 aggregates GNU find output. Detailed results remain in the remote session, and the desktop app requests completed folder reports on demand. Use streamed listings or SFTP as fallbacks when remote aggregation is unavailable.
 
 ## Activity monitoring
 

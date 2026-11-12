@@ -23,7 +23,7 @@ import (
 
 // execServer is an SSH server that runs exec requests with the local sh, with PATH set to
 // path, and also serves SFTP.
-func execServer(t *testing.T, path string) Connection {
+func execServer(t *testing.T, path string, env ...string) Connection {
 	t.Helper()
 	_, private, _ := ed25519.GenerateKey(rand.Reader)
 	signer, _ := ssh.NewSignerFromKey(private)
@@ -73,12 +73,17 @@ func execServer(t *testing.T, path string) Connection {
 									cancel() // client closed the channel
 								}()
 								cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
-								cmd.Env = []string{"PATH=" + path}
+								cmd.Env = append([]string{"PATH=" + path}, env...)
 								cmd.Stdin, cmd.Stdout, cmd.Stderr = channel, channel, channel.Stderr()
 								cmd.WaitDelay = time.Second
 								status := uint32(0)
 								if e := cmd.Run(); e != nil {
 									status = 1
+									// Report the real exit code, as sshd does.
+									var exit *exec.ExitError
+									if errors.As(e, &exit) && exit.ExitCode() > 0 {
+										status = uint32(exit.ExitCode())
+									}
 								}
 								code := make([]byte, 4)
 								binary.BigEndian.PutUint32(code, status)

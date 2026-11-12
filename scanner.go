@@ -35,6 +35,9 @@ type Connection struct {
 	// folders to scan.
 	Local bool     `json:"local,omitempty"`
 	Paths []string `json:"paths,omitempty"`
+	// ServerHelper allows storing the native scanner in ~/.cache/kamkmdirstat on Linux
+	// servers, which scans several times faster than the Python report.
+	ServerHelper bool `json:"serverHelper,omitempty"`
 }
 
 type ScanResult struct {
@@ -205,6 +208,18 @@ func scanInto(ctx context.Context, c Connection, t *Tree, report func(ScanProgre
 		return result, ctx.Err()
 	}
 
+	if c.ServerReport && c.ServerHelper {
+		handled, err := helperReportScan(ctx, client, c, t, &result, report)
+		if handled {
+			if err == nil {
+				retained = true
+			}
+			if err != nil && ctx.Err() != nil {
+				err = ctx.Err()
+			}
+			return result, err
+		}
+	}
 	if c.ServerReport {
 		handled, err := remoteReportScan(ctx, client, c, t, &result, report)
 		if handled {

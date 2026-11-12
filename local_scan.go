@@ -152,55 +152,7 @@ func localScanInto(ctx context.Context, roots []string, t *Tree, report func(Sca
 		}
 	}()
 
-	sem := make(chan struct{}, localScanWorkers)
-	var wg sync.WaitGroup
-	var walk func(node *Node, dir string, device uint64)
-	walk = func(node *Node, dir string, device uint64) {
-		if ctx.Err() != nil {
-			return
-		}
-		current.Store(dir)
-		entries, err := listLocalDir(dir, device)
-		if err != nil {
-			addError(fmt.Sprintf("%s: %v", dir, err))
-		}
-		type sub struct {
-			node *Node
-			path string
-		}
-		var subs []sub
-		var added, size int64
-		t.mu.Lock()
-		if err != nil {
-			markIncomplete(node)
-		}
-		for _, e := range entries {
-			if e.kind == localDir {
-				subs = append(subs, sub{t.addChild(node, e.name, true, 0), filepath.Join(dir, e.name)})
-			} else {
-				t.addChild(node, e.name, false, e.size)
-				added++
-				size += e.size
-			}
-		}
-		t.mu.Unlock()
-		dirs.Add(1)
-		files.Add(added)
-		bytes.Add(size)
-		for _, s := range subs {
-			select {
-			case sem <- struct{}{}:
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					defer func() { <-sem }()
-					walk(s.node, s.path, device)
-				}()
-			default:
-				walk(s.node, s.path, device)
-			}
-		}
-	}
+	w := &localWalk{ctx: ctx, t: t, files: &files, dirs: &dirs, bytes: &bytes, current: &current, addError: addError}
 	usedNTFS, needAdmin := false, false
 	for _, s := range starts {
 		if ctx.Err() != nil {
@@ -226,9 +178,8 @@ func localScanInto(ctx context.Context, roots []string, t *Tree, report func(Sca
 		case err != nil && !errors.Is(err, errNotNTFS):
 			result.Notes = append(result.Notes, fmt.Sprintf("Could not read the NTFS file table of %s (%v), so its folders were listed instead.", s.path, err))
 		}
-		walk(s.node, s.path, deviceOf(s.path))
+		w.walk(s.node, s.path)
 	}
-	wg.Wait()
 	if usedNTFS {
 		result.Mode = "local-ntfs"
 	}
@@ -289,4 +240,32 @@ func scanNTFSRoot(ctx context.Context, path string, node *Node, t *Tree, files, 
 	bytes.Add(size - seenBytes)
 	dirs.Add(int64(newDirs) + 1)
 	return true, idx.damaged, nil
+}
+
+// localWalk is what a folder walk updates. Each platform provides walk, which lists the
+// folder at path into node and everything beneath it, and returns when it is done.
+type localWalk struct {
+	ctx                context.Context
+	t                  *Tree
+	files, dirs, bytes *atomic.Int64
+	current            *atomic.Value
+	addError           func(string)
+}
+
+// add records one folder's entries under node and returns the new subfolder nodes in the
+// order of their entries. listErr marks the folder incomplete.
+func (w *localWalk) add(node *Node, dir string, entries []localEntry, listErr error) []*Node {
+	if listErr != nil {
+		w.addError(fmt.Sprintf("%s: %v", dir, listErr))
+	}
+	w.t.mu.Lock()
+	if listErr != nil {
+		markIncomplete(node)
+	}
+	subs, added, size := w.t.addEntries(node, entries)
+	w.t.mu.Unlock()
+	w.dirs.Add(1)
+	w.files.Add(added)
+	w.bytes.Add(size)
+	return subs
 }

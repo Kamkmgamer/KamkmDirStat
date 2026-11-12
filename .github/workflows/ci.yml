@@ -46,6 +46,8 @@ jobs:
         run: go vet ./...
       - name: Test interface logic
         run: node ui_test.cjs
+      - name: Build the native server scanner
+        run: go run ./tools/buildhelper
       - name: Build Windows application
         if: runner.os == 'Windows'
         env:

@@ -56,7 +56,11 @@ Every action asks for confirmation. On servers, init, kernel threads and the pro
 
 ## How scanning works
 
-The app runs the scan and calculates folder totals on the remote machine. It uses GNU `find` and Python 3 through the SSH session; nothing is installed and no scan files are written to disk. Progress counts are sent during the scan. When it finishes, the server sends a compressed overview rather than downloading the complete file list. Clicking a folder retrieves that folder's finished report from the same scan, without rescanning it.
+The app runs the scan and calculates folder totals on the remote machine.
+
+**Fast server scan** (on by default) uses a small native scanner on Linux servers (x64 and ARM64). The first scan stores it, about 1 MB compressed, in `~/.cache/kamkmdirstat` (or `$XDG_CACHE_HOME/kamkmdirstat`), checked against its SHA-256 checksum; later scans reuse it, and a new version of the app replaces it. It reads folders on every processor core, which on test servers with 1.7 to 2.2 million files took about 3 seconds instead of 24 to 30. Turn the switch off to keep anything from being stored, or delete that folder to remove it. When the scanner cannot be used, because the server is not a Linux x64 or ARM64 machine, has no home folder, or does not allow programs to run from it (a `noexec` mount), the app uses the standard scan and remembers that server for the rest of the session.
+
+The standard scan uses GNU `find` and Python 3 through the SSH session; nothing is installed and no scan files are written to disk. Progress counts are sent during the scan. When it finishes, the server sends a compressed overview rather than downloading the complete file list. Clicking a folder retrieves that folder's finished report from the same scan, without rescanning it.
 
 A test scan of roughly 560,000 files completed in about 6 seconds and downloaded about 38 KB for the overview. Performance depends on the server and network. The detailed tree remains in memory on the server until the app closes or a new scan replaces it. Keep the SSH connection open to browse folders that have not been loaded yet. Recently loaded views remain cached locally if the connection closes.
 
@@ -73,6 +77,12 @@ OpenSSH resolves the config through `ssh -G`, including `Host`, `Match`, and `In
 ## Build
 
 Install the Go version specified in `go.mod`. Pushing a version tag such as `v0.3.0` runs the release workflow, which builds every package and attaches them to a draft release.
+
+First build the native server scanner, which the app embeds; without it the app uses the standard server scan:
+
+```
+go run ./tools/buildhelper
+```
 
 On Windows, run:
 
