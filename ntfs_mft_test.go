@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"unicode/utf16"
 )
@@ -162,8 +163,13 @@ func TestNTFSImage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var lastRecords int64
-	idx, err := v.read(context.Background(), func(records, _, _ int64) { lastRecords = max(lastRecords, records) })
+	var lastRecords atomic.Int64
+	idx, err := v.read(context.Background(), func(records, _, _ int64) {
+		// progress runs on several workers at once.
+		if records > lastRecords.Load() {
+			lastRecords.Store(records)
+		}
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +177,7 @@ func TestNTFSImage(t *testing.T) {
 	tree.mu.Lock()
 	added := idx.addToTree(tree, tree.Root, ntfsRootRecord)
 	tree.mu.Unlock()
-	t.Logf("%d records, %d files, %d damaged, %d-byte clusters, %d MFT runs", lastRecords, added, idx.damaged, v.clusterSize, len(v.mftRuns))
+	t.Logf("%d records, %d files, %d damaged, %d-byte clusters, %d MFT runs", lastRecords.Load(), added, idx.damaged, v.clusterSize, len(v.mftRuns))
 
 	gotFiles, gotDirs := map[string]int64{}, map[string]bool{}
 	var walk func(n *Node, prefix string)
