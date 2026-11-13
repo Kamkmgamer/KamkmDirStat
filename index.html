@@ -785,7 +785,7 @@ if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{clearTimeout(resi
 
 // ---- Activity monitor ----
 // The server sends one sample a second. The page keeps the last minute for the sparklines.
-let tab='activity',monitorTarget=null,monitorPoll=null,monitorPolling=false,monitorOwnsConn=false,lastSeq=-1,hello=null,sample=null,actionId=0,procSort={key:'cpu',dir:-1},procFilter='',confirmResolve=null;
+let tab='activity',monitorTarget=null,monitorPoll=null,monitorPolling=false,monitorReconnecting=false,monitorOwnsConn=false,lastSeq=-1,hello=null,sample=null,actionId=0,procSort={key:'cpu',dir:-1},procFilter='',confirmResolve=null;
 const pendingActions=new Map(),HISTORY=60,hist={cpu:[],mem:[],gpu:[],rx:[],tx:[]},sparks={};
 const rate=n=>size(n)+'/s';
 const pct0=n=>n===null||n===undefined||isNaN(n)?'–':Math.round(n)+'%';
@@ -815,7 +815,7 @@ $('actNoticeClose').onclick=()=>notice('');
 function beginMonitor(who,local=false,ownsConn=false){
   monitorTarget=local?'local':'remote';
   clearInterval(monitorPoll);hello=null;sample=null;lastSeq=-1;for(const k in hist)hist[k]=[];pendingActions.clear();
-  monitorOwnsConn=ownsConn;
+  monitorOwnsConn=ownsConn;monitorReconnecting=false;
   $('actHost').textContent=who;$('actPriv').classList.add('hidden');$('elevateButton').classList.add('hidden');$('actSub').textContent='Connecting…';notice('');
   $('actEmpty').classList.add('hidden');$('actBody').classList.add('hidden');$('stopMonitorButton').classList.remove('hidden');$('liveDot').classList.remove('hidden');
   monitorPoll=setInterval(pollMonitor,1000);pollMonitor();
@@ -847,6 +847,8 @@ async function pollMonitor(){
       if(!pendingActions.has(raw.id))continue;
       pendingActions.delete(raw.id);notice(raw.message,raw.ok?'ok':'error');
     }
+    if(s.reconnecting&&!monitorReconnecting){monitorReconnecting=true;notice('The connection stopped responding. Reconnecting…','busy')}
+    else if(!s.reconnecting&&monitorReconnecting){monitorReconnecting=false;notice('')}
     if(s.sample&&s.seq!==lastSeq){lastSeq=s.seq;sample=s.sample;record(sample);renderActivity()}
     if(!s.running){await endMonitor(s.error||'Monitoring stopped.',!!s.error)}
     else if(hello&&monitorOwnsConn&&$('conn').dataset.state==='busy')conn('ok',$('connText').dataset.who||hello.host);
