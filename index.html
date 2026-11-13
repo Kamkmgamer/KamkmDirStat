@@ -296,20 +296,84 @@ kbd{display:inline-block;min-width:16px;padding:0 4px;border:1px solid var(--bor
 .notice.error{border-color:var(--error-surface);background:var(--error-surface);color:var(--error-foreground)}
 .notice.error::before{background:var(--error)}
 .notice span{flex:1;overflow-wrap:anywhere}
-.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .tile{display:flex;flex-direction:column;min-width:0;padding:12px 14px 0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
 .tile h3,.panel-title{display:flex;align-items:center;gap:7px;margin:0;color:var(--text-muted);font-size:12px;font-weight:500}
 .tile h3 svg.i,.panel-title svg.i{color:var(--text-faint)}
 .tile h3 .keys{display:flex;gap:10px;margin-left:auto}
 .tile .big{margin-top:6px;font-size:24px;font-weight:600;line-height:1.2;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tile .sub{margin-top:1px;color:var(--text-muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spark{position:relative;height:50px;margin:12px -14px 0}
+.tile>:not(.spark){flex-shrink:0}
+/* A tile two rows high has room for its figure and graph but not the line under the figure. */
+.dash>.tile{container-type:size}
+@container (max-height:110px){.tile .sub{display:none}.tile .spark{margin-top:6px}}
+.spark{position:relative;flex:1 1 0;min-height:24px;margin:12px -14px 0}
 .spark canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
 .stip{position:absolute;top:-4px;z-index:2;padding:4px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-overlay);box-shadow:var(--shadow);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap;transform:translate(-50%,-100%);pointer-events:none}
 .key{display:inline-flex;align-items:center;gap:5px;color:var(--text-muted);font-size:11.5px;white-space:nowrap}
 .key i{flex:none;width:8px;height:8px;border-radius:2px}
-.act-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.act-grid .panel,.procs{overflow:visible}
+/* The activity dashboard: a grid of 12 columns and 44px rows. Sections can be moved, resized
+   to cover any number of columns and rows, and hidden. Content fills the size it is given:
+   graphs grow and lists scroll. */
+.dash{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:44px;gap:12px}
+.dash>.card{position:relative;min-width:0;min-height:0}
+.dash>.panel{overflow:hidden}
+.dash .panel-body{flex:1 1 auto;min-height:0;overflow:auto}
+.dash .procs .listing{max-height:none}
+.dash>.card.user-hidden{display:none}
+.card-tools{position:absolute;top:7px;right:7px;z-index:4;display:none;align-items:center;gap:1px;padding:2px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface-overlay);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.dash.editing .card-tools{display:flex}
+.card-tools button{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:24px;padding:0 6px;border:0;border-radius:var(--r-sm);background:none;color:var(--text-muted);cursor:pointer}
+.card-tools button:hover{background:var(--hover);color:var(--text)}
+.card-tools button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.card-tools .grip{cursor:grab}
+.card-tools svg.i{width:14px;height:14px}
+.card-resize{position:absolute;right:2px;bottom:2px;z-index:4;display:none;width:20px;height:20px;border-radius:var(--r-sm);color:var(--text-muted);cursor:nwse-resize;touch-action:none}
+.card-resize svg.i{width:20px;height:20px}
+.card-resize:hover{background:var(--hover);color:var(--text)}
+.dash.editing .card-resize{display:block}
+/* The other edges and corners resize too. They are invisible until the pointer is over one. */
+.card-edge{position:absolute;z-index:3;display:none;touch-action:none}
+.dash.editing .card-edge{display:block}
+/* On a narrow view sections only grow down and to the right. */
+.dash.editing.narrow .card-edge:is([data-edge=n],[data-edge=w],[data-edge=nw],[data-edge=ne],[data-edge=sw]){display:none}
+.card-edge[data-edge=n]{top:0;left:14px;right:14px;height:7px;cursor:ns-resize}
+.card-edge[data-edge=s]{bottom:0;left:14px;right:24px;height:7px;cursor:ns-resize}
+.card-edge[data-edge=w]{left:0;top:14px;bottom:14px;width:7px;cursor:ew-resize}
+.card-edge[data-edge=e]{right:0;top:14px;bottom:24px;width:7px;cursor:ew-resize}
+.card-edge[data-edge=nw]{top:0;left:0;width:14px;height:14px;cursor:nwse-resize}
+.card-edge[data-edge=ne]{top:0;right:0;width:14px;height:14px;cursor:nesw-resize}
+.card-edge[data-edge=sw]{bottom:0;left:0;width:14px;height:14px;cursor:nesw-resize}
+.card-edge::after{content:"";position:absolute;opacity:0;transition:opacity .12s;pointer-events:none}
+.card-edge:hover::after,.card-edge.active::after{opacity:1}
+.card-edge[data-edge=n]::after,.card-edge[data-edge=s]::after{left:0;right:0;height:3px;border-radius:2px;background:var(--accent-text)}
+.card-edge[data-edge=n]::after{top:2px}
+.card-edge[data-edge=s]::after{bottom:2px}
+.card-edge[data-edge=w]::after,.card-edge[data-edge=e]::after{top:0;bottom:0;width:3px;border-radius:2px;background:var(--accent-text)}
+.card-edge[data-edge=w]::after{left:2px}
+.card-edge[data-edge=e]::after{right:2px}
+.card-edge[data-edge=nw]::after,.card-edge[data-edge=ne]::after,.card-edge[data-edge=sw]::after{width:9px;height:9px;border:0 solid var(--accent-text)}
+.card-edge[data-edge=nw]::after{top:2px;left:2px;border-width:3px 0 0 3px;border-top-left-radius:6px}
+.card-edge[data-edge=ne]::after{top:2px;right:2px;border-width:3px 3px 0 0;border-top-right-radius:6px}
+.card-edge[data-edge=sw]::after{bottom:2px;left:2px;border-width:0 0 3px 3px;border-bottom-left-radius:6px}
+.dash.editing>.card{cursor:grab;user-select:none;touch-action:none;outline:1px dashed var(--border-strong);outline-offset:3px;transition:outline-color .12s}
+.dash.editing>.card:hover,.dash.editing>.card.resizing{outline-color:var(--accent-text)}
+.dash.editing>.card>*:not(.card-tools):not(.card-resize):not(.card-edge):not(.size-badge){pointer-events:none}
+.dash>.card.dragging{position:fixed;z-index:60;margin:0;outline:0;box-shadow:var(--shadow);cursor:grabbing;pointer-events:none;will-change:transform}
+.dash>.card.dropping{transition:transform .2s cubic-bezier(.2,.8,.2,1),width .2s cubic-bezier(.2,.8,.2,1),height .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s}
+.dash>.moving{transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.card-slot{min-width:0;min-height:0;border:1.5px dashed var(--accent-text);border-radius:var(--r-lg);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.resize-ghost{position:fixed;z-index:59;border:1.5px dashed var(--accent-text);border-radius:var(--r-lg);background:color-mix(in srgb,var(--accent) 6%,transparent);pointer-events:none}
+.size-badge{position:absolute;left:50%;top:50%;z-index:5;padding:5px 10px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface-overlay);box-shadow:var(--shadow);color:var(--text);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap;transform:translate(-50%,-50%);pointer-events:none}
+.size-badge small{display:block;margin-top:2px;color:var(--text-muted);font-size:11px;font-weight:500}
+body.dragging-card,body.dragging-card *{cursor:grabbing!important;user-select:none}
+body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!important;user-select:none}
+.layout-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:7px 8px 7px 12px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface)}
+.layout-bar .hint{color:var(--text-muted);font-size:12.5px}
+.hidden-cards{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.hidden-cards>span{color:var(--text-faint);font-size:12px}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px 0 6px;border:1px dashed var(--border-strong);border-radius:999px;background:none;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
+.chip:hover{border-style:solid;background:var(--hover)}
+.chip svg.i{width:13px;height:13px;color:var(--text-muted)}
 .panel-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;min-height:42px;padding:6px 10px 6px 14px;border-bottom:1px solid var(--border)}
 .panel-title{color:var(--text);font-size:12.5px;font-weight:600;min-width:0}
 .panel-title small{overflow:hidden;color:var(--text-muted);font-size:12px;font-weight:400;text-overflow:ellipsis;white-space:nowrap}
@@ -324,8 +388,8 @@ kbd{display:inline-block;min-width:16px;padding:0 4px;border:1px solid var(--bor
 .kvs b{overflow:hidden;font-weight:600;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}
 #cpuStats{grid-template-columns:repeat(auto-fit,minmax(78px,1fr))}
 #cpuStats .wide{grid-column:span 2}
-.cores{position:relative}
-.cores canvas{display:block;width:100%;height:136px}
+.cores{position:relative;flex:1 1 0;min-height:72px}
+.cores canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
 .cores .stip{top:0}
 .gpu{display:flex;flex-direction:column;gap:10px}
 .gpu+.gpu{padding-top:14px;border-top:1px solid var(--border)}
@@ -351,15 +415,12 @@ kbd{display:inline-block;min-width:16px;padding:0 4px;border:1px solid var(--bor
 .filter{width:220px}
 .filter input{height:28px!important}
 .no-gpu .gpu-only{display:none}
-.no-gpu .tiles{grid-template-columns:repeat(3,minmax(0,1fr))}
-.no-gpu .net-panel{grid-column:1/-1}
 
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:var(--scrollbar);border:2px solid transparent;border-radius:6px;background-clip:padding-box}
 ::-webkit-scrollbar-thumb:hover{background-color:var(--scrollbar-hover)}
 ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
 
-@media (max-width:1150px){.tiles,.no-gpu .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.act-grid{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:900px){:root{--side:264px}.side-inner{padding:14px}.listing col.c-share{width:120px}.share .bar{width:44px}.keys,.brand h1{display:none}.setting{flex-direction:column;align-items:stretch}.setting .seg{width:auto}.color-grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
 </style>
@@ -678,6 +739,10 @@ refresh();
   <symbol id="i-list" viewBox="0 0 16 16"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01"/></symbol>
   <symbol id="i-map" viewBox="0 0 16 16"><rect x="1.75" y="1.75" width="12.5" height="12.5" rx="1.5"/><path d="M8.5 1.75v12.5M8.5 8h5.75M1.75 9.5H8.5M11.5 8v6.25"/></symbol>
   <symbol id="i-theme" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 16 16"><path stroke-width="2.4" d="M6 3.5h.01M10 3.5h.01M6 8h.01M10 8h.01M6 12.5h.01M10 12.5h.01"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 16 16"><path d="M6.6 3.4A6.6 6.6 0 0 1 8 3.25c3.5 0 5.75 3.25 6.25 4.75-.2.6-.7 1.5-1.45 2.35M4.1 4.6C2.9 5.5 2.1 6.8 1.75 8c.5 1.5 2.75 4.75 6.25 4.75 1.2 0 2.3-.4 3.2-1M6.6 6.6a2 2 0 0 0 2.8 2.8M2.25 2.25l11.5 11.5"/></symbol>
+  <symbol id="i-layout" viewBox="0 0 16 16"><rect x="1.75" y="1.75" width="5.25" height="5.25" rx="1.2"/><rect x="9" y="1.75" width="5.25" height="5.25" rx="1.2"/><rect x="1.75" y="9" width="12.5" height="5.25" rx="1.2"/></symbol>
+  <symbol id="i-resize" viewBox="0 0 16 16"><path d="M13 7.5 7.5 13M13 11l-2 2"/></symbol>
   <symbol id="i-x" viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"/></symbol>
   <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.25"/><path d="m10.25 10.25 3.25 3.25"/></symbol>
   <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3.25v9.5M3.25 8h9.5"/></symbol>
@@ -778,6 +843,7 @@ refresh();
       <p id="actSub">Not monitoring.</p>
     </div>
     <button class="btn sm hidden" id="elevateButton" type="button" title="Opens a new window with administrator rights and closes this one. Current results are not kept."><svg class="i"><use href="#i-shield"/></svg>Restart as administrator</button>
+    <button class="btn sm ghost hidden" id="layoutButton" type="button" title="Move, resize or hide sections"><svg class="i"><use href="#i-layout"/></svg>Customize</button>
     <button class="btn sm hidden" id="stopMonitorButton" type="button">Stop monitoring</button>
   </div>
   <div class="notice hidden" id="actNotice" role="status" aria-live="polite"><span id="actNoticeText"></span><button class="icon-btn sm" id="actNoticeClose" type="button" title="Dismiss" aria-label="Dismiss"><svg class="i"><use href="#i-x"/></svg></button></div>
@@ -787,22 +853,27 @@ refresh();
     <p>CPU, memory, GPU and network use for this computer, or for an SSH server once you connect.</p>
   </div>
   <div id="actBody" class="hidden" style="display:flex;flex-direction:column;gap:12px">
-    <div class="tiles">
-      <div class="tile"><h3><svg class="i"><use href="#i-cpu"/></svg>CPU</h3><div class="big" id="tCpu">–</div><div class="sub" id="tCpuSub"></div><div class="spark"><canvas id="sCpu" aria-label="CPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
-      <div class="tile"><h3><svg class="i"><use href="#i-mem"/></svg>Memory</h3><div class="big" id="tMem">–</div><div class="sub" id="tMemSub"></div><div class="spark"><canvas id="sMem" aria-label="Memory use over the last minute"></canvas><div class="stip hidden"></div></div></div>
-      <div class="tile gpu-only"><h3><svg class="i"><use href="#i-gpu"/></svg>GPU</h3><div class="big" id="tGpu">–</div><div class="sub" id="tGpuSub"></div><div class="spark"><canvas id="sGpu" aria-label="GPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
-      <div class="tile"><h3><svg class="i"><use href="#i-net"/></svg>Network<span class="keys"><span class="key"><i style="background:var(--chart-1)"></i>In</span><span class="key"><i style="background:var(--chart-2)"></i>Out</span></span></h3><div class="big" id="tNet">–</div><div class="sub" id="tNetSub"></div><div class="spark"><canvas id="sNet" aria-label="Network traffic over the last minute"></canvas><div class="stip hidden"></div></div></div>
+    <div class="layout-bar hidden" id="layoutBar" role="region" aria-label="Customize the layout">
+      <span class="hint">Drag a section to move it, or drag any edge or corner to resize it. The others adjust to fit; hold Shift to resize only that one.</span>
+      <div class="hidden-cards" id="hiddenCards"></div>
+      <span class="spacer"></span>
+      <button class="btn sm ghost" id="layoutReset" type="button">Reset layout</button>
+      <button class="btn sm primary" id="layoutDone" type="button">Done</button>
     </div>
-    <div class="act-grid">
-      <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-cpu"/></svg>Processor <small id="cpuModel"></small></h3></div><div class="panel-body" id="cpuPanel"><div class="kvs" id="cpuStats"></div><div class="cores"><canvas id="coreChart" aria-label="Use of each logical processor over the last minute"></canvas><div class="stip hidden"></div></div></div></section>
-      <section class="panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-mem"/></svg>Memory</h3><button class="btn sm hidden" id="freeCacheButton" type="button">Free cache</button></div><div class="panel-body" id="memPanel"></div></section>
-      <section class="panel gpu-only"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-gpu"/></svg>Graphics</h3></div><div class="panel-body" id="gpuPanel"></div></section>
-      <section class="panel net-panel"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-net"/></svg>Network interfaces</h3></div><div class="panel-body" id="netPanel"></div></section>
-    </div>
-    <section class="panel procs">
+    <div class="dash" id="dash">
+      <div class="tile card" data-card="tile-cpu" data-size="s"><h3><svg class="i"><use href="#i-cpu"/></svg>CPU</h3><div class="big" id="tCpu">–</div><div class="sub" id="tCpuSub"></div><div class="spark"><canvas id="sCpu" aria-label="CPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
+      <div class="tile card" data-card="tile-mem" data-size="s"><h3><svg class="i"><use href="#i-mem"/></svg>Memory</h3><div class="big" id="tMem">–</div><div class="sub" id="tMemSub"></div><div class="spark"><canvas id="sMem" aria-label="Memory use over the last minute"></canvas><div class="stip hidden"></div></div></div>
+      <div class="tile card gpu-only" data-card="tile-gpu" data-size="s"><h3><svg class="i"><use href="#i-gpu"/></svg>GPU</h3><div class="big" id="tGpu">–</div><div class="sub" id="tGpuSub"></div><div class="spark"><canvas id="sGpu" aria-label="GPU use over the last minute"></canvas><div class="stip hidden"></div></div></div>
+      <div class="tile card" data-card="tile-net" data-size="s"><h3><svg class="i"><use href="#i-net"/></svg>Network<span class="keys"><span class="key"><i style="background:var(--chart-1)"></i>In</span><span class="key"><i style="background:var(--chart-2)"></i>Out</span></span></h3><div class="big" id="tNet">–</div><div class="sub" id="tNetSub"></div><div class="spark"><canvas id="sNet" aria-label="Network traffic over the last minute"></canvas><div class="stip hidden"></div></div></div>
+      <section class="panel card" data-card="cpu" data-size="m"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-cpu"/></svg>Processor <small id="cpuModel"></small></h3></div><div class="panel-body" id="cpuPanel"><div class="kvs" id="cpuStats"></div><div class="cores"><canvas id="coreChart" aria-label="Use of each logical processor over the last minute"></canvas><div class="stip hidden"></div></div></div></section>
+      <section class="panel card" data-card="mem" data-size="m"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-mem"/></svg>Memory</h3><button class="btn sm hidden" id="freeCacheButton" type="button">Free cache</button></div><div class="panel-body" id="memPanel"></div></section>
+      <section class="panel card gpu-only" data-card="gpu" data-size="m"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-gpu"/></svg>Graphics</h3></div><div class="panel-body" id="gpuPanel"></div></section>
+      <section class="panel card net-panel" data-card="net" data-size="m"><div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-net"/></svg>Network interfaces</h3></div><div class="panel-body" id="netPanel"></div></section>
+    <section class="panel card procs" data-card="procs" data-size="l">
       <div class="panel-head"><h3 class="panel-title"><svg class="i"><use href="#i-list"/></svg>Processes <small id="procCount"></small></h3><div class="input filter"><svg class="i"><use href="#i-search"/></svg><input id="procFilter" type="search" placeholder="Filter by name, user or PID" aria-label="Filter processes" spellcheck="false"></div></div>
       <div class="listing" id="procList"></div>
     </section>
+    </div>
   </div>
 </main>
 </div>
@@ -987,6 +1058,7 @@ document.onkeydown=e=>{
   if(dialogOpen('trust')){if(e.key==='Escape')$('reject').click();return}
   if(dialogOpen('confirm')){if(e.key==='Escape')$('confirmCancel').click();return}
   if(dialogOpen('appearance')){if(e.key==='Escape')closeAppearance();return}
+  if(e.key==='Escape'&&Dash.escape()){e.preventDefault();return}
   if((e.ctrlKey||e.metaKey)&&e.key===','){e.preventDefault();openAppearance();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();$('toggleSide').click();return}
   if((e.ctrlKey||e.metaKey)&&(e.key==='1'||e.key==='2')){e.preventDefault();setTab(e.key==='1'?'storage':'activity');return}
@@ -1220,7 +1292,7 @@ function beginMonitor(who,local=false,ownsConn=false){
   clearInterval(monitorPoll);hello=null;sample=null;lastSeq=-1;for(const k in hist)hist[k]=[];pendingActions.clear();
   monitorOwnsConn=ownsConn;monitorReconnecting=false;
   $('actHost').textContent=who;$('actPriv').classList.add('hidden');$('elevateButton').classList.add('hidden');$('actSub').textContent='Connecting…';notice('');
-  $('actEmpty').classList.add('hidden');$('actBody').classList.add('hidden');$('stopMonitorButton').classList.remove('hidden');$('liveDot').classList.remove('hidden');
+  $('actEmpty').classList.add('hidden');$('actBody').classList.add('hidden');Dash.available(false);$('stopMonitorButton').classList.remove('hidden');$('liveDot').classList.remove('hidden');
   // Poll often until the first figures arrive so they show as soon as they exist, then once a second.
   monitorPoll=setInterval(pollMonitor,100);monitorPollFast=true;pollMonitor();
 }
@@ -1230,7 +1302,7 @@ async function endMonitor(text,error=false){
   try{await stopMonitor()}catch(e){}
   $('actSub').textContent=text;
   if(error)notice(text,'error');else if(unanswered)notice('Monitoring stopped before the server confirmed the last action.','error');
-  if(!sample){$('actBody').classList.add('hidden');$('actEmpty').classList.remove('hidden')}
+  if(!sample){$('actBody').classList.add('hidden');$('actEmpty').classList.remove('hidden');Dash.available(false)}
   if(monitorOwnsConn)conn(error?'error':'idle',error?'Monitor disconnected':'Not connected');
 }
 $('stopMonitorButton').onclick=()=>endMonitor('Monitoring stopped. The last values are shown.');
@@ -1266,13 +1338,13 @@ function keyChip(color,text){const k=el('span','key'),i=el('i');i.style.backgrou
 function meterLine(label,value,text){const d=el('div','meterline');d.append(el('span','',label),meter([[value]]),el('span','',text));return d}
 function renderActivity(){
   const s=sample,m=s.memory||{},cpu=s.cpu||{},cores=cpu.cores||[],priv=privilegeOf(),[rx,tx]=netTotals(s);
-  $('actEmpty').classList.add('hidden');$('actBody').classList.remove('hidden');
+  $('actEmpty').classList.add('hidden');$('actBody').classList.remove('hidden');Dash.available(true);
   $('actSub').textContent=[hello&&hello.system,s.uptime?'up '+duration(s.uptime):'',(s.load||[]).length?'load '+s.load.map(v=>v.toFixed(2)).join(' '):'','updated '+new Date(s.time*1000).toLocaleTimeString()].filter(Boolean).join(' · ');
   // Tiles
   $('tCpu').textContent=pct0(cpu.total);$('tCpuSub').textContent=`${cores.length} ${onWindows()?'logical processors':'cores'}${(s.load||[]).length?' · load '+s.load[0].toFixed(2):''}`;
   $('tMem').textContent=pct0(m.total?100*m.used/m.total:0);$('tMemSub').textContent=`${size(m.used)} of ${size(m.total)} in use`;
   const gpus=s.gpus||[],g=gpuAverage(s);
-  $('actBody').classList.toggle('no-gpu',!gpus.length);
+  if($('actBody').classList.contains('no-gpu')!==!gpus.length){$('actBody').classList.toggle('no-gpu',!gpus.length);Dash.spans()}
   $('tGpu').textContent=gpus.length?pct0(g):'None';
   $('tGpuSub').textContent=gpus.length?(gpus.length>1?gpus.length+' GPUs':gpus[0].name)+(gpus[0].memTotal?` · ${size(gpus.reduce((a,x)=>a+(x.memUsed||0),0))} VRAM`:''):(s.gpuNote||'');
   $('tGpuSub').title=$('tGpuSub').textContent;
@@ -1427,17 +1499,25 @@ function drawSpark(id){
   }
 }
 // One small graph per logical processor, all drawn on one canvas so that many cores stay cheap.
-// Past CARD_LIMIT cores, cards would make the panel thousands of pixels tall, so the cores are
-// drawn as a heat map instead: one thin row per core, the last minute across, brighter when busier.
-const CARD_LIMIT=32,coreGrid={mode:'',cells:[],map:null,hover:null};
-function coreLayout(W,n){
-  const gap=8,maxCols=Math.max(1,Math.floor((W+gap)/(96+gap))),rows=Math.ceil(n/maxCols),cols=Math.ceil(n/rows);
-  const h=n<=8?76:n<=16?64:52;
-  return {gap,cols,rows,w:(W-gap*(cols-1))/cols,h,height:rows*h+(rows-1)*gap};
+// They fill the space the Processor section is given. Past CARD_LIMIT cores, or when the graphs
+// would be too short to read, the cores are drawn as a heat map instead: one thin row per core,
+// the last minute across, brighter when busier.
+const CARD_LIMIT=32,CARD_MIN_HEIGHT=44,coreGrid={mode:'',cells:[],map:null,hover:null};
+function coreLayout(W,n,H){
+  // Try each number of rows and keep the one whose graphs are closest to a 1.6:1 shape, so they
+  // fill the space without turning into slivers. None fits when every choice is too small.
+  const gap=8;let best=null;
+  for(let rows=1;rows<=n;rows++){
+    const cols=Math.ceil(n/rows),w=(W-gap*(cols-1))/cols,h=Math.floor((H-gap*(rows-1))/rows);
+    if(w<64)continue;if(h<CARD_MIN_HEIGHT)break;
+    const score=Math.abs(Math.log(w/h/1.6))+0.3*(rows*cols-n)/n;
+    if(!best||score<best.score)best={gap,cols,rows,w,h,score};
+  }
+  return best;
 }
-function heatLayout(W,n){
-  const row=Math.max(1.5,Math.min(6,288/n)),left=58,top=30,bottom=20;
-  return {top,row,x:left,y:top,w:W-left,h:n*row,height:top+n*row+bottom};
+function heatLayout(W,n,H){
+  const left=58,top=30,bottom=20,row=Math.max(.5,Math.min(10,(H-top-bottom)/n));
+  return {top,row,x:left,y:top,w:W-left,h:n*row};
 }
 function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
 const rgbOf=c=>{const m=/^#([0-9a-f]{6})$/i.exec(c);return m?[0,2,4].map(i=>parseInt(m[1].slice(i,i+2),16)):[128,128,128]};
@@ -1448,10 +1528,10 @@ function drawCores(){
   const c=$('coreChart');if(!c||!c.getContext||tab!=='activity'||!sample)return;
   const n=hist.cores.length,W=c.clientWidth;
   c.parentElement.classList.toggle('hidden',!n);if(!n||W<40)return;
-  const heat=n>CARD_LIMIT,L=heat?heatLayout(W,n):coreLayout(W,n);
+  const H=c.clientHeight;if(H<20)return;
+  const cards=n<=CARD_LIMIT&&coreLayout(W,n,H),heat=!cards,L=heat?heatLayout(W,n,H):cards;
   coreGrid.mode=heat?'heat':'cards';
-  if(c.style.height!==L.height+'px')c.style.height=L.height+'px';
-  const H=L.height,dpr=Math.min(2,window.devicePixelRatio||1),st=getComputedStyle(document.documentElement),cv=name=>st.getPropertyValue(name).trim();
+  const dpr=Math.min(2,window.devicePixelRatio||1),st=getComputedStyle(document.documentElement),cv=name=>st.getPropertyValue(name).trim();
   if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){c.width=Math.round(W*dpr);c.height=Math.round(H*dpr)}
   const ctx=c.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
   const k={font:getComputedStyle(c).fontFamily,line:cv('--chart-1'),border:cv('--border'),raised:cv('--surface-raised'),muted:cv('--text-muted'),text:cv('--text'),warn:cv('--warning-foreground'),faint:cv('--text-faint')};
@@ -1459,13 +1539,16 @@ function drawCores(){
 }
 function drawCards(ctx,L,n,k){
   const hv=coreGrid.hover;
+  // Narrow graphs show only the core number, so the name never runs into the percentage.
+  ctx.font=`600 11px ${k.font}`;const room=L.w-22-ctx.measureText('100%').width;
+  ctx.font=`500 11px ${k.font}`;const prefix=ctx.measureText('CPU '+(n-1)).width<=room?'CPU ':'';
   coreGrid.cells=[];
   for(let i=0;i<n;i++){
     const col=i%L.cols,row=Math.floor(i/L.cols),x=col*(L.w+L.gap),y=row*(L.h+L.gap),w=L.w,h=L.h,values=hist.cores[i];
     coreGrid.cells.push({x,y,w,h});
     roundRect(ctx,x+.5,y+.5,w-1,h-1,6);ctx.fillStyle=k.raised;ctx.fill();ctx.strokeStyle=k.border;ctx.lineWidth=1;ctx.stroke();
     const now=values[values.length-1],top=y+(h>=52?22:18),gh=y+h-2-top;
-    ctx.font=`500 11px ${k.font}`;ctx.textBaseline='alphabetic';ctx.fillStyle=k.muted;ctx.textAlign='left';ctx.fillText('CPU '+i,x+8,top-7);
+    ctx.font=`500 11px ${k.font}`;ctx.textBaseline='alphabetic';ctx.fillStyle=k.muted;ctx.textAlign='left';ctx.fillText(prefix+i,x+8,top-7);
     ctx.font=`600 11px ${k.font}`;ctx.textAlign='right';ctx.fillStyle=now>=90?k.warn:k.text;ctx.fillText(pct0(now),x+w-8,top-7);
     // The graph sits inside the cell, newest sample on the right.
     ctx.save();roundRect(ctx,x+1,y+1,w-2,h-2,5);ctx.clip();
@@ -1505,7 +1588,7 @@ function drawHeat(ctx,L,n,k){
   ctx.fillStyle=g;ctx.fillRect(kx,mid-4,kw,8);ctx.strokeStyle=k.border;ctx.strokeRect(kx-.5,mid-4.5,kw+1,9);
   ctx.fillStyle=k.faint;ctx.textAlign='right';ctx.fillText('0%',kx-6,mid);ctx.textAlign='left';ctx.fillText('100%',kx+kw+6,mid);
   ctx.textAlign='right';
-  const every=n>128?32:n>64?16:8;
+  let every=1;while(every*L.row<16)every*=2;
   for(let i=0;i<n;i+=every)ctx.fillText('CPU '+i,L.x-8,L.y+(i+.5)*L.row);
   ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.fillText('1 min ago',L.x,L.y+L.h+15);ctx.textAlign='right';ctx.fillText('now',L.x+L.w,L.y+L.h+15);
   const hv=coreGrid.hover;
@@ -1555,6 +1638,565 @@ for(const id of ['sCpu','sMem','sGpu','sNet']){
   c.onmouseleave=()=>{c._hover=null;c.nextElementSibling.classList.add('hidden');drawSpark(id)};
 }
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{redraw();drawSparks()},150)});
+
+// ---- Activity layout ----
+// The activity sections sit in a grid of 12 columns and rows of DASH_ROW pixels. In edit mode
+// each section can be dragged to a new place, resized from its bottom-right corner to cover any
+// number of columns and rows, or hidden. The layout is saved with the other settings. Dragging
+// and resizing move transforms only, and the grid is laid out again only when a section changes
+// place or size, so it stays smooth on slow machines.
+const CARD_INFO={'tile-cpu':'CPU usage','tile-mem':'Memory usage','tile-gpu':'GPU usage','tile-net':'Network traffic',cpu:'Processor',mem:'Memory',gpu:'Graphics',net:'Network interfaces',procs:'Processes'};
+const DASH_ROW=44,DASH_GAP=12,DASH_MAX_ROWS=24;
+const Dash=(function(){
+  const dash=$('dash'),off={apply(){},spans(){},available(){},escape:()=>false,editing:()=>false};
+  if(!dash||typeof dash.querySelectorAll!=='function')return off;
+  const scroller=$('activity'),cards=new Map([...dash.querySelectorAll('[data-card]')].map(c=>[c.dataset.card,c]));
+  const defaultOrder=[...cards.keys()];
+  const kind=id=>id.startsWith('tile-')?'tile':id==='procs'?'procs':'panel';
+  const MIN={tile:{w:2,h:2},panel:{w:3,h:3},procs:{w:4,h:4}};
+  const noGpu=()=>$('actBody').classList.contains('no-gpu');
+  // Default sizes fill each row, with or without a GPU.
+  function defaultSize(id){
+    const g=noGpu();
+    return {'tile-cpu':{w:g?4:3,h:3},'tile-mem':{w:g?4:3,h:3},'tile-gpu':{w:3,h:3},'tile-net':{w:g?4:3,h:3},
+      cpu:{w:6,h:6},mem:{w:6,h:6},gpu:{w:6,h:5},net:{w:g?12:6,h:5},procs:{w:12,h:9}}[id];
+  }
+  let state=load(),editing=false,pending=null,drag=null,resize=null,rects=[],narrow=false;
+  const size=id=>state.sizes[id]||defaultSize(id);
+  // On a narrow view each section takes twice its columns, so two quarter-width cards share a row.
+  const cols=id=>narrow?Math.min(12,size(id).w*2):size(id).w;
+
+  function load(){
+    const saved=prefs&&prefs.get('activityLayout'),order=[],hidden=new Set(),sizes={};
+    if(saved&&typeof saved==='object'){
+      if(Array.isArray(saved.order))for(const id of saved.order)if(cards.has(id)&&!order.includes(id))order.push(id);
+      if(Array.isArray(saved.hidden))for(const id of saved.hidden)if(cards.has(id))hidden.add(id);
+      // Version 1 stored named widths, which are not kept.
+      if(saved.v===2&&saved.sizes&&typeof saved.sizes==='object')for(const id in saved.sizes){
+        const s=saved.sizes[id],m=cards.has(id)&&MIN[kind(id)];
+        if(m&&s&&Number.isInteger(s.w)&&Number.isInteger(s.h))sizes[id]={w:Math.max(m.w,Math.min(12,s.w)),h:Math.max(m.h,Math.min(DASH_MAX_ROWS,s.h))};
+      }
+    }
+    // Sections added in a later version go near where they are by default.
+    defaultOrder.forEach((id,i)=>{if(!order.includes(id))order.splice(Math.min(i,order.length),0,id)});
+    return {order,hidden,sizes};
+  }
+  function save(){if(prefs)prefs.set('activityLayout',{v:2,order:state.order,hidden:[...state.hidden],sizes:state.sizes})}
+  const shown=c=>!c.classList.contains('user-hidden')&&!(c.classList.contains('gpu-only')&&noGpu());
+
+  // ---- Working out the layout ----
+  // The grid puts each section, in order, as far up and then as far left as it fits. layout() does
+  // the same with a 12-bit mask per row, so the code below can try a change and keep it only if it
+  // works, without laying out the page. The sections are few, so this costs next to nothing.
+  const visible=()=>state.order.filter(id=>shown(cards.get(id)));
+  const sizesOf=ids=>Object.fromEntries(ids.map(id=>[id,{...size(id)}]));
+  const copy=S=>Object.fromEntries(Object.keys(S).map(id=>[id,{...S[id]}]));
+  const minOf=id=>MIN[kind(id)];
+  function layout(ids,S){
+    const occ=[],pos={};let r=0,c=0;
+    for(const id of ids){
+      const w=Math.min(12,S[id].w),h=S[id].h;let m=0;
+      for(;;){
+        if(c+w>12){r++;c=0;continue}
+        m=((1<<w)-1)<<c;let free=true;
+        for(let y=r;y<r+h;y++)if((occ[y]||0)&m){free=false;break}
+        if(free)break;c++;
+      }
+      for(let y=r;y<r+h;y++)occ[y]=(occ[y]||0)|m;
+      pos[id]={x:c,y:r,w,h};c+=w;
+    }
+    let gaps=0;
+    for(let y=0;y<occ.length;y++){let m=occ[y]||0;gaps+=12;while(m){m&=m-1;gaps--}}
+    return {pos,gaps};
+  }
+  const sameRows=(ids,a,b)=>ids.every(id=>a.pos[id].y===b.pos[id].y);
+  // Only sizes that differ from the defaults are kept.
+  function commit(S){
+    for(const id in S){const s=S[id],d=defaultSize(id);if(s.w===d.w&&s.h===d.h)delete state.sizes[id];else state.sizes[id]={w:s.w,h:s.h}}
+  }
+  // Close gaps by widening sections, or else making them taller, a step at a time and taking turns.
+  // A step is kept only if it closes some of a gap without moving any section to another row.
+  function fill(ids,S,fixed,prefer){
+    if(narrow)return S;
+    const cand=[...new Set([...prefer,...ids.slice().reverse()])].filter(id=>!fixed.has(id));
+    let L=layout(ids,S),turn=0,guard=0;
+    while(L.gaps&&cand.length&&guard++<400){
+      let next=null;
+      for(const k of ['w','h']){
+        for(let j=0;j<cand.length&&!next;j++){
+          const id=cand[(turn+j)%cand.length],s=S[id];
+          if(s[k]>=(k==='w'?12:DASH_MAX_ROWS))continue;
+          s[k]++;
+          const T=layout(ids,S);
+          if(T.gaps<L.gaps&&sameRows(ids,T,L)){next=T;turn=(turn+j+1)%cand.length}else s[k]--;
+        }
+        if(next)break;
+      }
+      if(!next)break;
+      L=next;
+    }
+    return S;
+  }
+  // Nearest in order first, and after before before when equally near.
+  const nearest=(ids,i)=>(a,b)=>{const da=ids.indexOf(a)-i,db=ids.indexOf(b)-i;return Math.abs(da)-Math.abs(db)||db-da};
+  // Put the shown sections in the order given, leaving hidden ones where they are.
+  function setOrder(ids){const q=ids.slice();state.order=state.order.map(id=>shown(cards.get(id))?q.shift():id)}
+  // Section A takes the size next, from the sizes in base, and the others make room. Those in the
+  // row it shares with ref (A itself when resizing, or the section it was dropped beside) shrink a
+  // column at a time, nearest first. If they cannot all fit even at their smallest, the last ones
+  // move on to the next row, and share a row of their own if they do not fit there either.
+  // Heights are left alone unless follow is set: a section can stand taller than the ones beside
+  // it, and the sections after them stack up in the room underneath. With follow, sections beside
+  // A that line up with its bottom edge keep lining up. Then any gaps are closed.
+  function adjust(ids,base,A,next,ref,follow){
+    const S=copy(base);S[A]={...next};
+    if(narrow||ids.length<2)return S;
+    const before=layout(ref===A?ids:ids.filter(x=>x!==A),base),home=before.pos[ref];
+    if(!home)return fill(ids,S,new Set([A]),[]);
+    // A section moved into a row takes that row's height.
+    if(ref!==A)S[A].h=Math.max(minOf(A).h,Math.min(DASH_MAX_ROWS,home.h));
+    const ai=ids.indexOf(A),top=home.y,bottom=home.y+home.h,at=id=>ids.indexOf(id);
+    const mates=ids.filter(id=>{const p=before.pos[id];return id!==A&&p&&p.y>=top&&p.y+p.h<=bottom}).sort(nearest(ids,ai));
+    const dh=next.h-base[A].h;
+    if(follow&&ref===A&&dh)for(const id of mates){
+      const p=before.pos[id];
+      if(p.y+p.h===bottom)S[id].h=Math.max(minOf(id).h,Math.min(DASH_MAX_ROWS,S[id].h+dh));
+    }
+    const holds=(L,keep)=>L.pos[A].y===top&&keep.every(id=>L.pos[id].y===before.pos[id].y);
+    if(!holds(layout(ids,S),mates)){
+      const later=mates.filter(id=>at(id)>ai).sort((a,b)=>at(a)-at(b));
+      let fitted=null,out=[];
+      for(let drop=0;drop<=later.length&&!fitted;drop++){
+        out=later.slice(later.length-drop);
+        const keep=mates.filter(id=>!out.includes(id)),T=copy(S);
+        for(let more=true;more&&!fitted;){
+          more=false;
+          for(const id of keep){
+            if(holds(layout(ids,T),keep)){fitted=T;break}
+            if(T[id].w>minOf(id).w){T[id].w--;more=true}
+          }
+        }
+        if(!fitted&&holds(layout(ids,T),keep))fitted=T;
+      }
+      if(fitted){
+        Object.assign(S,fitted);
+        if(out.length){
+          // The row the pushed sections land in must keep all of its own sections.
+          const after=ids.slice(at(out[out.length-1])+1),rest=ids.filter(x=>!out.includes(x));
+          const W=layout(rest,S),L=layout(ids,S),nxt=after[0];
+          const fits=nxt&&rest.every(id=>W.pos[id].y!==W.pos[nxt].y||L.pos[id].y===L.pos[out[0]].y);
+          if(!fits){
+            let left=12;const total=out.reduce((t,id)=>t+S[id].w,0);
+            out.forEach((id,i)=>{const w=i===out.length-1?Math.max(minOf(id).w,left):Math.max(minOf(id).w,Math.round(12*S[id].w/total));S[id].w=w;left-=w});
+          }
+        }
+      }
+    }
+    return fill(ids,S,ref===A?new Set([A]):new Set(),mates);
+  }
+  // Resize A to next, in the order given. A taller or shorter section first stands on its own, with
+  // the sections after it stacking up beside it. If that leaves a gap, the sections beside it that
+  // line up with its bottom edge follow it instead, and if that still leaves one, the sections
+  // below it give up or take the room, as with tiled windows. Returns the order and sizes.
+  function resizeTo(order,S,A,next){
+    if(narrow){const T=copy(S);T[A]={...next};return {order,S:T}}
+    const was=layout(order,S).gaps,tries=[()=>[order,adjust(order,S,A,next,A)]];
+    if(next.h!==S[A].h){
+      tries.push(()=>[order,adjust(order,S,A,next,A,true)]);
+      tries.push(()=>{const T=copy(S),o=moveEdge(order,T,A,'y',next.h-S[A].h,true);return o&&[o,adjust(o,T,A,{w:next.w,h:T[A].h},A)]});
+    }
+    let best=null;
+    for(const t of tries){
+      const r=t();if(!r)continue;
+      const g=layout(r[0],r[1]).gaps;
+      if(!best||g<best.g)best={order:r[0],S:r[1],g};
+      if(g<=was)break;
+    }
+    return best;
+  }
+  // Take section A out. First it narrows a column at a time and the sections in its row widen
+  // into the room, taking turns from the nearest, so the next row does not move up into the gap.
+  function vanish(ids,base,A){
+    const S=copy(base);
+    if(narrow||!S[A]||ids.length<2){delete S[A];return S}
+    const before=layout(ids,base),a=before.pos[A];
+    const mates=ids.filter(id=>{const p=before.pos[id];return id!==A&&p.y<a.y+a.h&&p.y+p.h>a.y}).sort(nearest(ids,ids.indexOf(A)));
+    let turn=0;
+    for(let w=S[A].w-1;w>=0&&mates.length;w--){
+      if(w)S[A].w=w;else{delete S[A];ids=ids.filter(x=>x!==A)}
+      const G=layout(ids,S);
+      for(let j=0;j<mates.length;j++){
+        const id=mates[(turn+j)%mates.length];if(S[id].w>=12)continue;
+        S[id].w++;
+        const M=layout(ids,S);
+        if(M.gaps<G.gaps&&sameRows(ids,M,G)){turn=(turn+j+1)%mates.length;break}
+        S[id].w--;
+      }
+    }
+    delete S[A];ids=ids.filter(x=>x!==A);
+    return fill(ids,S,new Set(),mates);
+  }
+  // Move one of A's edges by k rows or columns; k>0 grows A. axis is 'y' or 'x', and atEnd picks the
+  // bottom or right edge rather than the top or left. As with tiled windows, the sections on the
+  // far side of the edge give up the room or take it, those on A's side that meet the same line
+  // move with it, and nothing else moves. If k cannot be done it tries less. The grid places
+  // sections in order and never goes back up, so a section can only start higher than one in its
+  // row by coming before it, or lower by coming after it. Returns the order to use, or null if
+  // nothing moved.
+  function moveEdge(ids,S,A,axis,k,atEnd){
+    const v=axis==='y',L=layout(ids,S),a=L.pos[A];
+    const lo=p=>v?p.y:p.x,hi=p=>v?p.y+p.h:p.x+p.w,across=p=>v?p.x:p.y,wide=p=>v?p.w:p.h,key=v?'h':'w';
+    const line=atEnd?hi(a):lo(a);
+    // The edge runs as far across as sections meet at it without one crossing it.
+    let from=across(a),to=from+wide(a),ending=[],starting=[];
+    for(let grew=true;grew;){
+      grew=false;ending=[];starting=[];
+      for(const id of ids){
+        const p=L.pos[id];
+        if(across(p)>=to||across(p)+wide(p)<=from)continue;
+        if(hi(p)===line)ending.push(id);
+        else if(lo(p)===line)starting.push(id);
+        else if(lo(p)<line&&hi(p)>line)return null;
+        else continue;
+        if(across(p)<from){from=across(p);grew=true}
+        if(across(p)+wide(p)>to){to=across(p)+wide(p);grew=true}
+      }
+    }
+    const near=atEnd?ending:starting,far=atEnd?starting:ending;
+    if(!far.length)return null;
+    // Nearest places in the order first, so the order changes as little as it can.
+    const i=ids.indexOf(A),orders=[ids];
+    if(v)for(let d=1;d<ids.length;d++)for(const j of [i-d,i+d])if(j>=0&&j<ids.length){const o=ids.filter(x=>x!==A);o.splice(j,0,A);orders.push(o)}
+    const still=(M,id)=>far.includes(id)||near.includes(id)||(M.pos[id].x===L.pos[id].x&&M.pos[id].y===L.pos[id].y);
+    for(let n=k;n;n-=Math.sign(n)){
+      const T=copy(S);let ok=true;
+      for(const id of far){T[id][key]-=n;if(T[id][key]<minOf(id)[key])ok=false}
+      for(const id of near){T[id][key]+=n;if(T[id][key]<minOf(id)[key]||T[id][key]>(v?DASH_MAX_ROWS:12))ok=false}
+      if(!ok)continue;
+      for(const o of orders){
+        const M=layout(o,T),p=M.pos[A];
+        if((atEnd?hi(p)!==line+n||lo(p)!==lo(a):lo(p)!==line-n||hi(p)!==hi(a))||M.gaps>L.gaps)continue;
+        // Each section at the edge keeps its other edge where it was.
+        if(!ending.every(id=>lo(M.pos[id])===lo(L.pos[id]))||!starting.every(id=>hi(M.pos[id])===hi(L.pos[id])))continue;
+        if(!ids.every(id=>still(M,id)))continue;
+        Object.assign(S,T);return o;
+      }
+    }
+    return null;
+  }
+
+  function spans(){
+    narrow=dash.clientWidth>0&&dash.clientWidth<820;dash.classList.toggle('narrow',narrow);
+    for(const c of dash.children){
+      const id=c.classList.contains('card-slot')?drag&&drag.card.dataset.card:c.dataset.card;if(!id)continue;
+      const col='span '+cols(id),row='span '+size(id).h;
+      if(c.style.gridColumn!==col)c.style.gridColumn=col;
+      if(c.style.gridRow!==row)c.style.gridRow=row;
+    }
+  }
+  function apply(){
+    for(const id of state.order){const c=cards.get(id);if(dash.lastElementChild!==c)dash.append(c)}
+    for(const [id,c] of cards)c.classList.toggle('user-hidden',state.hidden.has(id));
+    spans();
+  }
+  let settleTimer=0;
+  const settle=(ms=240)=>{clearTimeout(settleTimer);settleTimer=setTimeout(()=>{if(typeof drawSparks==='function')drawSparks()},ms)};
+
+  // FLIP: note where everything is, change the layout, then slide each section from its old
+  // place to its new one. skip is a section that is placed by hand, such as one being resized.
+  function flip(change,skip){
+    const fixed=c=>c===(drag&&drag.card)||c===skip;
+    const els=[...dash.children].filter(c=>!fixed(c));
+    const first=new Map(els.map(c=>[c,c.getBoundingClientRect()]));
+    for(const c of els){c.classList.remove('moving');c.style.transform=''}
+    change();
+    const moved=[],top=scroller.scrollTop;rects=[];
+    for(const c of [...dash.children]){
+      if(fixed(c))continue;
+      const b=c.getBoundingClientRect();if(!b.width)continue;
+      rects.push({el:c,l:b.left,r:b.right,t:b.top+top,b:b.bottom+top});
+      const a=first.get(c);if(!a||!a.width)continue;
+      const dx=a.left-b.left,dy=a.top-b.top;
+      if(Math.abs(dx)>.5||Math.abs(dy)>.5){c.style.transform=`translate(${dx}px,${dy}px)`;moved.push(c)}
+    }
+    if(!moved.length)return;
+    void dash.offsetWidth;
+    for(const c of moved){c.classList.add('moving');c.style.transform=''}
+  }
+  function measure(){
+    const top=scroller.scrollTop;rects=[];
+    for(const c of dash.children){if(c===(drag&&drag.card))continue;const b=c.getBoundingClientRect();if(b.width)rects.push({el:c,l:b.left,r:b.right,t:b.top+top,b:b.bottom+top})}
+  }
+  // Scroll when the pointer nears the top or bottom of the activity view.
+  function autoScroll(y){
+    const v=scroller.getBoundingClientRect(),edge=56;
+    if(y<v.top+edge){scroller.scrollTop-=Math.ceil(14*(v.top+edge-y)/edge);return true}
+    if(y>v.bottom-edge){scroller.scrollTop+=Math.ceil(14*(y-v.bottom+edge)/edge);return true}
+    return false;
+  }
+
+  // ---- Moving ----
+  function begin(e){
+    const card=pending.card,r=card.getBoundingClientRect(),slot=el('div','card-slot');
+    card.before(slot);
+    const ids=visible(),base=sizesOf(ids);
+    // The sizes with this section taken out, so its old row has closed up wherever it goes.
+    drag={card,slot,home:state.order.slice(),base,closed:{...vanish(ids,base,card.dataset.card),[card.dataset.card]:base[card.dataset.card]},x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,left:r.left,top:r.top,raf:0};
+    card.classList.add('dragging');
+    Object.assign(card.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});
+    document.body.classList.add('dragging-card');
+    spans();measure();
+    drag.raf=requestAnimationFrame(frame);
+  }
+  function frame(){
+    if(!drag||drag.dropping)return;
+    autoScroll(drag.y);
+    drag.card.style.transform=`translate(${drag.x-drag.startX}px,${drag.y-drag.startY}px) scale(1.012)`;
+    place();
+    drag.raf=requestAnimationFrame(frame);
+  }
+  function place(){
+    const x=drag.x,y=drag.y+scroller.scrollTop,q=rects.find(q=>x>=q.l&&x<q.r&&y>=q.t&&y<q.b);
+    if(!q||q.el===drag.slot)return;
+    const wide=q.r-q.l>dash.clientWidth*.6,before=wide?y<(q.t+q.b)/2:x<(q.l+q.r)/2;
+    const items=[...dash.children].filter(c=>c!==drag.card),from=items.indexOf(drag.slot);
+    let to=items.indexOf(q.el)+(before?0:1);if(to>from)to--;
+    if(to===from)return;
+    flip(()=>{
+      items.splice(from,1);
+      const ref=items[to];
+      if(ref)ref.before(drag.slot);else dash.append(drag.slot);
+      // The section joins the row of the one it was dropped beside, and the rest make room.
+      const A=drag.card.dataset.card;
+      commit(adjust(flow(),drag.closed,A,drag.base[A],q.el.dataset.card));
+      spans();
+    });
+  }
+  // The shown sections in the order they are on the page, with the drop slot standing in for the
+  // section being dragged.
+  const flow=()=>[...dash.children].filter(c=>c!==(drag&&drag.card))
+    .map(c=>c===(drag&&drag.slot)?drag.card.dataset.card:c.dataset.card).filter(id=>id&&shown(cards.get(id)));
+  function finish(cancel){
+    const d=drag;if(!d||d.dropping)return;
+    cancelAnimationFrame(d.raf);d.dropping=true;
+    if(cancel)flip(()=>{
+      const after=d.home.slice(d.home.indexOf(d.card.dataset.card)+1).map(id=>cards.get(id)).find(c=>c.parentNode===dash);
+      if(after)after.before(d.slot);else dash.append(d.slot);
+      commit(d.base);spans();
+    });
+    const r=d.slot.getBoundingClientRect();
+    d.card.classList.add('dropping');
+    d.card.style.transform=`translate(${r.left-d.left}px,${r.top-d.top}px)`;
+    d.card.style.width=r.width+'px';d.card.style.height=r.height+'px';
+    let done=false;
+    const land=()=>{
+      if(done)return;done=true;
+      d.card.classList.remove('dragging','dropping');
+      for(const k of ['left','top','width','height','transform'])d.card.style[k]='';
+      d.slot.replaceWith(d.card);
+      document.body.classList.remove('dragging-card');
+      drag=null;
+      state.order=[...dash.children].map(c=>c.dataset.card).filter(Boolean);
+      spans();if(!cancel)save();settle();
+    };
+    d.card.addEventListener('transitionend',e=>{if(e.target===d.card&&e.propertyName==='transform')land()});
+    setTimeout(land,300);
+  }
+
+  // ---- Resizing from an edge or corner ----
+  // The outline follows the pointer and the section snaps to whole columns and rows under it. The
+  // others adjust as described above adjust() and moveEdge(). With Shift held, dragging the bottom
+  // or right edge changes only this section and leaves any gap for the user to fill.
+  const CURSOR={n:'ns',s:'ns',e:'ew',w:'ew',nw:'nwse',se:'nwse',ne:'nesw',sw:'nesw'};
+  function beginResize(card,handle,e){
+    const id=card.dataset.card,edge=handle.dataset.edge,r=card.getBoundingClientRect(),ghost=el('div','resize-ghost'),badge=el('div','size-badge');
+    Object.assign(ghost.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});
+    document.body.append(ghost);card.append(badge);
+    const ids=visible(),base=sizesOf(ids),home=layout(ids,base).pos[id],s=size(id);
+    resize={card,id,edge,handle,ghost,badge,ids,base,home,order:state.order.slice(),raf:0,px:e.clientX,py:e.clientY,free:e.shiftKey};
+    resize.key=narrow?`${s.w},${s.h}`:[home.y,home.y+home.h,home.x,home.x+home.w,resize.free].join();
+    handle.classList.add('active');card.classList.add('resizing');
+    document.body.classList.add('resizing-card');document.body.style.setProperty('--resize-cursor',CURSOR[edge]+'-resize');
+    showSize();
+    resize.raf=requestAnimationFrame(resizeFrame);
+  }
+  function showSize(){
+    const z=resize,s=size(z.id);
+    z.badge.replaceChildren(`${s.w} of 12 columns × ${s.h} rows`);
+    if(/[se]/.test(z.edge)&&!narrow)z.badge.append(el('small','',z.free?'Only this section':'Hold Shift to resize only this one'));
+  }
+  function resizeFrame(){
+    const z=resize;if(!z)return;
+    autoScroll(z.py);
+    const r=z.card.getBoundingClientRect(),d=dash.getBoundingClientRect(),e=z.edge;
+    // Grid lines nearest the pointer. Line j is where column j starts, so a right edge sits a gap
+    // before it; rounding from the middle of the gap treats both alike.
+    const m=minOf(z.id),colP=(d.width+DASH_GAP)/12,rowP=DASH_ROW+DASH_GAP;
+    const lineX=x=>Math.max(0,Math.min(12,Math.round((x-d.left+DASH_GAP/2)/colP)));
+    const lineY=y=>Math.max(0,Math.round((y-d.top+DASH_GAP/2)/rowP));
+    if(narrow){
+      const gr=e.includes('e')?Math.max(z.px,r.left+40):r.right,gb=e.includes('s')?Math.max(z.py,r.top+40):r.bottom;
+      Object.assign(z.ghost.style,{left:r.left+'px',top:r.top+'px',width:gr-r.left+'px',height:gb-r.top+'px'});
+      // Each section takes twice its columns here, and only its own size changes.
+      const s={...size(z.id)};
+      if(e.includes('e'))s.w=Math.max(m.w,Math.min(12,Math.ceil((lineX(gr)-lineX(r.left))/2)));
+      if(e.includes('s'))s.h=Math.max(m.h,Math.min(DASH_MAX_ROWS,lineY(gb)-lineY(r.top)));
+      const key=`${s.w},${s.h}`;
+      if(key!==z.key){z.key=key;commit({...copy(z.base),[z.id]:s});flip(spans,z.card);showSize();settle(80)}
+    }else{
+      const a=z.home,v=e.includes('n')?-1:e.includes('s')?1:0,h=e.includes('w')?-1:e.includes('e')?1:0;
+      // Where the section should span on one axis, as grid lines. Dragging an edge towards the
+      // opposite one shrinks the section to its smallest; once the pointer crosses that opposite
+      // edge, the section grows out past it instead, the way a stretched rectangle flips over.
+      const span=(side,lo,hi,p,min,max,end)=>{
+        if(side>0)return p<lo?[Math.max(0,p,lo+min-max),lo+min]:[lo,Math.min(end,lo+max,Math.max(lo+min,p))];
+        if(side<0)return p>hi?[hi-min,Math.min(end,p,hi-min+max)]:[Math.max(0,hi-max,Math.min(hi-min,p)),hi];
+        return [lo,hi];
+      };
+      const [top,bottom]=span(v,a.y,a.y+a.h,lineY(z.py),m.h,DASH_MAX_ROWS,Infinity);
+      const [left,right]=span(h,a.x,a.x+a.w,lineX(z.px),m.w,12,12);
+      // The outline, with the same flip: the dragged edge follows the pointer.
+      const ghost=(side,lo,hi,p,min,start,pitch,now)=>{
+        const L=start+lo*pitch,H=start+hi*pitch-DASH_GAP;
+        if(side>0)return p<L?[p,start+(lo+min)*pitch-DASH_GAP]:[L,Math.max(p,L+40)];
+        if(side<0)return p>H?[start+(hi-min)*pitch,p]:[Math.min(p,H-40),H];
+        return now;
+      };
+      const [gt,gb]=ghost(v,a.y,a.y+a.h,z.py,m.h,d.top,rowP,[r.top,r.bottom]);
+      const [gl,gr]=ghost(h,a.x,a.x+a.w,z.px,m.w,d.left,colP,[r.left,r.right]);
+      Object.assign(z.ghost.style,{left:gl+'px',top:gt+'px',width:gr-gl+'px',height:gb-gt+'px'});
+      const key=[top,bottom,left,right,z.free].join();
+      if(key!==z.key){
+        z.key=key;
+        let S=copy(z.base),order=z.ids;
+        if(top!==a.y)order=moveEdge(order,S,z.id,'y',a.y-top)||order;
+        if(left!==a.x)order=moveEdge(order,S,z.id,'x',a.x-left)||order;
+        const p=layout(order,S).pos[z.id];
+        const next={w:Math.max(m.w,Math.min(12,right-p.x)),h:Math.max(m.h,Math.min(DASH_MAX_ROWS,bottom-p.y))};
+        if(z.free)S[z.id]=next;else({order,S}=resizeTo(order,S,z.id,next));
+        commit(S);setOrder(order);flip(apply,z.card);showSize();settle(80);
+      }
+    }
+    z.raf=requestAnimationFrame(resizeFrame);
+  }
+  function endResize(cancel){
+    const z=resize;if(!z)return;
+    cancelAnimationFrame(z.raf);resize=null;
+    if(cancel){state.order=z.order;commit(z.base);flip(apply,z.card)}
+    z.ghost.remove();z.badge.remove();z.handle.classList.remove('active');z.card.classList.remove('resizing');
+    document.body.classList.remove('resizing-card');
+    if(!cancel)save();settle();
+  }
+
+  // ---- Pointer handling ----
+  dash.addEventListener('pointerdown',e=>{
+    if(!editing||drag||resize||e.button!==0||e.target.closest('[data-act]'))return;
+    const card=e.target.closest('[data-card]');if(!card||card.parentNode!==dash)return;
+    e.preventDefault();pending={card,x:e.clientX,y:e.clientY};
+  });
+  window.addEventListener('pointermove',e=>{
+    if(resize){resize.px=e.clientX;resize.py=e.clientY;resize.free=e.shiftKey;return}
+    if(drag){drag.x=e.clientX;drag.y=e.clientY;return}
+    if(pending&&Math.hypot(e.clientX-pending.x,e.clientY-pending.y)>4){begin(e);pending=null}
+  });
+  window.addEventListener('pointerup',()=>{pending=null;if(resize)endResize(false);if(drag)finish(false)});
+  const cancelAll=()=>{pending=null;if(resize)endResize(true);if(drag)finish(true)};
+  window.addEventListener('pointercancel',cancelAll);
+  const shiftKey=e=>{if(resize&&e.key==='Shift')resize.free=e.type==='keydown'};
+  window.addEventListener('keydown',shiftKey);window.addEventListener('keyup',shiftKey);
+  window.addEventListener('blur',cancelAll);
+
+  // ---- Controls on each section, also usable from the keyboard ----
+  for(const [id,c] of cards){
+    const label=CARD_INFO[id],tools=el('div','card-tools');
+    const grip=el('button','grip');grip.type='button';grip.dataset.act='move';
+    grip.title='Drag to move. Arrow keys move it; Shift with the arrow keys resizes it.';grip.setAttribute('aria-label',`Move or resize ${label}`);grip.append(icon('grip'));
+    const hide=el('button');hide.type='button';hide.dataset.act='hide';hide.title='Hide';hide.setAttribute('aria-label',`Hide ${label}`);hide.append(icon('eye-off'));
+    tools.append(grip,hide);
+    // A handle on every edge and corner. Only the bottom-right one is drawn; the others show when
+    // the pointer is over them.
+    const handles=['n','s','e','w','nw','ne','sw','se'].map(edge=>{
+      const h=el('div',edge==='se'?'card-resize':'card-edge');h.dataset.act='resize';h.dataset.edge=edge;
+      if(edge==='se'){h.title='Drag to resize';h.append(icon('resize'))}
+      h.addEventListener('pointerdown',e=>{if(!editing||drag||resize||e.button!==0)return;e.preventDefault();e.stopPropagation();beginResize(c,h,e)});
+      return h;
+    });
+    c.append(tools,...handles);
+    grip.addEventListener('pointerdown',e=>{if(!editing||e.button!==0)return;e.preventDefault();e.stopPropagation();pending={card:c,x:e.clientX,y:e.clientY}});
+    grip.addEventListener('keydown',e=>{
+      const step={ArrowLeft:-1,ArrowUp:-1,ArrowRight:1,ArrowDown:1}[e.key];if(!step)return;
+      e.preventDefault();
+      const ids=visible(),base=sizesOf(ids);
+      if(e.shiftKey){
+        // Shift resizes from the bottom-right corner; with Alt as well, only this section changes.
+        const s={...base[id]},m=minOf(id);
+        if(e.key==='ArrowLeft'||e.key==='ArrowRight')s.w=Math.max(m.w,Math.min(12,s.w+step));else s.h=Math.max(m.h,Math.min(DASH_MAX_ROWS,s.h+step));
+        if(e.altKey)commit({...base,[id]:s});else{const r=resizeTo(ids,base,id,s);commit(r.S);setOrder(r.order)}
+        flip(apply);save();settle();grip.focus();
+        grip.title=`${s.w} of 12 columns × ${s.h} rows`;return;
+      }
+      const i=ids.indexOf(id),other=ids[i+step];if(!other)return;
+      flip(()=>{
+        const a=state.order.indexOf(id);state.order.splice(a,1);state.order.splice(state.order.indexOf(other)+(step>0?1:0),0,id);
+        commit(adjust(visible(),{...vanish(ids,base,id),[id]:base[id]},id,base[id],other));apply();
+      });
+      save();settle();grip.focus();
+    });
+    hide.addEventListener('click',()=>{
+      const was=visible();
+      state.hidden.add(id);
+      // The sections nearest the hidden one take up its room first.
+      commit(vanish(was,sizesOf(was),id));flip(apply);
+      save();renderHidden();settle();
+      const next=[...cards.values()].find(x=>shown(x));if(next)next.querySelector('[data-act=move]').focus();else $('layoutDone').focus();
+    });
+  }
+  // A section shown again goes back into the row before or after it, whichever changes the
+  // layout less: sizes count a little, and sections moved to another row count a lot.
+  function reveal(id){
+    state.hidden.delete(id);
+    flip(()=>{
+      apply();
+      const ids=visible(),i=ids.indexOf(id),base=sizesOf(ids),was=layout(ids.filter(x=>x!==id),base);
+      let best=null,least=Infinity;
+      for(const ref of [ids[i-1],ids[i+1]]){
+        if(!ref)continue;
+        const S=adjust(ids,base,id,base[id],ref),L=layout(ids,S);
+        const cost=L.gaps*1000+ids.reduce((t,x)=>t+Math.abs(S[x].w-base[x].w)+Math.abs(S[x].h-base[x].h)+(x!==id&&L.pos[x].y!==was.pos[x].y?10:0),0);
+        if(cost<least){least=cost;best=S}
+      }
+      if(best)commit(best);
+      spans();
+    });
+    save();renderHidden();settle();
+  }
+  function renderHidden(){
+    const list=$('hiddenCards'),ids=state.order.filter(id=>state.hidden.has(id));
+    if(!ids.length){list.replaceChildren();return}
+    list.replaceChildren(el('span','','Hidden:'),...ids.map(id=>{
+      const b=el('button','chip');b.type='button';b.title='Show this section again';b.append(icon('plus'),CARD_INFO[id]);
+      b.onclick=()=>reveal(id);
+      return b;
+    }));
+  }
+  function setEditing(on){
+    cancelAll();
+    editing=on;dash.classList.toggle('editing',on);
+    $('layoutBar').classList.toggle('hidden',!on);$('layoutButton').classList.toggle('hidden',on||$('actBody').classList.contains('hidden'));
+    if(on){renderHidden();$('layoutDone').focus()}else $('layoutButton').focus();
+  }
+  $('layoutButton').onclick=()=>setEditing(true);
+  $('layoutDone').onclick=()=>setEditing(false);
+  $('layoutReset').onclick=()=>{state={order:defaultOrder.slice(),hidden:new Set(),sizes:{}};flip(apply);save();renderHidden();settle()};
+  if(typeof ResizeObserver==='function')new ResizeObserver(()=>{if((dash.clientWidth>0&&dash.clientWidth<820)!==narrow){spans();settle()}}).observe(dash);
+  apply();
+  return {
+    apply,spans,editing:()=>editing,
+    available(on){if(!on&&editing)setEditing(false);$('layoutButton').classList.toggle('hidden',!on||editing)},
+    // Escape cancels a drag or resize, or else leaves edit mode.
+    escape(){if(drag||resize){cancelAll();return true}if(editing){setEditing(false);return true}return false},
+  };
+})();
 
 // ---- Appearance ----
 let editing=null,fileTheme=null,appearanceReturn=null;
