@@ -16,7 +16,7 @@ func main() {
 	}
 	defer w.Destroy()
 	w.SetSize(windowWidth, windowHeight, webview.HintNone)
-	if err := runWindow(w, nil); err != nil {
+	if err := runWindow(w, loadSettings(), nil); err != nil {
 		log.Fatal(err)
 	}
 }

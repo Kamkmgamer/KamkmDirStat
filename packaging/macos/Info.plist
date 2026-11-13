@@ -8,6 +8,8 @@
 	<string>KamkmDirStat</string>
 	<key>CFBundleExecutable</key>
 	<string>KamkmDirStat</string>
+	<key>CFBundleIconFile</key>
+	<string>KamkmDirStat</string>
 	<key>CFBundleIdentifier</key>
 	<string>io.github.kamkmgamer.kamkmdirstat</string>
 	<key>CFBundleName</key>

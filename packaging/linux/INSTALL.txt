@@ -11,6 +11,7 @@ KamkmDirStat for Linux
 3. Optional: add it to your applications menu.
      install -Dm755 kamkmdirstat ~/.local/bin/kamkmdirstat
      install -Dm644 kamkmdirstat.desktop ~/.local/share/applications/kamkmdirstat.desktop
+     install -Dm644 kamkmdirstat.png ~/.local/share/icons/hicolor/256x256/apps/kamkmdirstat.png
    Make sure ~/.local/bin is on your PATH.
 
 See https://github.com/Kamkmgamer/KamkmDirStat for details.
