@@ -40,6 +40,8 @@ On an SSH server, the monitor runs Python 3 over its own SSH connection and read
 
 The monitor stops when you select **Stop monitoring**, start again, or close the app.
 
+Select **Customize** to change the layout. Drag a section by its handle to move it, or drag any edge or corner to resize it on a grid of 12 columns. The other sections adjust so no gaps are left: those in the same row shrink or widen, sections that no longer fit move to a row of their own, and a section taller than its neighbours has the next sections stack up beside it. Dragging an edge past the opposite one grows the section the other way. Hold Shift while resizing to change only that section. From the keyboard, the arrow keys move the focused section's handle and Shift with the arrow keys resizes it. Hidden sections are listed in the bar at the top, and **Reset layout** restores the default. The layout is saved with the other settings.
+
 On this PC, what you can change depends on whether the app runs as administrator:
 
 - **Any user** can end their own processes. **End** asks the program's windows to close, as Task Manager's End task does, so it can save its work; programs without a window must be force-ended. **Force end** stops the process immediately.
