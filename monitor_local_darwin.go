@@ -199,20 +199,25 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 		}
 	}()
 	s.sample()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(firstMonitorSample):
+	}
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
+		data, err := json.Marshal(s.sample())
+		if err != nil {
+			return err
+		}
+		if !update(func(st *MonitorStatus) { st.Sample = data; st.Seq++ }) {
+			return context.Canceled
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			data, err := json.Marshal(s.sample())
-			if err != nil {
-				return err
-			}
-			if !update(func(st *MonitorStatus) { st.Sample = data; st.Seq++ }) {
-				return context.Canceled
-			}
 		}
 	}
 }

@@ -108,6 +108,42 @@ func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
 	}
 }
 
+// The page waits for the first sample, so it must not wait a whole sampling interval or
+// for the GPU counters, which take about a second to load the first time.
+func TestLocalMonitorFirstSampleIsQuick(t *testing.T) {
+	began := time.Now()
+	if err := startMonitor(Connection{Local: true}); err != nil {
+		t.Fatal(err)
+	}
+	defer stopMonitor()
+	waitLocalMonitor(t, func(s MonitorStatus) bool { return s.Seq >= 1 })
+	if took := time.Since(began); took > 900*time.Millisecond {
+		t.Fatalf("first sample took %v", took)
+	} else {
+		t.Logf("first sample after %v", took)
+	}
+	// GPU use fills in once the counters are ready.
+	g := newGPUSampler()
+	defer g.close()
+	if len(g.adapters) == 0 {
+		return
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		gpus, note := g.sample()
+		if gpus[0]["util"] != nil {
+			return
+		}
+		if note != "" {
+			t.Skipf("GPU counters unavailable: %s", note)
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("GPU use never appeared")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 func processStart(t *testing.T, pid int) int64 {
 	t.Helper()
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))

@@ -121,20 +121,25 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 		}
 	}()
 	s.sample() // the first sample only sets the starting counters
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(firstMonitorSample):
+	}
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
+		data, err := json.Marshal(s.sample())
+		if err != nil {
+			return err
+		}
+		if !update(func(st *MonitorStatus) { st.Sample = data; st.Seq++ }) {
+			return context.Canceled
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			data, err := json.Marshal(s.sample())
-			if err != nil {
-				return err
-			}
-			if !update(func(st *MonitorStatus) { st.Sample = data; st.Seq++ }) {
-				return context.Canceled
-			}
 		}
 	}
 }
@@ -646,14 +651,15 @@ func (s *localSampler) purgeStandby() (string, error) {
 // counters, which cover every vendor. nvidia-smi adds temperature and power when present.
 type gpuSampler struct {
 	adapters []gpuAdapter
-	query    uintptr
-	engine   uintptr
-	memory   uintptr
-	shared   uintptr
 	mu       sync.Mutex
+	counters gpuCounters
+	pending  bool // the counters are still being set up
+	closed   bool
 	nvidia   map[string]nvidiaReading
 	stop     chan struct{}
 }
+
+type gpuCounters struct{ query, engine, memory, shared uintptr }
 
 type gpuAdapter struct {
 	name, vendor, luid string
@@ -673,15 +679,9 @@ type dxgiAdapterDesc1 struct {
 
 func newGPUSampler() *gpuSampler {
 	g := &gpuSampler{adapters: listGPUAdapters(), nvidia: map[string]nvidiaReading{}, stop: make(chan struct{})}
-	if procPdhOpenQueryW.Find() == nil {
-		var q uintptr
-		if r, _, _ := procPdhOpenQueryW.Call(0, 0, uintptr(unsafe.Pointer(&q))); r == 0 {
-			g.query = q
-			g.engine = g.counter(`\GPU Engine(*)\Utilization Percentage`)
-			g.memory = g.counter(`\GPU Adapter Memory(*)\Dedicated Usage`)
-			g.shared = g.counter(`\GPU Adapter Memory(*)\Shared Usage`)
-			procPdhCollectQueryData.Call(g.query)
-		}
+	if len(g.adapters) > 0 && procPdhOpenQueryW.Find() == nil {
+		g.pending = true
+		go g.openCounters()
 	}
 	for _, a := range g.adapters {
 		if a.vendor == "NVIDIA" {
@@ -694,17 +694,46 @@ func newGPUSampler() *gpuSampler {
 	return g
 }
 
+// openCounters sets up the GPU performance counters. The first time the app does this,
+// Windows takes about a second to load them, so it runs beside the monitor instead of
+// holding up its first sample; GPU use appears once the counters are ready.
+func (g *gpuSampler) openCounters() {
+	var c gpuCounters
+	if r, _, _ := procPdhOpenQueryW.Call(0, 0, uintptr(unsafe.Pointer(&c.query))); r == 0 {
+		c.engine = pdhCounter(c.query, `\GPU Engine(*)\Utilization Percentage`)
+		c.memory = pdhCounter(c.query, `\GPU Adapter Memory(*)\Dedicated Usage`)
+		c.shared = pdhCounter(c.query, `\GPU Adapter Memory(*)\Shared Usage`)
+		procPdhCollectQueryData.Call(c.query)
+	} else {
+		c.query = 0
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.pending = false
+	if g.closed {
+		if c.query != 0 {
+			procPdhCloseQuery.Call(c.query)
+		}
+		return
+	}
+	g.counters = c
+}
+
 func (g *gpuSampler) close() {
 	close(g.stop)
-	if g.query != 0 {
-		procPdhCloseQuery.Call(g.query)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.closed = true
+	if g.counters.query != 0 {
+		procPdhCloseQuery.Call(g.counters.query)
+		g.counters = gpuCounters{}
 	}
 }
 
-func (g *gpuSampler) counter(path string) uintptr {
+func pdhCounter(query uintptr, path string) uintptr {
 	p, _ := windows.UTF16PtrFromString(path)
 	var c uintptr
-	if r, _, _ := procPdhAddEnglishCounterW.Call(g.query, uintptr(unsafe.Pointer(p)), 0, uintptr(unsafe.Pointer(&c))); r != 0 {
+	if r, _, _ := procPdhAddEnglishCounterW.Call(query, uintptr(unsafe.Pointer(p)), 0, uintptr(unsafe.Pointer(&c))); r != 0 {
 		return 0
 	}
 	return c
@@ -764,13 +793,17 @@ func (g *gpuSampler) sample() ([]map[string]any, string) {
 	if len(g.adapters) == 0 {
 		return []map[string]any{}, "No GPU found."
 	}
+	// Samples and close run on the same goroutine, so the counters stay open while in use.
+	g.mu.Lock()
+	c, pending, readings := g.counters, g.pending, g.nvidia
+	g.mu.Unlock()
 	use := map[string]float64{}
 	dedicated, shared := map[string]float64{}, map[string]float64{}
-	if g.query != 0 {
-		procPdhCollectQueryData.Call(g.query)
+	if c.query != 0 {
+		procPdhCollectQueryData.Call(c.query)
 		// Each engine's use is the sum over processes; an adapter shows its busiest engine.
 		engines := map[string]float64{}
-		for instance, v := range g.values(g.engine) {
+		for instance, v := range g.values(c.engine) {
 			luid, engine := instanceField(instance, "luid_", "_phys"), instanceField(instance, "_eng_", "_")
 			engines[luid+"/"+engine] += v
 		}
@@ -778,20 +811,17 @@ func (g *gpuSampler) sample() ([]map[string]any, string) {
 			luid := key[:strings.IndexByte(key, '/')]
 			use[luid] = max(use[luid], min(100, v))
 		}
-		for instance, v := range g.values(g.memory) {
+		for instance, v := range g.values(c.memory) {
 			dedicated[instanceField(instance, "luid_", "_phys")] += v
 		}
-		for instance, v := range g.values(g.shared) {
+		for instance, v := range g.values(c.shared) {
 			shared[instanceField(instance, "luid_", "_phys")] += v
 		}
 	}
-	g.mu.Lock()
-	readings := g.nvidia
-	g.mu.Unlock()
 	gpus := []map[string]any{}
 	for _, a := range g.adapters {
 		gpu := map[string]any{"vendor": a.vendor, "name": a.name, "util": nil, "memUsed": nil, "memTotal": nil, "temp": nil, "power": nil}
-		if g.query != 0 {
+		if c.query != 0 {
 			gpu["util"] = round1(use[a.luid])
 			if a.dedicated >= 256<<20 {
 				gpu["memUsed"], gpu["memTotal"] = dedicated[a.luid], float64(a.dedicated)
@@ -809,7 +839,7 @@ func (g *gpuSampler) sample() ([]map[string]any, string) {
 		}
 		gpus = append(gpus, gpu)
 	}
-	if g.query == 0 {
+	if c.query == 0 && !pending {
 		return gpus, "GPU use is unavailable because the Windows GPU performance counters could not be read."
 	}
 	return gpus, ""
