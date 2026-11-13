@@ -51,6 +51,10 @@ var monitorState struct {
 
 const maxMonitorResults = 20
 
+// firstMonitorSample is how long the samplers measure before their first sample. It is
+// shorter than the usual second so the page shows figures almost as soon as it opens.
+const firstMonitorSample = 250 * time.Millisecond
+
 func startMonitor(c Connection) error {
 	monitorState.Lock()
 	if monitorState.cancel != nil {

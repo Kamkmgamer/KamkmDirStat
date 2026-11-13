@@ -88,6 +88,21 @@ func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
 	}
 }
 
+// The page waits for the first sample, so it must not wait a whole sampling interval.
+func TestLocalMonitorFirstSampleIsQuick(t *testing.T) {
+	began := time.Now()
+	if err := startMonitor(Connection{Local: true}); err != nil {
+		t.Fatal(err)
+	}
+	defer stopMonitor()
+	waitUnixMonitor(t, func(s MonitorStatus) bool { return s.Seq >= 1 })
+	if took := time.Since(began); took > 900*time.Millisecond {
+		t.Fatalf("first sample took %v", took)
+	} else {
+		t.Logf("first sample after %v", took)
+	}
+}
+
 func waitUnixMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)

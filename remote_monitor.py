@@ -17,6 +17,7 @@ import time
 # to disk. Messages use the same framing as the disk report: a 4-byte length and gzip JSON.
 
 INTERVAL = 1.0
+FIRST_INTERVAL = 0.25  # the first sample comes sooner so the page fills in right away
 TOP = 60
 ADMIN_GROUPS = {'sudo', 'wheel', 'admin'}
 CLK = os.sysconf('SC_CLK_TCK') if 'SC_CLK_TCK' in os.sysconf_names else 100
@@ -400,7 +401,7 @@ def run():
     net_before, procs_before = network(), {}
     last = time.monotonic()
     _, _, procs_before = process_table({}, 0, 1, 0, me)
-    deadline = last + INTERVAL
+    deadline = last + FIRST_INTERVAL
     while True:
         while True:
             remaining = deadline - time.monotonic()
