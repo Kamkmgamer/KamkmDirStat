@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,13 +21,15 @@ var remoteMonitorScript string
 // Samples pass through to the page unchanged.
 
 type MonitorStatus struct {
-	Running    bool              `json:"running"`
-	Connecting bool              `json:"connecting,omitempty"`
-	Error      string            `json:"error,omitempty"`
-	Hello      json.RawMessage   `json:"hello,omitempty"`
-	Sample     json.RawMessage   `json:"sample,omitempty"`
-	Seq        int64             `json:"seq"`
-	Results    []json.RawMessage `json:"results,omitempty"`
+	Running    bool `json:"running"`
+	Connecting bool `json:"connecting,omitempty"`
+	// Reconnecting is set while the monitor replaces a connection that stalled or dropped.
+	Reconnecting bool              `json:"reconnecting,omitempty"`
+	Error        string            `json:"error,omitempty"`
+	Hello        json.RawMessage   `json:"hello,omitempty"`
+	Sample       json.RawMessage   `json:"sample,omitempty"`
+	Seq          int64             `json:"seq"`
+	Results      []json.RawMessage `json:"results,omitempty"`
 }
 
 type MonitorAction struct {
@@ -71,12 +74,13 @@ func startMonitor(c Connection) error {
 			update(&monitorState.status)
 			return true
 		}
-		var err error
-		if c.Local {
-			err = runLocalMonitor(ctx, writes, update)
-		} else {
-			err = runMonitor(ctx, c, writes, update)
+		run := func(ctx context.Context, update func(func(*MonitorStatus)) bool) error {
+			if c.Local {
+				return runLocalMonitor(ctx, writes, update)
+			}
+			return runMonitor(ctx, c, writes, update)
 		}
+		err := superviseMonitor(ctx, run, update)
 		cancel()
 		monitorState.Lock()
 		defer monitorState.Unlock()
@@ -87,11 +91,95 @@ func startMonitor(c Connection) error {
 		monitorState.writes = nil
 		monitorState.status.Running = false
 		monitorState.status.Connecting = false
+		monitorState.status.Reconnecting = false
 		if err != nil && !errors.Is(err, context.Canceled) {
 			monitorState.status.Error = err.Error()
 		}
 	}()
 	return nil
+}
+
+// A busy machine can delay samples, or a connection can stop delivering them without
+// failing. These limits decide when a silent monitor is replaced by a new connection.
+var (
+	monitorStallTimeout   = 15 * time.Second // after the hello, samples arrive about once a second
+	monitorConnectTimeout = 45 * time.Second // connecting, authenticating and starting the sampler
+	monitorRetryDelays    = []time.Duration{time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second}
+)
+
+// superviseMonitor runs the monitor and, once it has connected, starts it again whenever it
+// stalls or its connection drops, so a heavily loaded machine does not leave the view frozen.
+// Errors before the first connection, such as missing Python, are returned as before.
+func superviseMonitor(ctx context.Context, run func(context.Context, func(func(*MonitorStatus)) bool) error,
+	update func(func(*MonitorStatus)) bool) error {
+	connected := false
+	for failures := 0; ; failures++ {
+		attempt, cancel := context.WithCancel(ctx)
+		var last atomic.Int64
+		var hello, stalled atomic.Bool
+		last.Store(time.Now().UnixNano())
+		// Updates from an abandoned attempt, which may still be finishing a sample, are dropped.
+		attemptUpdate := func(f func(*MonitorStatus)) bool {
+			if attempt.Err() != nil {
+				return false
+			}
+			last.Store(time.Now().UnixNano())
+			return update(func(s *MonitorStatus) {
+				f(s)
+				if !s.Connecting {
+					hello.Store(true)
+					s.Reconnecting = false
+				}
+			})
+		}
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-attempt.Done():
+					return
+				case <-ticker.C:
+					limit := monitorConnectTimeout
+					if hello.Load() {
+						limit = monitorStallTimeout
+					}
+					if time.Since(time.Unix(0, last.Load())) > limit {
+						stalled.Store(true)
+						cancel()
+						return
+					}
+				}
+			}
+		}()
+		err := run(attempt, attemptUpdate)
+		cancel()
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if hello.Load() {
+			connected = true
+			failures = 0
+		}
+		if !connected {
+			if stalled.Load() {
+				return errors.New("The monitor did not respond in time.")
+			}
+			return err
+		}
+		if errors.Is(err, context.Canceled) && !stalled.Load() {
+			return err // superseded by a newer monitor
+		}
+		if !update(func(s *MonitorStatus) { s.Connecting = true; s.Reconnecting = true }) {
+			return context.Canceled
+		}
+		delay := monitorRetryDelays[min(failures, len(monitorRetryDelays)-1)]
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
 }
 
 func stopMonitor() error {
@@ -105,6 +193,7 @@ func stopMonitor() error {
 	monitorState.writes = nil
 	monitorState.status.Running = false
 	monitorState.status.Connecting = false
+	monitorState.status.Reconnecting = false
 	return nil
 }
 
