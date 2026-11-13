@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"encoding/json"
 	"runtime"
 )
 
@@ -44,6 +45,8 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"monitorStatus":     monitorStatus,
 		"monitorAction":     monitorAction,
 		"listDrives":        listDrives,
+		"saveSettings":      saveSettings,
+		"exportTheme":       exportTheme,
 	}
 	for name, f := range extra {
 		functions[name] = f
@@ -56,15 +59,16 @@ func bindAll(w window, extra map[string]interface{}) error {
 	return nil
 }
 
-// runWindow shows the page until the window closes, then stops any running work.
-func runWindow(w window, extra map[string]interface{}) error {
+// runWindow shows the page with the saved settings until the window closes, then stops any
+// running work.
+func runWindow(w window, settings json.RawMessage, extra map[string]interface{}) error {
 	defer closeResults()
 	defer stopMonitor()
 	w.SetTitle(windowTitle)
 	if err := bindAll(w, extra); err != nil {
 		return err
 	}
-	w.SetHtml(page)
+	w.SetHtml(pageWithSettings(page, settings))
 	w.Run()
 	return nil
 }

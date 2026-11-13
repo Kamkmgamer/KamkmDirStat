@@ -54,6 +54,14 @@ On an SSH server, what you can change depends on the account:
 
 Every action asks for confirmation. On servers, init, kernel threads and the processes running the monitor session cannot be ended. A process is only ended if its start time still matches, so a PID reused by a new process is left alone.
 
+## Appearance
+
+Select the half-filled circle in the title bar, or press Ctrl+comma, to choose a theme and whether the app is light, dark or follows the system. Graphite is the default; Mono, Grove, Ocean, Ember and Iris are built in. On Windows the title bar takes the theme's colours too (Windows 10 only switches between light and dark).
+
+**New theme** starts from the current one. Pick a background for light and dark and an accent colour; the app works out every other colour from them, keeping text readable against each background. **Export** shows the theme as a file you can copy or save to your Downloads folder, and **Import** reads one back. Theme files use the same format as T3 Code's, so T3 Code themes can be imported; colours this app does not use are skipped.
+
+The theme, custom themes and the layout (This PC or SSH server, the connection panel and the list and map split) are saved in `settings.json` in a `KamkmDirStat` folder in the user's configuration folder: `%AppData%` on Windows, `~/.config` on Linux and `~/Library/Application Support` on macOS.
+
 ## How scanning works
 
 The app runs the scan and calculates folder totals on the remote machine.
@@ -106,6 +114,13 @@ PKG_CONFIG_PATH=$PWD/packaging/linux/pkgconfig go build -trimpath -o kamkmdirsta
 The webview library looks for WebKitGTK 4.0, which newer distributions no longer ship; the file in `packaging/linux/pkgconfig` points it at 4.1, which has the same interface.
 
 On macOS, install the Xcode command line tools and run `go build -trimpath -o kamkmdirstat .`. The release workflow shows how to make a universal app bundle.
+
+The Windows icon, version information and DPI setting come from `rsrc_windows_*.syso`, which Go links in automatically. After changing the icon design in `tools/makeicons` or `winres/winres.json`, run:
+
+```
+go run ./tools/makeicons
+go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64,arm64 --out rsrc
+```
 
 Builds for Linux and macOS without cgo compile, which the tests use, but cannot open a window.
 

@@ -29,6 +29,11 @@ jobs:
           go-version-file: go.mod
       - name: Build the native server scanner
         run: go run ./tools/buildhelper
+      - name: Put the version in the icon and manifest resources
+        shell: bash
+        run: |
+          version=$(echo "${TAG#v}" | sed 's/[^0-9.].*//')
+          go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64 --out rsrc --file-version "$version" --product-version "$version"
       - name: Build
         env:
           CGO_ENABLED: '0'
@@ -75,7 +80,7 @@ jobs:
         run: |
           dir="KamkmDirStat-linux-${{ matrix.arch }}"
           mkdir "$dir"
-          cp kamkmdirstat packaging/linux/kamkmdirstat.desktop packaging/linux/INSTALL.txt "$dir/"
+          cp kamkmdirstat packaging/linux/kamkmdirstat.desktop packaging/linux/kamkmdirstat.png packaging/linux/INSTALL.txt "$dir/"
           tar -czf "$dir.tar.gz" "$dir"
       - uses: actions/upload-artifact@v4
         with:
@@ -112,8 +117,9 @@ jobs:
       - name: Make the app bundle
         run: |
           app=KamkmDirStat.app
-          mkdir -p "$app/Contents/MacOS"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
           cp kamkmdirstat "$app/Contents/MacOS/KamkmDirStat"
+          cp packaging/macos/KamkmDirStat.icns "$app/Contents/Resources/"
           sed "s/@VERSION@/${TAG#v}/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
           # Ad-hoc signing is required to run on Apple Silicon. The app is not notarized.
           codesign --force --deep --sign - "$app"

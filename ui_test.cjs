@@ -96,3 +96,82 @@ console.log('UI treemap layout passed');
  assert.equal(vm.runInContext('tab',startup),'activity','activity is the opening view');
  console.log('UI automatic monitoring passed');
 })().catch(err=>{console.error(err);process.exitCode=1});
+
+// Themes: every built-in theme keeps text readable, the CSS defaults match what the engine
+// makes, settings carry the theme, and theme files round-trip and import from T3 Code.
+{
+ const source=html.match(/<script id="theme">([\s\S]*?)<\/script>/)[1];
+ const props=new Map(),saved=[],looks=[];
+ const root={style:{setProperty(k,v){props.set(k,v)}},classList:{add(){},remove(){}},dataset:{},offsetHeight:0};
+ const win={KAMKM_SETTINGS:{mode:'dark',theme:'ocean'},saveSettings:s=>{saved.push(s)},setWindowLook:(...a)=>{looks.push(a)}};
+ const themes=vm.createContext({window:win,document:{documentElement:root},setTimeout,clearTimeout,console,matchMedia:()=>({matches:true,addEventListener(){}})});
+ vm.runInContext(source,themes);
+ const plain=o=>JSON.parse(JSON.stringify(o));
+ const T=win.Theme,ratio=(a,b)=>T.contrast(T.parseColor(a),T.parseColor(b));
+
+ for(const t of T.BUILT_IN)for(const ap of ['dark','light']){
+  const c=T.resolve(t,ap),at=`${t.id} ${ap}`;
+  for(const bg of ['canvas','chrome','surface','surfaceRaised']){
+   assert.ok(ratio(c.text,c[bg])>=7,`${at}: text on ${bg}`);
+   assert.ok(ratio(c.textMuted,c[bg])>=4.5,`${at}: muted text on ${bg}`);
+   assert.ok(ratio(c.accentText,c[bg])>=4.5,`${at}: accent text on ${bg}`);
+   assert.ok(ratio(c.textFaint,c[bg])>=3,`${at}: faint text on ${bg}`);
+   assert.ok(ratio(c.focus,c[bg])>=3,`${at}: focus outline on ${bg}`);
+  }
+  assert.ok(ratio(c.accentForeground,c.accent)>=4.5,`${at}: button text on the accent`);
+  assert.ok(ratio(c.warningForeground,c.warningSurface)>=4.5,`${at}: warning text`);
+  assert.ok(ratio(c.errorForeground,c.errorSurface)>=4.5,`${at}: error text`);
+  assert.ok(ratio('#ffffff',T.derived(c,ap)['--error-solid'])>=4.5,`${at}: text on solid error buttons`);
+  for(const role of T.ROLES)assert.match(c[role],/^#[0-9a-f]{6}$/,`${at}: ${role} is a colour`);
+ }
+
+ // The stylesheet's defaults, used before the script runs, are Graphite's colours.
+ for(const [ap,css] of [['dark',html.match(/\n:root\{(--canvas:[^}]*)\}/)[1]],['light',html.match(/prefers-color-scheme:light\)\{:root\{([^}]*)\}/)[1]]]){
+  const want=T.resolve(T.find('graphite'),ap),extra=T.derived(want,ap);
+  const have=Object.fromEntries(css.split(';').filter(d=>d.startsWith('--')).map(d=>[d.slice(0,d.indexOf(':')),d.slice(d.indexOf(':')+1)]));
+  for(const role of T.ROLES)assert.equal(have[T.cssVar(role)],want[role],`${ap} default for ${role}`);
+  for(const k in extra)assert.equal(have[k],extra[k],`${ap} default for ${k}`);
+ }
+
+ // Saved settings choose the theme, and the window frame follows it.
+ assert.equal(T.id,'ocean');assert.equal(T.mode,'dark');
+ const ocean=T.resolve(T.find('ocean'),'dark');
+ assert.equal(props.get('--canvas'),ocean.canvas);assert.equal(props.get('--chart-1'),ocean.chart1);
+ assert.equal(root.style.colorScheme,'dark');
+ const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+ (async()=>{
+  await tick();
+  assert.deepEqual(looks.at(-1),[true,ocean.chrome,ocean.text]);
+  T.setMode('light');win.Prefs.flush();await tick();
+  const stored=JSON.parse(saved.at(-1));
+  assert.equal(stored.mode,'light');assert.equal(stored.theme,'ocean');
+  assert.deepEqual(stored.window,{dark:false,background:T.resolve(T.find('ocean'),'light').canvas,caption:T.resolve(T.find('ocean'),'light').chrome,text:T.resolve(T.find('ocean'),'light').text});
+
+  // Custom themes are saved, exported and read back unchanged.
+  const mine=T.save({label:'Harbor Night',light:{canvas:'#ffffff',accent:'#0a7'},dark:{accent:'oklch(0.7 0.15 250)',border:'rgba(255,255,255,0.12)'}});
+  assert.equal(mine.id,'harbor-night');assert.equal(mine.light.accent,'#00aa77');
+  const again=T.parseFile(T.toFile(mine));
+  assert.deepEqual(plain(again),plain(mine));
+  assert.equal(T.save({label:'Harbor Night',dark:{accent:'#f00'},light:{}}).id,'harbor-night-2','names do not collide');
+  T.setTheme('harbor-night');win.Prefs.flush();await tick();
+  assert.deepEqual(JSON.parse(saved.at(-1)).themes.map(t=>t.id),['harbor-night','harbor-night-2']);
+  T.remove('harbor-night');assert.equal(T.id,'graphite','removing the current theme returns to Graphite');
+
+  // A T3 Code theme file imports; its roles with other names map across and unknown ones are skipped.
+  const t3=T.parseFile(JSON.stringify({version:1,id:'dusk',name:'Dusk',appearance:'dark',
+   colors:{canvas:'#1b1d24',accent:'oklch(0.7 0.15 250)',sidebar:'#16181e',placeholder:'#7a7f8c',diffAdded:'#00ff00'},
+   variants:{light:{canvas:'#fafafa',accent:'#2b59c3'}}}));
+  assert.equal(t3.id,'dusk');assert.equal(t3.label,'Dusk');
+  assert.deepEqual(plain(t3.dark),{canvas:'#1b1d24',accent:T.hex(T.parseColor('oklch(0.7 0.15 250)')),chrome:'#16181e',textFaint:'#7a7f8c'});
+  assert.deepEqual(plain(t3.light),{canvas:'#fafafa',accent:'#2b59c3'});
+  assert.equal(T.parseFile({version:1,id:'graphite',name:'Graphite copy',appearance:'light',colors:{accent:'#123456'}}).id,'custom-graphite');
+
+  for(const [file,message] of [
+   ['{oops',/not valid JSON/],['[]',/JSON object/],[{version:2,name:'x',appearance:'dark',colors:{accent:'#fff'}},/unsupported version/],
+   [{version:1,name:'',appearance:'dark',colors:{accent:'#fff'}},/name/],[{version:1,name:'x',appearance:'dim',colors:{accent:'#fff'}},/appearance/],
+   [{version:1,name:'x',appearance:'dark',colors:{accent:'blue-ish'}},/not a CSS colour/],[{version:1,name:'x',appearance:'dark',colors:{diffAdded:'#0f0'}},/no colours/],
+   [{version:1,name:'x',appearance:'dark',colors:{accent:'#fff'},variants:{dim:{}}},/variants/],
+  ])assert.throws(()=>T.parseFile(typeof file==='string'?file:JSON.stringify(file)),message);
+  console.log('UI themes passed');
+ })().catch(err=>{console.error(err);process.exitCode=1});
+}
