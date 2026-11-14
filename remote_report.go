@@ -11,11 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -24,12 +26,14 @@ var remoteReportScript string
 
 type reportMessage struct {
 	wireBytes  int64
-	Type       string       `json:"type"`
-	Error      string       `json:"error"`
-	View       DirView      `json:"view"`
-	Progress   ScanProgress `json:"progress"`
-	Errors     []string     `json:"errors"`
-	ErrorCount int          `json:"errorCount"`
+	Type       string        `json:"type"`
+	Error      string        `json:"error"`
+	View       DirView       `json:"view"`
+	Search     search.Result `json:"search"`
+	Progress   ScanProgress  `json:"progress"`
+	Errors     []string      `json:"errors"`
+	ErrorCount int           `json:"errorCount"`
+	Features   []string      `json:"features"`
 }
 
 type remoteReport struct {
@@ -41,6 +45,7 @@ type remoteReport struct {
 	input    io.WriteCloser
 	output   *bufio.Reader
 	cache    map[int]DirView
+	features []string // what the scanner on the server can do besides folder views
 	received atomic.Int64
 }
 
@@ -134,6 +139,53 @@ func (r *remoteReport) view(id int) (DirView, error) {
 	}
 	r.cache[id] = message.View
 	return message.View, nil
+}
+
+// search asks the server to search its scan. The server indexes the scan the first time,
+// which takes a few seconds for millions of files with the Python report.
+func (r *remoteReport) search(q search.Query) (search.Result, error) {
+	if !slices.Contains(r.features, "search") {
+		// Only a build whose embedded fast scanner was not rebuilt has one without search.
+		return search.Result{}, errors.New("The fast server scanner built into this copy of the app is out of date and cannot search. Rebuild it with go run ./tools/buildhelper and rebuild the app, or turn off Fast server scan and scan again.")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed.Load() {
+		return search.Result{}, errors.New("The remote report connection closed. Run a new scan to search it.")
+	}
+	request, err := json.Marshal(struct {
+		Type  string       `json:"type"`
+		Query search.Query `json:"query"`
+	}{"search", q})
+	if err != nil {
+		return search.Result{}, err
+	}
+	if len(request) > 3500 {
+		return search.Result{}, errors.New("The search is too long.")
+	}
+	timer := time.AfterFunc(2*time.Minute, r.close)
+	defer timer.Stop()
+	if _, err := r.input.Write(append(request, '\n')); err != nil {
+		r.close()
+		return search.Result{}, fmt.Errorf("sending search: %w", err)
+	}
+	message, err := readReportMessage(r.output)
+	r.received.Add(message.wireBytes)
+	if err != nil {
+		r.close()
+		return search.Result{}, fmt.Errorf("reading search results: %w", err)
+	}
+	if message.Type == "error" {
+		return search.Result{}, errors.New(message.Error)
+	}
+	if message.Type != "search" {
+		r.close()
+		return search.Result{}, errors.New("The remote machine returned invalid search results.")
+	}
+	if message.Search.Hits == nil {
+		message.Search.Hits = []search.Hit{}
+	}
+	return message.Search, nil
 }
 
 // readScriptHeader skips any login banner and returns the rest of the first line that
@@ -235,7 +287,7 @@ func runRemoteReport(ctx context.Context, client *ssh.Client, command string, t 
 			result.Files = message.View.Files
 			result.Errors = message.Errors
 			result.ErrorCount = message.ErrorCount
-			remote := &remoteReport{client: client, session: session, input: input, output: output, cache: map[int]DirView{0: message.View}}
+			remote := &remoteReport{client: client, session: session, input: input, output: output, cache: map[int]DirView{0: message.View}, features: message.Features}
 			remote.received.Store(received)
 			t.mu.Lock()
 			t.Root.Size = message.View.Size

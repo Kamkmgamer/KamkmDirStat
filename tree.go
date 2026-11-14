@@ -28,6 +28,10 @@ type Tree struct {
 	Root     *Node
 	dirs     []*Node
 	remote   *remoteReport
+	disk     *diskTree // set once a finished scan has moved out of memory
+	local    bool      // a scan of this computer, whose files can be opened
+	index    treeIndex // for searching a finished scan
+	closed   bool
 }
 
 func newTree(rootPath string) *Tree {
@@ -172,6 +176,11 @@ func (t *Tree) view(id int) (DirView, error) {
 		t.mu.RUnlock()
 		return r.view(id)
 	}
+	if t.disk != nil {
+		d := t.disk
+		defer t.mu.RUnlock()
+		return d.view(id)
+	}
 	defer t.mu.RUnlock()
 	if id < 0 || id >= len(t.dirs) {
 		return DirView{}, errors.New("That folder is not in the scan results.")
@@ -237,15 +246,20 @@ func buildMap(n *Node, kids []*Node) *MapNode {
 	return root
 }
 
-// close releases the remote in-memory report when it is replaced or the window closes.
+// close releases the remote report, the cache file and the nodes when the results are
+// replaced, cleared or the window closes.
 func (t *Tree) close() {
 	if t == nil {
 		return
 	}
-	t.mu.RLock()
-	r := t.remote
-	t.mu.RUnlock()
+	t.mu.Lock()
+	r, d := t.remote, t.disk
+	t.remote, t.disk, t.Root, t.dirs = nil, nil, nil, nil
+	t.closed = true
+	t.mu.Unlock()
 	if r != nil {
 		r.close()
 	}
+	d.close()
+	t.closeIndex()
 }

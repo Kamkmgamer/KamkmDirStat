@@ -13,6 +13,9 @@ import (
 const iconResource = 1
 
 func main() {
+	if handleServiceCommand(os.Args[1:]) {
+		return
+	}
 	settings := loadSettings()
 	look, hasLook := savedWindowLook(settings)
 	stopColouring := func() {}

@@ -1,7 +1,10 @@
+import bisect
 import collections
 import gzip
+import heapq
 import json
 import os
+import re
 import shutil
 import signal
 import struct
@@ -82,6 +85,177 @@ def folder_view(dirs, index):
             'items': len(node.children), 'incomplete': node.incomplete, 'entries': entries,
             'moreCount': max(0, len(node.children) - 500),
             'moreSize': sum(entry_size(child) for child in node.children[500:]), 'map': map_root}
+
+
+# Search, for when the native scanner cannot run. It follows internal/search in the app:
+# every word of the query must appear with its letters in order, whole words and word
+# starts rank first, and with no words the largest files are listed. Names are joined
+# into one string so a single regular expression, run in C, finds the candidates.
+KINDS = {}
+for kind, names in (('images', 'jpg jpeg jpe jfif png gif bmp webp tif tiff heic heif avif svg ico psd jxl raw cr2 cr3 nef arw dng orf rw2 raf'),
+                    ('videos', 'mp4 m4v mkv mov avi wmv flv webm mpg mpeg m2ts mts 3gp vob ogv divx'),
+                    ('audio', 'mp3 wav flac aac m4a ogg oga opus wma aif aiff alac mid midi ape'),
+                    ('documents', 'pdf doc docx docm odt rtf txt md xls xlsx xlsm ods csv ppt pptx odp epub mobi azw3 pages numbers key tex'),
+                    ('archives', 'zip rar 7z tar gz tgz bz2 xz zst lz4 lzma iso dmg cab')):
+    for e in names.split():
+        KINDS[e] = kind
+SEPARATORS = set(" _-.()[]{}/\\,+&'~@#=")
+
+
+def file_ext(name):
+    i = name.rfind('.')
+    return name[i + 1:].lower() if 0 < i and len(name) - i <= 12 else ''
+
+
+class SearchIndex:
+    def __init__(self, dirs):
+        self.dirs = dirs
+        names, self.parents, self.sizes, self.ids, self.exts = [], [], [], [], []
+        types = {}
+        for d in dirs:
+            for c in d.children:
+                folder = c.__class__ is Node
+                name = c.name if folder else c[1]
+                size = c.size if folder else c[0]
+                names.append(name)
+                self.parents.append(d.id)
+                self.sizes.append(size)
+                self.ids.append(c.id if folder else -1)
+                if folder:
+                    self.exts.append(None)
+                else:
+                    e = file_ext(name)
+                    self.exts.append(e)
+                    t = types.get(e)
+                    if t is None:
+                        t = types[e] = {'ext': e, 'kind': KINDS.get(e, 'other'), 'files': 0, 'size': 0}
+                    t['files'] += 1
+                    t['size'] += size
+        self.names = names
+        self.blob = '\0'.join(names)
+        self.starts, at = [], 0
+        for name in names:
+            self.starts.append(at)
+            at += len(name) + 1
+        self.types = sorted(types.values(), key=lambda t: (-t['size'], t['ext']))
+        self.paths = {}
+
+    def path(self, folder):
+        p = self.paths.get(folder)
+        if p is None:
+            names, node = [], self.dirs[folder]
+            while node is not None:
+                names.append(node.name)
+                node = node.parent
+            names.reverse()
+            p = names[0]
+            for n in names[1:]:
+                p = p + n if p.endswith('/') else p + '/' + n
+            self.paths[folder] = p
+        return p
+
+    def search(self, q):
+        text = q.get('text') or ''
+        if not isinstance(text, str):
+            raise ValueError('Invalid search.')
+        words = text.lower().split()
+        kind = q.get('kind') or ''
+        exts = set(str(e).strip().lstrip('.').lower() for e in (q.get('exts') or []) if str(e).strip('. '))
+        limit = max(1, min(int(q.get('limit') or 1000), 5000))
+        by_size = q.get('sort') == 'size' or not words
+        dirs_ok = bool((kind in ('', 'all') and words) or kind == 'folders') and not exts
+        files_ok = kind != 'folders'
+        want_kind = kind if kind not in ('', 'all', 'files', 'folders') else None
+
+        def accept(i):
+            e = self.exts[i]
+            if e is None:
+                return dirs_ok
+            if not files_ok or (want_kind and KINDS.get(e) != want_kind):
+                return False
+            return not exts or e in exts
+
+        if words:
+            patterns = [re.compile('[^\0]*?'.join(re.escape(ch) for ch in w), re.IGNORECASE) for w in words]
+            candidates, last = [], -1
+            for m in patterns[0].finditer(self.blob):
+                i = bisect.bisect_right(self.starts, m.start()) - 1
+                if i != last:
+                    candidates.append(i)
+                    last = i
+            for p in patterns[1:]:
+                candidates = [i for i in candidates if p.search(self.names[i])]
+        else:
+            candidates = range(len(self.names))
+        hits, total, total_size = [], 0, 0
+        for i in candidates:
+            if not accept(i):
+                continue
+            total += 1
+            total_size += self.sizes[i]
+            if by_size:
+                hits.append((self.sizes[i], -i, i))
+            else:
+                hits.append((self.score(self.names[i], words), -len(self.names[i]), self.sizes[i], -i, i))
+        result = []
+        for h in heapq.nlargest(limit, hits):
+            i = h[-1]
+            name = self.names[i]
+            hit = {'name': name, 'path': self.path(self.parents[i]), 'size': self.sizes[i], 'parent': self.parents[i]}
+            if self.ids[i] >= 0:
+                hit['dir'], hit['id'] = True, self.ids[i]
+            if words:
+                hit['match'] = self.positions(name, words)
+            result.append(hit)
+        out = {'hits': result, 'total': total, 'totalSize': total_size, 'sort': 'size' if by_size else 'match',
+               'files': not words and kind in ('', 'all') and not exts}
+        if q.get('types'):
+            out['types'] = self.types[:200]
+        return out
+
+    @staticmethod
+    def find(lower, word):
+        # An exact occurrence at a word start, then anywhere; else the letters in order.
+        at, first = lower.find(word), -1
+        while at >= 0:
+            if first < 0:
+                first = at
+            if at == 0 or lower[at - 1] in SEPARATORS:
+                return list(range(at, at + len(word))), True
+            at = lower.find(word, at + 1)
+        if first >= 0:
+            return list(range(first, first + len(word))), True
+        pos, j = [], 0
+        for k, ch in enumerate(lower):
+            if j < len(word) and ch == word[j]:
+                pos.append(k)
+                j += 1
+        return pos, False
+
+    def score(self, name, words):
+        lower, total = name.lower(), 0
+        for w in words:
+            pos, exact = self.find(lower, w)
+            if not pos:
+                continue
+            s = 16 * len(pos) + (24 if exact else 0)
+            start = pos[0]
+            if start == 0:
+                s += 20
+            elif lower[start - 1] in SEPARATORS:
+                s += 16
+            s -= 3 * sum(1 for a, b in zip(pos, pos[1:]) if b - a > 1) + (pos[-1] - pos[0] + 1 - len(pos))
+            total += s
+        return total
+
+    def positions(self, name, words):
+        lower = name.lower()
+        if len(lower) != len(name):
+            return []
+        out = set()
+        for w in words:
+            out.update(self.find(lower, w)[0])
+        return sorted(out)
 
 
 def run():
@@ -241,7 +415,8 @@ def run():
                 node.parent.size += node.size
                 node.parent.files += node.files
         send({'type': 'done', 'view': folder_view(dirs, 0), 'progress': progress,
-              'errors': errors, 'errorCount': error_count})
+              'errors': errors, 'errorCount': error_count, 'features': ['search']})
+        index = None
         for line in sys.stdin:
             if len(line) > 4096:
                 raise ValueError('Report request is too large.')
@@ -249,8 +424,15 @@ def run():
             if request.get('type') == 'close':
                 return
             try:
+                if request.get('type') == 'search':
+                    if index is None:
+                        index = SearchIndex(dirs)
+                    send({'type': 'search', 'search': index.search(request.get('query') or {})})
+                    continue
+                if request.get('type') != 'view':
+                    raise ValueError('The server scanner does not understand the request %s.' % request.get('type'))
                 send({'type': 'view', 'view': folder_view(dirs, request.get('id'))})
-            except ValueError as err:
+            except (ValueError, TypeError) as err:
                 send({'type': 'error', 'error': str(err)})
     finally:
         if proc.poll() is None:

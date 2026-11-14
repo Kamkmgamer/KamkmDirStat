@@ -87,9 +87,12 @@ func isInside(p, parent string) bool {
 // newLocalTree makes the tree for a local scan. Several roots sit under one "This PC" node.
 func newLocalTree(roots []string) *Tree {
 	if len(roots) == 1 {
-		return newTree(roots[0])
+		t := newTree(roots[0])
+		t.local = true
+		return t
 	}
 	t := newTree(localRootName())
+	t.local = true
 	for _, r := range roots {
 		t.addChild(t.Root, r, true, 0)
 	}

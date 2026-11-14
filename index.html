@@ -206,6 +206,60 @@ main{min-width:0;min-height:0;background:var(--canvas)}
 .tip .path{color:var(--text-muted);font-family:var(--mono);font-size:11px}
 .tip .meta{color:var(--text-muted);font-variant-numeric:tabular-nums}
 .treemap .empty{position:absolute;inset:0}
+.toggle{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border:1px solid var(--border);border-radius:var(--r);background:none;color:var(--text-muted);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
+.toggle:hover{color:var(--text);border-color:var(--border-strong)}
+.toggle[aria-pressed=true]{background:var(--surface-overlay);border-color:var(--border-strong);color:var(--text)}
+.toggle svg.i{width:13px;height:13px}
+
+/* Search and the Files view */
+.find{flex:0 1 340px;min-width:170px}
+.find input{height:30px!important;padding-right:62px!important}
+.find kbd{position:absolute;right:8px;pointer-events:none}
+.find input:focus~kbd,.find input:not(:placeholder-shown)~kbd{display:none}
+.files-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface-raised)}
+.pills{display:flex;flex-wrap:wrap;gap:4px}
+.pills button{height:24px;padding:0 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text-muted);font-size:12px;font-weight:500;white-space:nowrap;cursor:pointer}
+.pills button:hover{color:var(--text);border-color:var(--border-strong)}
+.pills button[aria-pressed=true]{background:var(--accent-surface);border-color:var(--accent-text);color:var(--accent-text)}
+.files-bar select{width:auto;max-width:230px;height:26px;font-size:12px}
+.drive-bar{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding-top:2px;color:var(--text-muted);font-size:12px}
+.drive-bar .chips{display:flex;flex-wrap:wrap;gap:4px}
+.drive-bar .chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);white-space:nowrap;cursor:default}
+.drive-bar .chip b{color:var(--text);font-weight:600}
+.drive-bar .dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--text-faint)}
+.drive-bar .dot.live{background:var(--success)}
+.drive-bar .dot.busy{background:var(--accent);animation:breathe 1.2s ease-in-out infinite}
+.drive-bar .dot.error{background:var(--error)}
+.drive-bar .hint{flex:1 1 200px;min-width:0;line-height:1.4}
+.found{flex:1;min-width:90px;color:var(--text-muted);font-size:12px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.found b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.found.error{color:var(--error-foreground)}
+.listing col.c-where{width:38%}.listing col.c-act{width:40px}
+.listing td.where{direction:rtl;text-align:left;color:var(--text-muted);font-size:12px}
+.listing td.act{padding:0 6px;text-align:center}
+.listing td.act .icon-btn{opacity:0}
+.listing tr:hover td.act .icon-btn,.listing tr:focus td.act .icon-btn,.listing td.act .icon-btn:focus{opacity:1}
+.name mark{background:none;color:var(--accent-text);font-weight:650}
+.listing tr.flash{animation:flash 1.8s ease-out}
+@keyframes flash{0%,45%{background:var(--accent-surface)}}
+
+/* Context menu and notices */
+.menu{position:fixed;z-index:20;min-width:210px;max-width:320px;padding:4px;border:1px solid var(--border-strong);border-radius:var(--r-lg);background:var(--surface-overlay);box-shadow:var(--shadow);animation:fade .08s ease-out}
+.menu button{display:flex;align-items:center;gap:9px;width:100%;height:30px;padding:0 10px;border:0;border-radius:var(--r);background:none;color:var(--text);font-size:12.5px;text-align:left;white-space:nowrap;cursor:pointer}
+.menu button:hover,.menu button:focus{background:var(--hover);outline:none}
+.menu button svg.i{color:var(--text-muted)}
+.menu button.main{font-weight:600}
+.menu hr{margin:4px 2px;border:0;border-top:1px solid var(--border)}
+.menu kbd{margin-left:auto}
+.toast{position:fixed;right:16px;bottom:38px;z-index:15;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));padding:11px 12px 11px 14px;border:1px solid var(--border-strong);border-radius:var(--r-lg);background:var(--surface-overlay);box-shadow:var(--shadow);animation:rise .14s ease-out}
+.toast .row{display:flex;align-items:center;gap:10px}
+.toast .msg{flex:1;min-width:0;font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
+.toast.error .msg{color:var(--error-foreground)}
+.toast .bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden}
+.toast .bar i{display:block;width:0;height:100%;border-radius:2px;background:var(--accent-text);transition:width .15s}
+.toast .bar.indeterminate i{width:30%;animation:slide 1.1s ease-in-out infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
+.toast .sub{color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
 
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:100%;padding:24px;color:var(--text-muted);text-align:center}
 .scan-detail{color:var(--text);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
@@ -819,9 +873,19 @@ refresh();
       <nav class="crumbs" id="heading" aria-label="Current folder"><span class="here">No scan yet</span></nav>
       <p id="subheading">Connect to a machine to see its storage.</p>
     </div>
+    <div class="input find hidden" id="find"><svg class="i"><use href="#i-search"/></svg><input id="search" type="search" placeholder="Search files and folders" aria-label="Search files and folders in this scan" spellcheck="false" autocomplete="off"><kbd id="findKey">Ctrl F</kbd></div>
     <button class="btn sm hidden" id="up" type="button" title="Up one folder (Backspace)"><svg class="i"><use href="#i-up"/></svg>Up</button>
+    <button class="btn sm hidden" id="clearResults" type="button" title="Forget these results and give their memory back to the system">Clear results</button>
   </div>
-  <section class="panel list"><div class="listing" id="listing">
+  <section class="panel list"><div class="files-bar hidden" id="filesBar">
+    <div class="pills hidden" id="scopes" role="group" aria-label="Search in"><button type="button" data-scope="" aria-pressed="true">This scan</button><button type="button" data-scope="drives" aria-pressed="false">All drives</button></div>
+    <div class="pills" id="kinds" role="group" aria-label="Type"><button type="button" data-kind="all" aria-pressed="true">All</button><button type="button" data-kind="folders" aria-pressed="false">Folders</button><button type="button" data-kind="images" aria-pressed="false">Images</button><button type="button" data-kind="videos" aria-pressed="false">Videos</button><button type="button" data-kind="audio" aria-pressed="false">Audio</button><button type="button" data-kind="documents" aria-pressed="false">Documents</button><button type="button" data-kind="archives" aria-pressed="false">Archives</button></div>
+    <select id="extFilter" aria-label="File extension"><option value="">Any extension</option></select>
+    <div class="pills hidden" id="sorts" role="group" aria-label="Order"><button type="button" data-sort="" aria-pressed="true">Best match</button><button type="button" data-sort="size" aria-pressed="false">Largest</button></div>
+    <span class="found" id="found" aria-live="polite"></span>
+    <button class="icon-btn sm" id="closeFiles" type="button" title="Back to folders (Esc)" aria-label="Back to folders"><svg class="i"><use href="#i-x"/></svg></button>
+    <div class="drive-bar hidden" id="driveBar" aria-live="polite"><span class="chips" id="driveChips"></span><span class="hint" id="driveHint"></span><button class="btn sm hidden" id="driveRefresh" type="button" title="Read the folders of drives without a live index again">Refresh</button><button class="btn sm hidden" id="driveAdmin" type="button">Restart as administrator</button><button class="btn sm hidden" id="driveService" type="button">Set up background indexer</button><button class="btn sm ghost hidden" id="driveRemove" type="button">Remove background indexer</button></div>
+  </div><div class="listing" id="listing">
     <div class="empty welcome">
       <svg class="art" viewBox="0 0 132 84" aria-hidden="true" fill="none" stroke-width="1"><rect class="b" x=".5" y=".5" width="131" height="83" rx="8"/><rect class="a" x="8.5" y="8.5" width="62" height="67" rx="4"/><rect class="b" x="76.5" y="8.5" width="47" height="36" rx="4"/><rect class="b" x="76.5" y="50.5" width="26" height="25" rx="4"/><rect class="b" x="108.5" y="50.5" width="15" height="25" rx="3"/></svg>
       <h2>See what is filling your drives</h2>
@@ -831,7 +895,7 @@ refresh();
   </div></section>
   <div class="splitter" id="splitter" role="separator" aria-orientation="horizontal" aria-label="Resize list and map" tabindex="0"></div>
   <section class="panel graph">
-    <div class="graph-head"><p class="graph-title"><svg class="i"><use href="#i-map"/></svg>Storage map <small>Click a block to open its folder</small></p><div class="legend" id="legend"></div></div>
+    <div class="graph-head"><p class="graph-title"><svg class="i"><use href="#i-map"/></svg>Storage map <small>Click to open a folder · double-click a file to open it</small></p><div class="legend" id="legend"></div><button class="toggle" id="mapLabels" type="button" aria-pressed="true" title="Show folder and file names on the map">Names</button></div>
     <div class="treemap" id="treemap"><canvas id="map" aria-label="Storage map"></canvas><div id="hoverBox" class="hover hidden"></div><div id="tip" class="tip hidden"></div><div class="empty" id="mapEmpty">The map will show how space is distributed.</div></div>
   </section>
 </main>
@@ -878,7 +942,9 @@ refresh();
 </main>
 </div>
 
-<footer class="statusbar"><span id="footer">Ready</span><span class="keys" id="footerKeys"><kbd>Backspace</kbd> up a folder &nbsp; <kbd>Ctrl</kbd> <kbd>1</kbd> <kbd>2</kbd> view &nbsp; <kbd>Ctrl</kbd> <kbd>B</kbd> panel &nbsp; <kbd>Ctrl</kbd> <kbd>,</kbd> appearance</span></footer>
+<div id="menu" class="menu hidden" role="menu"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"><div class="row"><span class="msg" id="toastMsg"></span><button class="btn sm hidden" id="toastAct" type="button"></button><button class="icon-btn sm" id="toastClose" type="button" title="Dismiss" aria-label="Dismiss"><svg class="i"><use href="#i-x"/></svg></button></div><div class="bar hidden" id="toastBar"><i id="toastFill"></i></div><div class="sub hidden" id="toastSub"></div></div>
+<footer class="statusbar"><span id="footer">Ready</span><span class="keys" id="footerKeys"><kbd>Ctrl</kbd> <kbd>F</kbd> search &nbsp; <kbd>Backspace</kbd> up a folder &nbsp; <kbd>Ctrl</kbd> <kbd>1</kbd> <kbd>2</kbd> view &nbsp; <kbd>Ctrl</kbd> <kbd>B</kbd> panel &nbsp; <kbd>Ctrl</kbd> <kbd>,</kbd> appearance</span></footer>
 
 <div id="appearance" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appearanceTitle">
   <div class="dialog wide">
@@ -968,7 +1034,8 @@ const localName=()=>platform==='darwin'?'This Mac':platform==='linux'?'This comp
 function applyPlatform(){
   $('localTargetName').textContent=localName();
   $('localFolder').placeholder=platform==='windows'?'C:\\Users\\you\\Downloads':platform==='darwin'?'/Users/you/Downloads':'/home/you/Downloads';
-  if(platform==='darwin')$('footerKeys').innerHTML='<kbd>⌫</kbd> up a folder &nbsp; <kbd>⌘</kbd> <kbd>1</kbd> <kbd>2</kbd> view &nbsp; <kbd>⌘</kbd> <kbd>B</kbd> panel &nbsp; <kbd>⌘</kbd> <kbd>,</kbd> appearance';
+  if(platform==='darwin'){$('findKey').textContent='⌘F';$('footerKeys').innerHTML='<kbd>⌘</kbd> <kbd>F</kbd> search &nbsp; <kbd>⌫</kbd> up a folder &nbsp; <kbd>⌘</kbd> <kbd>1</kbd> <kbd>2</kbd> view &nbsp; <kbd>⌘</kbd> <kbd>B</kbd> panel &nbsp; <kbd>⌘</kbd> <kbd>,</kbd> appearance'}
+  syncFind();
 }
 try{if((prefs?prefs.get('target'):localStorage.getItem('kamkm.target'))==='remote')target='remote'}catch(e){}
 function selectedDrives(){return drives.filter(d=>d.checked).map(d=>d.path)}
@@ -1042,11 +1109,16 @@ async function begin(c,who){
     if(monOn){if(!(local&&monitorPoll&&monitorTarget==='local')){await startMonitor(c);beginMonitor(who,local)}else monitorOwnsConn=!scanOn}else if(monitorPoll)await endMonitor('Monitoring stopped.');
     if(!scanOn){$('password').value='';$('passphrase').value='';$('submit').disabled=false;status('Monitoring '+who+'.');conn('busy',(local?'Starting monitor · ':'Connecting monitor · ')+who);setTab('activity');return}
     await startScan(c);$('password').value='';$('passphrase').value='';$('cancelScanButton').classList.remove('hidden');
-    viewId=0;lastView=null;mode='';tick=0;conn('busy','Scanning '+who);
+    viewId=0;lastView=null;mode='';tick=0;$('clearResults').classList.add('hidden');resetFind();conn('busy','Scanning '+who);
     placeholder(local?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
     setTab('storage');poll=setInterval(pollScan,500);
   }catch(e){$('submit').disabled=false;status(String(e),true);conn('error',local?'Could not start':'Connection failed')}
 }
+$('clearResults').onclick=async()=>{
+  try{await clearResults()}catch(e){status(String(e),true);return}
+  resetFind();viewId=null;placeholder('Results cleared. Their memory was released; scan again to see them.',true);
+  $('clearResults').classList.add('hidden');$('footer').textContent='Ready';$('footer').title='';status('Results cleared.');
+};
 $('cancelScanButton').onclick=async()=>{try{await cancelScan();status('Cancelling scan…',false,true)}catch(e){status(String(e),true)}};
 function goUp(){if(lastView&&lastView.trail.length>1)go(lastView.trail[lastView.trail.length-2].id)}
 $('up').onclick=goUp;
@@ -1058,12 +1130,15 @@ document.onkeydown=e=>{
   if(dialogOpen('trust')){if(e.key==='Escape')$('reject').click();return}
   if(dialogOpen('confirm')){if(e.key==='Escape')$('confirmCancel').click();return}
   if(dialogOpen('appearance')){if(e.key==='Escape')closeAppearance();return}
+  if(!$('menu').classList.contains('hidden')){if(e.key==='Escape'){e.preventDefault();hideMenu()}return}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();if(!$('find').classList.contains('hidden')){setTab('storage');$('search').focus();$('search').select()}return}
+  if(e.key==='Escape'&&filesMode&&tab==='storage'){e.preventDefault();exitFiles();return}
   if(e.key==='Escape'&&Dash.escape()){e.preventDefault();return}
   if((e.ctrlKey||e.metaKey)&&e.key===','){e.preventDefault();openAppearance();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();$('toggleSide').click();return}
   if((e.ctrlKey||e.metaKey)&&(e.key==='1'||e.key==='2')){e.preventDefault();setTab(e.key==='1'?'storage':'activity');return}
   if(typing)return;
-  if(tab==='storage'&&(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp'))){e.preventDefault();goUp()}
+  if(tab==='storage'&&!filesMode&&(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp'))){e.preventDefault();goUp()}
 };
 function finishScan(){clearInterval(poll);poll=null;$('cancelScanButton').classList.add('hidden');$('submit').disabled=false;$('progress').classList.add('hidden')}
 // Remote reports publish only on completion. Streaming fallbacks can redraw partial results.
@@ -1084,6 +1159,8 @@ async function pollScan(){
     }
     finishScan();
     if(s.files||!s.error)await refresh();else placeholder('No results.',true);
+    $('clearResults').classList.toggle('hidden',!(s.files||!s.error));scanReady=!!(s.files||!s.error);syncFind();
+    if(!mode.startsWith('remote'))setTimeout(noteOnDisk,s.onDisk?0:1000);
     const took=s.seconds?` in ${s.seconds<10?s.seconds.toFixed(1):Math.round(s.seconds)} s`:'',who=$('connText').dataset.who||'server';
     if(s.cancelled){status(mode.startsWith('remote')?'Remote scan cancelled. No completed report was downloaded.':'Scan cancelled. Showing what was found before cancelling.');conn('warn','Cancelled · '+who)}
     else if(s.error){status(s.error+(s.files?'\nShowing partial results.':''),true);conn('error','Scan failed · '+who)}
@@ -1091,6 +1168,12 @@ async function pollScan(){
     if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local-ntfs'?'(file sizes) · read from the NTFS file table':mode==='local'?'(file sizes) · scanned on '+localName().toLowerCase():mode==='remote-native'?'on disk · aggregated on the server by the fast scanner':mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
   }catch(e){finishScan();status(String(e),true);conn('error','Disconnected')}
   finally{polling=false}
+}
+// A finished scan moves from memory to a cache file shortly after it ends.
+async function noteOnDisk(){
+  if(poll)return;
+  try{const s=await scanStatus();if(s.running||s.cleared)return;if(!s.onDisk){if(s.files)setTimeout(noteOnDisk,2000);return}
+  const f=$('footer');if(!f.textContent.includes('kept on disk')){f.textContent+=' · kept on disk to save memory';f.title=f.textContent}}catch(e){}
 }
 async function loadView(id){
   await startView(id);
@@ -1115,7 +1198,7 @@ function placeholder(text,done=false){
 function cell(text,cls){const td=document.createElement('td');td.textContent=text;if(cls)td.className=cls;return td}
 const SORTS={name:(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}),size:(a,b)=>a.size-b.size,files:(a,b)=>(a.dir?a.files||0:-1)-(b.dir?b.files||0:-1)};
 function render(v){
-  $('workspace').classList.remove('idle');
+  $('workspace').classList.remove('idle');hideMenu();
   const nav=$('heading');nav.replaceChildren();
   v.trail.forEach((c,i)=>{
     if(i){const sep=el('span','sep');sep.append(icon('chev'));nav.append(sep)}
@@ -1129,6 +1212,10 @@ function render(v){
   if(v.incomplete)sub.append(el('span','badge','Incomplete'));
   $('up').classList.toggle('hidden',v.trail.length<2);
   computeColors(v);
+  if(!filesMode)renderList(v);
+  drawMap(v);
+}
+function renderList(v){
   const box=$('listing'),scroll=box.scrollTop,table=el('table'),body=el('tbody'),head=el('thead'),hr=el('tr');
   table.innerHTML='<colgroup><col><col class="c-size"><col class="c-share"><col class="c-files"></colgroup>';
   for(const [key,label] of [['name','Name'],['size','Size'],['size','Share'],['files','Files']]){
@@ -1140,8 +1227,11 @@ function render(v){
   head.append(hr);table.append(head);
   const entries=[...(v.entries||[])].sort((a,b)=>sortBy.dir*SORTS[sortBy.key](a,b)||b.size-a.size);
   for(const n of entries){
-    const tr=el('tr');
-    if(n.dir){tr.dataset.click='1';tr.tabIndex=0;tr.onclick=()=>go(n.id);tr.onkeydown=e=>{if(e.key==='Enter')go(n.id)}}
+    const tr=el('tr'),target={parent:v.id,name:n.name,dir:!!n.dir,id:n.id,size:n.size};
+    tr.dataset.click='1';tr.tabIndex=0;tr.dataset.name=n.name;
+    if(n.dir){tr.onclick=()=>go(n.id);tr.onkeydown=e=>{if(e.key==='Enter')go(n.id);else rowKeys(e)}}
+    else{tr.ondblclick=()=>openEntry(v.id,n.name);tr.onkeydown=e=>{if(e.key==='Enter')openEntry(v.id,n.name);else rowKeys(e)}}
+    tr.oncontextmenu=e=>itemMenu(e,target);
     const color=n.dir?null:typeColor.get(ext(n.name))||OTHER_TYPE,share=el('td'),wrap=el('div','share'),bar=el('span','bar'),fill=el('i');
     fill.style.width=Math.min(100,v.size?100*n.size/v.size:0).toFixed(1)+'%';if(color)fill.style.background=color;
     bar.append(fill);wrap.append(pct(n.size,v.size),bar);share.append(wrap);
@@ -1156,7 +1246,17 @@ function render(v){
   if(v.moreCount){const tr=el('tr','more');tr.append(cell(`${count(v.moreCount)} more smaller items`),cell(size(v.moreSize)),cell(pct(v.moreSize,v.size)),cell(''));body.append(tr)}
   if(!(v.entries||[]).length){const tr=el('tr','more');tr.append(cell('This folder is empty.'),cell(''),cell(''),cell(''));body.append(tr)}
   table.append(body);box.replaceChildren(table);box.scrollTop=scroll;
-  drawMap(v);
+  if(flashTarget&&flashTarget.id===v.id){
+    const row=[...body.children].find(r=>r.dataset.name===flashTarget.name);flashTarget=null;
+    if(row){row.classList.add('flash');row.scrollIntoView({block:'center'});row.focus({preventScroll:true})}
+  }
+}
+// Arrow keys move between rows of the folder list and the search results.
+function rowKeys(e){
+  if(e.key!=='ArrowDown'&&e.key!=='ArrowUp')return;
+  e.preventDefault();let r=e.currentTarget;
+  do r=e.key==='ArrowDown'?r.nextElementSibling:r.previousElementSibling;while(r&&r.tabIndex!==0);
+  if(r&&r.tabIndex===0)r.focus();else if(e.key==='ArrowUp'&&filesMode)$('search').focus();
 }
 // Cushion treemap in the style of WinDirStat (van Wijk and van de Wetering): every level adds a
 // parabolic ridge, so nesting shows as shading. Files are coloured by extension, from a palette of
@@ -1184,6 +1284,27 @@ function squarify(items,x0,y0,x1,y1,cb){
     if(w>=h)x0+=thick;else y0+=thick;i=j;
   }
 }
+// Folder names sit in a band across the top of each folder big enough to hold one, with its
+// contents below, and large files carry their name, in the style of WizTree.
+const HEADER=14,LABEL_FONT=11;
+let mapLabels=true;try{if(prefs&&prefs.get('mapLabels')===false)mapLabels=false}catch(e){}
+function syncLabelToggle(){$('mapLabels').setAttribute('aria-pressed',String(mapLabels))}
+syncLabelToggle();
+$('mapLabels').onclick=()=>{mapLabels=!mapLabels;syncLabelToggle();if(prefs)prefs.set('mapLabels',mapLabels);redraw()};
+const isLocalScan=()=>mode.startsWith('local');
+const pathSep=()=>isLocalScan()&&platform==='windows'?'\\':'/';
+let colorProbe=null;
+function cssRgb(value){
+  if(!colorProbe)colorProbe=document.createElement('canvas').getContext('2d');
+  colorProbe.fillStyle='#000';colorProbe.fillStyle=value.trim()||'#000';
+  const c=colorProbe.fillStyle;if(c[0]==='#')return rgb(c);
+  const m=c.match(/[\d.]+/g);return m?m.slice(0,3).map(Number):[0,0,0];
+}
+function fitLabel(ctx,name,suffix,maxW){
+  if(ctx.measureText(name+suffix).width<=maxW)return name+suffix;
+  const best=(tail)=>{const fits=k=>ctx.measureText(name.slice(0,k)+'…'+tail).width<=maxW;if(!fits(2))return '';let lo=2,hi=name.length;while(lo<hi){const mid=(lo+hi+1)>>1;if(fits(mid))lo=mid;else hi=mid-1}return name.slice(0,lo)+'…'+tail};
+  return (suffix&&best(suffix))||best('');
+}
 function drawMap(v){
   const canvas=$('map'),box=$('treemap'),m=v&&v.map;
   leaves=[];tops=new Map();$('hoverBox').classList.add('hidden');$('tip').classList.add('hidden');
@@ -1195,29 +1316,53 @@ function drawMap(v){
   const colors=new Map(ranked.map(([e],i)=>[e,rgb(PAL[i])])),grey=rgb(OTHER_TYPE),small=rgb(SMALL),folder=rgb(FOLDER);
   const ctx=canvas.getContext('2d'),img=ctx.createImageData(cw,ch),data=img.data;
   const ld=Math.sqrt(102),Lx=-1/ld,Ly=-1/ld,Lz=10/ld,Ia=0.2,Is=1-Ia,B=1.22;
+  const style=getComputedStyle(document.documentElement),back=cssRgb(style.getPropertyValue('--map-background')),dark=(back[0]*.299+back[1]*.587+back[2]*.114)<128;
+  const bands=[0,1,2,3,4].map(d=>back.map(c=>c+((dark?255:0)-c)*(dark?.15+.035*d:.09+.03*d))),bandText=dark?'#e8eaed':'#1d1f22',labels=[],sep=pathSep();
+  const hdr=HEADER*dpr,inset=Math.max(1,Math.round(dpr));
+  function fill(x0,y0,x1,y1,col){
+    const X0=Math.max(0,Math.round(x0)),X1=Math.min(cw,Math.round(x1)),Y0=Math.max(0,Math.round(y0)),Y1=Math.min(ch,Math.round(y1));
+    for(let y=Y0;y<Y1;y++)for(let x=X0,o=(y*cw+X0)*4;x<X1;x++,o+=4){data[o]=col[0];data[o+1]=col[1];data[o+2]=col[2];data[o+3]=255}
+  }
   function paint(x0,y0,x1,y1,s,col){
     const X0=Math.max(0,Math.round(x0)),X1=Math.min(cw,Math.round(x1)),Y0=Math.max(0,Math.round(y0)),Y1=Math.min(ch,Math.round(y1)),r=col[0],g=col[1],b=col[2];
     for(let y=Y0;y<Y1;y++){const ny=-(2*s[1]*(y+.5)+s[3]);let o=(y*cw+X0)*4;for(let x=X0;x<X1;x++,o+=4){const nx=-(2*s[0]*(x+.5)+s[2]);let c=(nx*Lx+ny*Ly+Lz)/Math.sqrt(nx*nx+ny*ny+1);if(c>1)c=1;let p=Is*c;if(p<0)p=0;p=(p+Ia)*B;data[o]=r*p;data[o+1]=g*p;data[o+2]=b*p;data[o+3]=255}}
   }
   function ridge(s,x0,y0,x1,y1,h){const w=x1-x0,hh=y1-y0;if(w>0){const f=4*h/w;s[2]+=f*(x1+x0);s[0]-=f}if(hh>0){const f=4*h/hh;s[3]+=f*(y1+y0);s[1]-=f}}
-  function place(n,x0,y0,x1,y1,parent,h,trail,dirId,root){
+  function place(n,x0,y0,x1,y1,parent,h,trail,dirId,root,depth){
     const s=parent.slice();if(!root)ridge(s,x0,y0,x1,y1,h);
     const kids=(n.c||[]).filter(k=>k.s>0);if(n.o>0)kids.push({n:'',s:n.o,other:true});kids.sort((a,b)=>b.s-a.s);
+    const w=(x1-x0)/dpr,hh=(y1-y0)/dpr,where=trail.join('/');
     if(n.other||!n.d||!kids.length||x1-x0<3||y1-y0<3){
       const kind=n.other?'other':n.d?'dir':'file';
       paint(x0,y0,x1,y1,s,kind==='file'?colors.get(ext(n.n))||grey:kind==='dir'?folder:small);
-      const where=trail.join('/');
-      leaves.push({x0:x0/dpr,y0:y0/dpr,x1:x1/dpr,y1:y1/dpr,size:n.s,dirId:kind==='dir'?n.i:dirId,name:kind==='other'?'Smaller items':n.n,kind,label:kind==='other'?(where?where+'/':'')+'(smaller items)':kind==='dir'?where+'/':where});
+      leaves.push({x0:x0/dpr,y0:y0/dpr,x1:x1/dpr,y1:y1/dpr,size:n.s,dirId:kind==='dir'?n.i:dirId,parent:dirId,name:kind==='other'?'Smaller items':n.n,kind,label:kind==='other'?(where?where+'/':'')+'(smaller items)':kind==='dir'?where+'/':where});
+      if(mapLabels&&kind!=='other'&&w>=44&&hh>=16)labels.push({x:x0+3*dpr,y:y0+8*dpr,w:x1-x0-6*dpr,name:n.n+(kind==='dir'?sep:''),suffix:' ('+size(n.s)+')',file:true});
       return;
     }
     const here=root?v.id:n.i;
-    squarify(kids,x0,y0,x1,y1,(k,a,b,c,d)=>{
+    let cx0=x0,cy0=y0,cx1=x1,cy1=y1;
+    if(mapLabels&&!root&&w>=30&&hh>=HEADER+12){
+      const band=bands[Math.min(depth,bands.length-1)];
+      cx0=x0+inset;cx1=x1-inset;cy0=y0+hdr;cy1=y1-inset;
+      fill(x0,y0,x1,cy0,band);fill(x0,cy0,cx0,y1,band);fill(cx1,cy0,x1,y1,band);fill(cx0,cy1,cx1,y1,band);
+      leaves.push({x0:x0/dpr,y0:y0/dpr,x1:x1/dpr,y1:cy0/dpr,size:n.s,dirId:n.i,parent:dirId,name:n.n,kind:'dir',header:true,label:where+'/'});
+      labels.push({x:x0+3*dpr,y:y0+hdr/2,w:x1-x0-6*dpr,name:n.n+sep,suffix:' ('+size(n.s)+')'});
+    }
+    squarify(kids,cx0,cy0,cx1,cy1,(k,a,b,c,d)=>{
       if(root&&!k.other)tops.set((k.d?'d:':'f:')+k.n,{x0:a/dpr,y0:b/dpr,x1:c/dpr,y1:d/dpr});
-      place(k,a,b,c,d,s,h*0.91,k.other?trail:trail.concat(k.n),here,false);
+      place(k,a,b,c,d,s,h*0.91,k.other?trail:trail.concat(k.n),here,false,depth+1);
     });
   }
-  place(m,0,0,cw,ch,[0,0,0,0],0.38,[],v.id,true);
+  place(m,0,0,cw,ch,[0,0,0,0],0.38,[],v.id,true,0);
   ctx.putImageData(img,0,0);
+  if(labels.length){
+    ctx.font=(LABEL_FONT*dpr)+'px '+(getComputedStyle(document.body).fontFamily||'sans-serif');ctx.textBaseline='middle';
+    for(const l of labels){
+      const t=fitLabel(ctx,l.name,l.suffix,l.w);if(!t)continue;
+      if(l.file){ctx.fillStyle='rgba(0,0,0,.62)';ctx.fillText(t,l.x+dpr,l.y+dpr);ctx.fillStyle='#fff'}else ctx.fillStyle=bandText;
+      ctx.fillText(t,l.x,l.y);
+    }
+  }
   const chips=ranked.map(([e],i)=>[e?'.'+e:'no extension',PAL[i]]);
   if(totalTypes>ranked.length)chips.push(['other',OTHER_TYPE]);
   chips.push(['small items',SMALL]);
@@ -1238,7 +1383,20 @@ $('map').onmousemove=e=>{
   tip.style.left=(x+16+tw>box.clientWidth?Math.max(4,x-tw-12):x+16)+'px';tip.style.top=(y+16+th>box.clientHeight?Math.max(4,y-th-12):y+16)+'px';
 };
 $('map').onmouseleave=()=>{highlight(null);$('tip').classList.add('hidden')};
-$('map').onclick=e=>{const l=hit(...mapPoint(e));if(l&&l.dirId&&l.dirId!==viewId)go(l.dirId)};
+// A click on a file opens its folder only after the time for a double-click has passed, so
+// that a double-click opens the file instead.
+let mapClickTimer=null;
+$('map').onclick=e=>{
+  if(e.detail>1)return;
+  const l=hit(...mapPoint(e));clearTimeout(mapClickTimer);
+  if(!l||l.dirId===undefined||l.dirId===null||l.dirId===viewId)return;
+  if(l.kind==='file')mapClickTimer=setTimeout(()=>go(l.dirId),260);else go(l.dirId);
+};
+$('map').ondblclick=e=>{const l=hit(...mapPoint(e));if(l&&l.kind==='file'){clearTimeout(mapClickTimer);openEntry(l.dirId,l.name)}};
+$('map').oncontextmenu=e=>{
+  const l=hit(...mapPoint(e));if(!l||l.kind==='other'){e.preventDefault();return}
+  itemMenu(e,l.kind==='dir'?{parent:l.parent,name:l.name,dir:true,id:l.dirId,size:l.size,nav:l.parent!==viewId}:{parent:l.dirId,name:l.name,dir:false,size:l.size,nav:l.dirId!==viewId});
+};
 // Drag (or arrow keys on) the splitter to share height between the list and the map.
 function setSplit(f,save=true){f=Math.max(.15,Math.min(.8,f));$('workspace').style.setProperty('--list',(f*100).toFixed(1)+'%');clearTimeout(resizeTimer);resizeTimer=setTimeout(redraw,60);if(save&&prefs)prefs.set('split',+f.toFixed(3))}
 function splitFraction(){const v=parseFloat(($('workspace').style.getPropertyValue('--list')||'42'));return (isNaN(v)?42:v)/100}
@@ -1250,6 +1408,309 @@ $('splitter').onpointerdown=e=>{
 };
 $('splitter').onkeydown=e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setSplit(splitFraction()+(e.key==='ArrowUp'?-.04:.04))}};
 if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(redraw,80)}).observe($('treemap'));
+
+// ---- Search and the Files view ----
+// Typing in the search box, or pressing Ctrl+F, lists matching files and folders from the
+// whole scan in place of the folder list. With nothing typed it lists the largest files,
+// which the type buttons and the extension list narrow down.
+// On Windows the search box also searches every drive, without a scan: "All drives" uses an
+// index of each drive that the app, or its background indexer, keeps.
+let filesMode=false,flashTarget=null,findKind='all',findSort='',typesLoaded=false,searchSeq=0,searchTimer=null,searchRunning=false;
+let findScope='',scanReady=false,savedListing=null,drivePoll=null,driveSeen='',driveSearchAt=0,lastSetupError='';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const drivesOK=()=>platform==='windows';
+function enterFiles(){
+  if(filesMode||$('find').classList.contains('hidden'))return;
+  if(!scanReady)findScope='drives';
+  savedListing=lastView?null:$('listing').firstElementChild||null;
+  filesMode=true;hideMenu();$('filesBar').classList.remove('hidden');syncScope();runSearch();
+}
+function exitFiles(){
+  if(!filesMode)return;
+  filesMode=false;searchSeq++;$('filesBar').classList.add('hidden');$('search').blur();stopDrivePoll();
+  if(lastView)renderList(lastView);else if(savedListing)$('listing').replaceChildren(savedListing);
+}
+function resetFind(){
+  if(filesMode){filesMode=false;$('filesBar').classList.add('hidden');stopDrivePoll()}
+  searchSeq++;typesLoaded=false;scanReady=false;findScope='';$('search').value='';findKind='all';findSort='';syncPills();syncFind();
+  $('extFilter').replaceChildren(anyExtension());$('extFilter').value='';
+}
+// syncFind shows the search box when there is something to search.
+function syncFind(){
+  $('find').classList.toggle('hidden',!(scanReady||drivesOK()));
+  $('search').placeholder=scanReady?'Search files and folders':'Search every drive';
+  $('search').setAttribute('aria-label',scanReady?'Search files and folders in this scan':'Search files and folders on every drive');
+  if(filesMode)syncScope();
+}
+function syncScope(){
+  if(!scanReady&&findScope!=='drives')findScope='drives';
+  $('scopes').classList.toggle('hidden',!(scanReady&&drivesOK()));
+  $('driveBar').classList.toggle('hidden',findScope!=='drives');
+  syncPills();
+  if(filesMode&&findScope==='drives')startDrivePoll();else stopDrivePoll();
+}
+function syncPills(){
+  if(typeof document.querySelectorAll!=='function')return;
+  for(const b of document.querySelectorAll('#kinds button'))b.setAttribute('aria-pressed',String(b.dataset.kind===findKind&&!$('extFilter').value));
+  for(const b of document.querySelectorAll('#sorts button'))b.setAttribute('aria-pressed',String(b.dataset.sort===findSort));
+  for(const b of document.querySelectorAll('#scopes button'))b.setAttribute('aria-pressed',String(b.dataset.scope===findScope));
+}
+function scheduleSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(runSearch,45)}
+async function runSearch(){
+  if(!filesMode)return;
+  const text=$('search').value.trim(),ext=$('extFilter').value;
+  $('sorts').classList.toggle('hidden',!text);
+  const scope=findScope,q={text,kind:findKind,exts:ext?[ext]:[],sort:text?findSort:'size',limit:1000,types:!typesLoaded,scope};
+  const mine=++searchSeq,started=performance.now();
+  if(scope==='drives')driveSearchAt=started;
+  const spin=setTimeout(()=>{if(mine===searchSeq){$('found').classList.remove('error');$('found').textContent='Searching…'}},120);
+  try{
+    const seq=await startSearch(q);
+    let s=null;
+    for(let wait=4;;wait=Math.min(40,wait*2)){await sleep(wait);if(mine!==searchSeq)return;s=await searchStatus();if(s.seq>=seq)break}
+    if(s.seq!==seq||mine!==searchSeq)return;
+    if(s.error)throw s.error;
+    const r=s.result;
+    if(r.types&&r.types.length&&!typesLoaded){typesLoaded=true;fillTypes(r.types)}
+    renderHits(r,text,performance.now()-started,scope);
+  }catch(e){if(mine===searchSeq){$('found').classList.add('error');$('found').textContent=String(e);$('listing').replaceChildren(el('div','empty',String(e)))}}
+  finally{clearTimeout(spin)}
+}
+function anyExtension(){const o=el('option','','Any extension');o.value='';return o}
+function fillTypes(types){
+  const sel=$('extFilter'),keep=sel.value,opts=[anyExtension()];
+  for(const t of types){if(!t.ext)continue;const o=el('option','','.'+t.ext+'  ·  '+size(t.size)+'  ·  '+count(t.files)+(t.files===1?' file':' files'));o.value=t.ext;opts.push(o);if(opts.length>80)break}
+  sel.replaceChildren(...opts);sel.value=keep;
+}
+// markName highlights the matched characters, given as code point positions.
+function markName(name,match){
+  const box=el('span');if(!match||!match.length){box.textContent=name;return box}
+  const chars=Array.from(name),hits=new Set(match);let run='',on=false;
+  const flush=()=>{if(!run)return;box.append(on?el('mark','',run):document.createTextNode(run));run=''};
+  chars.forEach((c,i)=>{const m=hits.has(i);if(m!==on){flush();on=m}run+=c});flush();
+  return box;
+}
+function hitLeaf(h){return leaves.find(l=>h.dir?l.kind==='dir'&&l.dirId===h.id:l.kind==='file'&&l.dirId===h.parent&&l.name===h.name)}
+function renderHits(r,text,ms,scope=''){
+  const drives=scope==='drives';
+  const found=$('found');found.classList.remove('error');found.replaceChildren();
+  const what=findKind==='folders'?'folders':'files';
+  if(r.files&&!text)found.append('Largest files · ');
+  found.append(el('b','',count(r.total)),' '+(text?(r.total===1?'match':'matches'):what)+' · ',el('b','',size(r.totalSize)));
+  if(ms>=1)found.title=`Searched in ${Math.round(ms)} ms`;
+  const box=$('listing'),table=el('table'),body=el('tbody'),head=el('thead'),hr=el('tr');
+  table.innerHTML='<colgroup><col><col class="c-where"><col class="c-size"><col class="c-act"></colgroup>';
+  for(const [label,sort] of [['Name',''],['Folder',null],['Size','size'],['',null]]){
+    const th=el('th','',label);
+    if(sort!==null&&(text||sort==='size')){if((text?findSort:'size')===sort){th.setAttribute('aria-sort','descending');th.append(el('span','arrow','▼'))}th.onclick=()=>{if(!text)return;findSort=sort;syncPills();runSearch()}}
+    else th.style.cursor='default';
+    hr.append(th);
+  }
+  head.append(hr);table.append(head);
+  for(const h of r.hits){
+    const tr=el('tr'),nameTd=el('td'),name=el('div','name'),where=el('td','where'),act=el('td','act'),show=el('button','icon-btn sm');
+    tr.dataset.click='1';tr.tabIndex=0;
+    if(h.dir)name.append(icon('folder','ic'));else{const sw=el('i','sw');sw.style.background=typeColor.get(ext(h.name))||OTHER_TYPE;name.append(sw)}
+    name.append(markName(h.name,h.match));nameTd.append(name);nameTd.title=h.name;
+    const p=el('span');p.dir='ltr';p.textContent=h.path;where.append(p);where.title=h.path;
+    const showTitle=drives?'Show in '+fileManager():'Show in its folder';
+    show.type='button';show.title=showTitle;show.setAttribute('aria-label',showTitle+': '+h.name);show.append(icon(drives?'search':'up'));
+    show.onclick=e=>{e.stopPropagation();if(drives)openEntry(null,h.name,'reveal',h.path);else showInFolder(h)};show.ondblclick=e=>e.stopPropagation();act.append(show);
+    // A drive index does not add up folders, so their size is not shown.
+    tr.append(nameTd,where,cell(drives&&h.dir?'':size(h.size)),act);
+    const open=()=>drives?openEntry(null,h.name,'open',h.path):openHit(h);
+    tr.ondblclick=open;
+    tr.onkeydown=e=>{if(e.key==='Enter')open();else rowKeys(e)};
+    tr.oncontextmenu=e=>drives?driveMenu(e,h):itemMenu(e,{parent:h.parent,name:h.name,dir:!!h.dir,id:h.id,size:h.size,nav:true});
+    if(!drives){tr.onmouseenter=()=>{const l=hitLeaf(h);highlight(l||null)};tr.onmouseleave=()=>highlight(null)}
+    body.append(tr);
+  }
+  if(r.total>r.hits.length){const tr=el('tr','more');tr.append(cell(`${count(r.total-r.hits.length)} more not shown. Type more of the name to narrow the list.`),cell(''),cell(''),cell(''));body.append(tr)}
+  if(!r.hits.length){const tr=el('tr','more');tr.append(cell(drives&&driveBusy?'Nothing found yet. The drives are still being indexed.':text?'Nothing matches. Check the spelling, or choose All above.':'No files of this type.'),cell(''),cell(''),cell(''));body.append(tr)}
+  table.append(body);box.replaceChildren(table);box.scrollTop=0;
+}
+function openHit(h){if(h.dir){exitFiles();go(h.id)}else openEntry(h.parent,h.name)}
+function showInFolder(t){exitFiles();flashTarget={id:t.parent,name:t.name};if(viewId===t.parent&&lastView){renderList(lastView);return}go(t.parent)}
+$('search').onfocus=()=>enterFiles();
+$('search').oninput=()=>{enterFiles();scheduleSearch()};
+$('search').onkeydown=e=>{
+  if(e.key==='Escape'){e.preventDefault();e.stopPropagation();if($('search').value){$('search').value='';scheduleSearch()}else exitFiles();return}
+  if(e.key==='ArrowDown'||e.key==='Enter'){const r=$('listing').querySelector('tbody tr[tabindex="0"]');if(r){e.preventDefault();r.focus();if(e.key==='Enter'&&$('search').value.trim())r.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}))}}
+};
+$('kinds').onclick=e=>{const b=e.target.closest&&e.target.closest('button[data-kind]');if(!b)return;findKind=b.dataset.kind;$('extFilter').value='';syncPills();runSearch()};
+$('sorts').onclick=e=>{const b=e.target.closest&&e.target.closest('button[data-sort]');if(!b)return;findSort=b.dataset.sort;syncPills();runSearch()};
+$('extFilter').onchange=()=>{if($('extFilter').value)findKind='all';syncPills();runSearch()};
+$('closeFiles').onclick=()=>exitFiles();
+$('scopes').onclick=e=>{
+  const b=e.target.closest&&e.target.closest('button[data-scope]');if(!b||b.dataset.scope===findScope)return;
+  findScope=b.dataset.scope;typesLoaded=false;$('extFilter').replaceChildren(anyExtension());$('extFilter').value='';syncScope();runSearch();
+};
+let driveBusy=false;
+function startDrivePoll(){if(drivePoll)return;driveSeen='';pollDrives();drivePoll=setInterval(pollDrives,1500)}
+function stopDrivePoll(){clearInterval(drivePoll);drivePoll=null}
+async function pollDrives(){
+  let st;try{st=await driveIndexStatus()}catch(e){return}
+  if(!filesMode||findScope!=='drives')return;
+  renderDriveBar(st);
+  // Search again when a drive's index becomes ready, and every few seconds while indexes are
+  // still being made, unless the list has been scrolled.
+  const sig=st.source+'|'+st.drives.map(d=>d.root+':'+d.state).join(',');
+  driveBusy=st.drives.some(d=>d.state==='building'||d.state==='loading');
+  if(driveSeen&&sig!==driveSeen||driveBusy&&performance.now()-driveSearchAt>3000&&$('listing').scrollTop<8)runSearch();
+  driveSeen=sig;
+}
+function ago(ms){
+  const s=Math.max(0,(Date.now()-ms)/1000);
+  return s<90?'just now':s<5400?Math.round(s/60)+' min ago':s<172800?Math.round(s/3600)+' h ago':Math.round(s/86400)+' days ago';
+}
+function renderDriveBar(st){
+  const chips=$('driveChips'),list=[];
+  for(const d of st.drives){
+    const c=el('span','chip'),dot=el('i','dot');let note;
+    if(d.state==='building'){dot.classList.add('busy');note=d.read?'indexing · '+count(d.read):'indexing…'}
+    else if(d.state==='loading'){dot.classList.add('busy');note='loading…'}
+    else if(d.state==='error'){dot.classList.add('error');note='not indexed'}
+    else if(d.mode==='live'){dot.classList.add('live');note='live'}
+    else note=d.built?'read '+ago(d.built):'ready';
+    c.append(dot,el('b','',d.root.replace(/\\$/,'')),note);
+    c.title=(d.label?d.label+' ('+d.root+')':d.root)+' · '+count(d.entries)+' files and folders'+(d.mode==='live'?' · kept current from the drive\'s change journal':d.built?' · folders read '+new Date(d.built).toLocaleString():'')+(d.error?'\n'+d.error:'');
+    list.push(c);
+  }
+  if(!list.length)list.push(el('span','','Looking for drives…'));
+  chips.replaceChildren(...list);
+  let hint='';
+  if(st.setup)hint=st.setup==='install'?'Setting up the background indexer. Approve the Windows prompt to continue.':'Removing the background indexer. Approve the Windows prompt to continue.';
+  else if(st.source==='service')hint=st.outdated?'The background indexer is from another version of this app.':'Kept current by the background indexer.';
+  else if(st.service==='unreachable')hint='The background indexer is not answering'+(st.note?': '+st.note:'.');
+  else if(!st.admin&&st.drives.some(d=>d.mode!=='live'))hint='Snapshots can miss recent changes. Live indexes need administrator rights or the background indexer.';
+  else if(st.admin&&st.drives.some(d=>d.mode==='live'))hint='Kept current while this window is open.';
+  $('driveHint').textContent=hint;
+  $('driveRefresh').classList.toggle('hidden',!st.drives.some(d=>d.mode==='snapshot'&&d.state==='ready'));
+  $('driveAdmin').classList.toggle('hidden',!!(st.admin||st.source==='service'||st.setup));
+  const svc=$('driveService');
+  svc.textContent=!st.service?'Set up background indexer':st.outdated?'Update background indexer':'Restart background indexer';
+  svc.classList.toggle('hidden',!!st.setup||!!st.service&&!st.outdated&&st.service==='running'&&st.source==='service');
+  $('driveRemove').classList.toggle('hidden',!st.service||!!st.setup);
+  if(st.setupError&&st.setupError!==lastSetupError)toast(st.setupError,{error:true});
+  lastSetupError=st.setupError||'';
+}
+$('driveRefresh').onclick=async()=>{try{await refreshDriveIndex('');toast('Reading the drives\' folders again…');pollDrives()}catch(e){toast(String(e),{error:true})}};
+$('driveAdmin').onclick=async()=>{
+  const ok=await confirmAction({title:'Restart as administrator?',text:'The app starts again with administrator rights, so it can read each drive\'s file table directly and keep the index current from the drive\'s change journal.'+(scanReady?' The scan results in this window are closed.':''),label:'Restart'});
+  if(!ok)return;
+  try{await restartElevated()}catch(e){toast(String(e),{error:true})}
+};
+$('driveService').onclick=async()=>{
+  const fresh=!$('driveService').textContent.startsWith('Restart')&&!$('driveService').textContent.startsWith('Update');
+  if(fresh){
+    const ok=await confirmAction({title:'Set up the background indexer?',text:'A Windows service keeps an index of the name of every file on this PC\'s drives, so searching every drive is instant and current without administrator rights. It is copied to Program Files, runs as the system account and starts with Windows. Only you and administrators can search through it, and its results include the names of files in every account on this PC. Windows asks for administrator approval.',label:'Set up'});
+    if(!ok)return;
+  }
+  try{await setupIndexService(true);pollDrives()}catch(e){toast(String(e),{error:true})}
+};
+$('driveRemove').onclick=async()=>{
+  const ok=await confirmAction({title:'Remove the background indexer?',text:'The service, its copy in Program Files and the indexes it saved are deleted. Windows asks for administrator approval.',label:'Remove'});
+  if(!ok)return;
+  try{await setupIndexService(false);pollDrives()}catch(e){toast(String(e),{error:true})}
+};
+
+// ---- Opening files ----
+const fileManager=()=>platform==='windows'?'Explorer':platform==='darwin'?'Finder':'the file manager';
+let toastTimer=null;
+function toast(text,{error=false,progress,sub,action,stay=false}={}){
+  const t=$('toast');clearTimeout(toastTimer);
+  $('toastMsg').textContent=text;t.classList.toggle('error',error);
+  $('toastBar').classList.toggle('hidden',progress===undefined);$('toastBar').classList.toggle('indeterminate',progress===null);
+  if(typeof progress==='number')$('toastFill').style.width=(100*Math.max(0,Math.min(1,progress))).toFixed(1)+'%';
+  $('toastSub').classList.toggle('hidden',!sub);$('toastSub').textContent=sub||'';
+  $('toastAct').classList.toggle('hidden',!action);if(action){$('toastAct').textContent=action.label;$('toastAct').onclick=action.run}
+  t.classList.remove('hidden');
+  if(!stay)toastTimer=setTimeout(hideToast,error?9000:3500);
+}
+function hideToast(){clearTimeout(toastTimer);$('toast').classList.add('hidden')}
+$('toastClose').onclick=hideToast;
+async function openRequest(req){
+  const seq=await startOpen(req);let s,since=performance.now(),last=0,lastAt=since;
+  for(let wait=15;;wait=Math.min(150,wait*2)){
+    await sleep(wait);s=await openStatus();if(s.seq!==seq)return null;if(!s.running)return s;
+    if(s.downloading){
+      const now=performance.now(),rate=now>lastAt+400?(s.done-last)/((now-lastAt)/1000):null;if(rate!==null){last=s.done;lastAt=now}
+      toast('Copying '+s.name+' to '+localName().toLowerCase()+'…',{progress:s.total?s.done/s.total:null,stay:true,
+        sub:size(s.done)+(s.total?' of '+size(s.total):'')+(rate?' · '+size(rate)+'/s':''),action:{label:'Cancel',run:()=>cancelOpen()}});
+    }
+  }
+}
+// openEntry opens a file, or a folder in the file manager, given the folder holding it and its
+// name; an empty name means the folder itself. It returns the finished status.
+// folder, when given, is the folder on this computer holding name, for results of a search of
+// every drive.
+async function openEntry(dir,name,action='open',folder){
+  if(folder===undefined&&(dir===undefined||dir===null))return null;
+  const base=folder!==undefined?{dir:0,name,action,path:folder}:{dir,name,action};
+  try{
+    let s=await openRequest(base);
+    if(s&&s.confirm){
+      const run=s.confirm==='run';
+      const ok=await confirmAction(run?{title:'Run '+s.name+'?',text:'This is a program or script. Opening it runs it with your permissions. Run it only if you trust where it came from.',detail:s.path,detailLabel:'File',label:'Run'}
+        :{title:'Copy '+s.name+' to '+localName().toLowerCase()+'?',text:'The file is on the server. It is copied to a temporary folder on '+localName().toLowerCase()+' ('+size(s.size)+') and then opened with its usual program.',detail:s.path,detailLabel:'Server file',label:'Copy and open'});
+      if(!ok)return null;
+      s=await openRequest(Object.assign({},base,{confirmed:true}));
+    }
+    if(!s)return null;
+    if(s.cancelled){toast('Copy of '+s.name+' cancelled.');return null}
+    if(s.error){toast(s.error,{error:true});return null}
+    if(action==='open')toast((s.total?'Copied and opened ':'Opened ')+s.name+'.');
+    else if(action==='reveal')hideToast();
+    return s;
+  }catch(e){toast(String(e),{error:true});return null}
+}
+async function copyPath(dir,name,folder){
+  const s=await openEntry(dir,name,'path',folder);if(!s)return;
+  try{await navigator.clipboard.writeText(s.path)}catch(e){
+    const ta=el('textarea');ta.value=s.path;ta.style.position='fixed';ta.style.opacity='0';document.body.append(ta);ta.select();document.execCommand('copy');ta.remove();
+  }
+  toast('Copied '+s.path);
+}
+// Context menu for a file or folder in the list, the search results or the map.
+function hideMenu(){const m=$('menu');if(m.classList&&!m.classList.contains('hidden')){m.classList.add('hidden');m.replaceChildren()}}
+function itemMenu(e,t){
+  e.preventDefault();e.stopPropagation();
+  const local=isLocalScan(),items=[];
+  if(t.dir){
+    items.push(['Open','folder',()=>{exitFiles();go(t.id)},true]);
+    if(local)items.push(['Open in '+fileManager(),'up',()=>openEntry(t.id,'')]);
+  }else items.push([local?'Open':'Copy to '+localName().toLowerCase()+' and open','scan',()=>openEntry(t.parent,t.name),true]);
+  if(t.nav)items.push(['Show in its folder','list',()=>showInFolder(t)]);
+  if(local)items.push(['Show in '+fileManager(),'search',()=>openEntry(t.parent,t.name,'reveal')]);
+  items.push('-',['Copy path','copy',()=>t.dir?copyPath(t.id,''):copyPath(t.parent,t.name)]);
+  showMenu(e,items);
+}
+// Context menu for a result of a search of every drive, which is opened by its path.
+function driveMenu(e,h){
+  showMenu(e,[[h.dir?'Open in '+fileManager():'Open',h.dir?'folder':'scan',()=>openEntry(null,h.name,'open',h.path),true],
+    ['Show in '+fileManager(),'search',()=>openEntry(null,h.name,'reveal',h.path)],'-',['Copy path','copy',()=>copyPath(null,h.name,h.path)]]);
+}
+function showMenu(e,items){
+  e.preventDefault();e.stopPropagation();
+  const m=$('menu');m.replaceChildren();
+  for(const it of items){
+    if(it==='-'){m.append(el('hr'));continue}
+    const [label,ic,run,main]=it,b=el('button',main?'main':'');b.type='button';b.setAttribute('role','menuitem');b.append(icon(ic),label);
+    b.onclick=()=>{hideMenu();run()};m.append(b);
+  }
+  m.classList.remove('hidden');
+  const r=m.getBoundingClientRect(),x=Math.min(e.clientX,innerWidth-r.width-6),y=Math.min(e.clientY,innerHeight-r.height-6);
+  m.style.left=Math.max(6,x)+'px';m.style.top=Math.max(6,y)+'px';
+  m.querySelector('button').focus();
+}
+$('menu').onkeydown=e=>{
+  const bs=[...$('menu').querySelectorAll('button')],i=bs.indexOf(document.activeElement);
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();bs[(i+(e.key==='ArrowDown'?1:bs.length-1))%bs.length].focus()}
+  else if(e.key==='Tab'){e.preventDefault()}
+};
+window.addEventListener('mousedown',e=>{if(!$('menu').contains(e.target))hideMenu()},true);
+window.addEventListener('blur',hideMenu);window.addEventListener('resize',hideMenu);
+if(typeof document.addEventListener==='function')document.addEventListener('scroll',hideMenu,true);
 
 // ---- Activity monitor ----
 // The server sends one sample a second. The page keeps the last minute for the sparklines and

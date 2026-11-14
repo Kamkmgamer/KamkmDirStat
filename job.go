@@ -27,6 +27,10 @@ type ScanStatus struct {
 	Skipped    []string     `json:"skipped,omitempty"`
 	Notes      []string     `json:"notes,omitempty"`
 	Seconds    float64      `json:"seconds,omitempty"`
+	// OnDisk is set once the results have moved from memory to the cache file.
+	OnDisk bool `json:"onDisk,omitempty"`
+	// Cleared is set when the user cleared the results.
+	Cleared bool `json:"cleared,omitempty"`
 }
 
 var scanState struct {
@@ -87,10 +91,12 @@ func startScan(c Connection) error {
 			s.Errors = s.Errors[:5]
 		}
 		tree.mu.Lock()
-		if err != nil {
-			markIncomplete(tree.Root)
+		if tree.Root != nil { // nil when the results were cleared while cancelling
+			if err != nil {
+				markIncomplete(tree.Root)
+			}
+			s.Files, s.Size = tree.Root.Files, tree.Root.Size
 		}
-		s.Files, s.Size = tree.Root.Files, tree.Root.Size
 		tree.mu.Unlock()
 		if err != nil {
 			s.Error = err.Error()
@@ -100,11 +106,38 @@ func startScan(c Connection) error {
 			}
 		}
 		scanState.Lock()
-		defer scanState.Unlock()
 		s.Progress = scanState.status.Progress
 		scanState.cancel = nil
 		scanState.status = s
+		scanState.Unlock()
+		// The finished tree no longer changes, so move it out of memory. The window can
+		// already browse it meanwhile; views switch to the file once it is written.
+		if onDisk, _ := tree.releaseMemory(); !onDisk {
+			freeMemory()
+			return
+		}
+		scanState.Lock()
+		if scanState.tree == tree && !scanState.status.Running {
+			scanState.status.OnDisk = true
+		}
+		scanState.Unlock()
 	}()
+	return nil
+}
+
+// clearResults forgets the current scan results and returns their memory to the system.
+func clearResults() error {
+	scanState.Lock()
+	if scanState.status.Running {
+		scanState.Unlock()
+		return errors.New("Cancel the scan before clearing its results.")
+	}
+	tree := scanState.tree
+	scanState.tree = nil
+	scanState.status = ScanStatus{Cleared: true}
+	scanState.Unlock()
+	tree.close()
+	freeMemory()
 	return nil
 }
 func cancelScan() error {

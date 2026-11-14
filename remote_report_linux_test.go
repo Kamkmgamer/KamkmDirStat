@@ -51,7 +51,7 @@ func TestRemoteReportMatchesLocalAggregation(t *testing.T) {
 			t.Fatalf("view %d differs\nremote: %+v\nlocal: %+v", id, got, expected)
 		}
 	}
-	remote.close()
+	remote.remote.close() // the SSH connection drops; the results are kept
 	if _, err := remote.view(0); err != nil {
 		t.Fatalf("cached overview unavailable after connection closes: %v", err)
 	}

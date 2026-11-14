@@ -38,8 +38,17 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"startScan":         startScan,
 		"scanStatus":        scanStatus,
 		"cancelScan":        cancelScan,
+		"clearResults":      clearResults,
 		"startView":         startView,
 		"viewStatus":        viewStatus,
+		"startSearch":       startSearch,
+		"searchStatus":      searchStatus,
+		"startOpen":         startOpen,
+		"openStatus":        openStatus,
+		"cancelOpen":        cancelOpen,
+		"driveIndexStatus":  driveIndexStatus,
+		"refreshDriveIndex": refreshDriveIndex,
+		"setupIndexService": startIndexServiceSetup,
 		"startMonitor":      startMonitor,
 		"stopMonitor":       stopMonitor,
 		"monitorStatus":     monitorStatus,
@@ -62,8 +71,10 @@ func bindAll(w window, extra map[string]interface{}) error {
 // runWindow shows the page with the saved settings until the window closes, then stops any
 // running work.
 func runWindow(w window, settings json.RawMessage, extra map[string]interface{}) error {
+	defer stopDriveIndex()
 	defer closeResults()
 	defer stopMonitor()
+	defer cancelOpen()
 	w.SetTitle(windowTitle)
 	if err := bindAll(w, extra); err != nil {
 		return err

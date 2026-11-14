@@ -157,10 +157,11 @@ func TestHelperFallsBack(t *testing.T) {
 		tree := newTree(root)
 		start := time.Now()
 		result, err := scanInto(context.Background(), c, tree, nil)
+		size := tree.Root.Size // close forgets the results
 		tree.close()
 		t.Logf("noexec home, scan %d: %s, notes %q", scan, time.Since(start), result.Notes)
-		if err != nil || result.Mode != "remote" || tree.Root.Size != want {
-			t.Fatalf("noexec scan %d: mode=%s size=%d err=%v", scan, result.Mode, tree.Root.Size, err)
+		if err != nil || result.Mode != "remote" || size != want {
+			t.Fatalf("noexec scan %d: mode=%s size=%d err=%v", scan, result.Mode, size, err)
 		}
 		if scan == 2 && (helperUploads.Load() != uploads || len(result.Notes) != 0) {
 			t.Fatal("helper stored again on a noexec server")

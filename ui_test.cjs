@@ -175,3 +175,60 @@ console.log('UI treemap layout passed');
   console.log('UI themes passed');
  })().catch(err=>{console.error(err);process.exitCode=1});
 }
+
+// Map labels keep the size when they can, and opening a program asks first.
+(async()=>{
+ const reqs=[],statuses=[];let seq=0,confirmed=0;
+ const ctx=vm.createContext({document:{getElementById:element},window:{addEventListener(){}},setTimeout,clearTimeout,setInterval:()=>1,clearInterval(){},console,performance,
+   startOpen:async r=>{reqs.push(r);return ++seq},openStatus:async()=>statuses.shift(),
+   startSearch:async q=>{reqs.push(q);return 7},searchStatus:async()=>({seq:7,result:{hits:[],total:0,totalSize:0}})});
+ vm.runInContext(html.split('<script>')[1].split('</script>')[0],ctx);
+ const fit=vm.runInContext('fitLabel',ctx),m={measureText:s=>({width:[...s].length*6})};
+ assert.equal(fit(m,'Users/',' (120.8 GiB)',200),'Users/ (120.8 GiB)');
+ assert.equal(fit(m,'Administrator/',' (120.8 GiB)',120),'Adminis… (120.8 GiB)','the name shortens before the size goes');
+ assert.equal(fit(m,'Administrator/',' (120.8 GiB)',60),'Administr…','the size goes when the name would not fit');
+ assert.equal(fit(m,'Administrator/',' (120.8 GiB)',12),'','nothing when not even two letters fit');
+
+ ctx.confirmAction=async a=>{confirmed++;assert.match(a.title,/^Run setup\.exe\?/);return {}};
+ statuses.push({seq:1,running:false,confirm:'run',name:'setup.exe',path:'C:/x/setup.exe'},{seq:2,running:false,name:'setup.exe'});
+ const done=await vm.runInContext("openEntry(4,'setup.exe')",ctx);
+ assert.equal(confirmed,1);assert.equal(done.name,'setup.exe');
+ assert.deepEqual(reqs.map(r=>({...r})),[{dir:4,name:'setup.exe',action:'open'},{dir:4,name:'setup.exe',action:'open',confirmed:true}]);
+ ctx.confirmAction=async()=>null;reqs.length=0;
+ statuses.push({seq:3,running:false,confirm:'download',name:'clip.mp4',size:5});
+ assert.equal(await vm.runInContext("openEntry(2,'clip.mp4')",ctx),null,'declining stops');
+ assert.equal(reqs.length,1);
+ statuses.push({seq:4,running:false,error:'gone'});
+ assert.equal(await vm.runInContext("openEntry(2,'x.txt')",ctx),null);
+ assert.equal(element('toastMsg').textContent,'gone','errors are shown');
+
+ // Searching with nothing typed lists the largest files; the type and extension are sent.
+ reqs.length=0;element('search').value='  ';element('extFilter').value='mkv';
+ vm.runInContext("filesMode=true;findKind='videos';renderHits=()=>{};runSearch()",ctx);
+ await new Promise(r=>setTimeout(r,30));
+ assert.deepEqual({...reqs[0],exts:[...reqs[0].exts]},{text:'',kind:'videos',exts:['mkv'],sort:'size',limit:1000,types:true,scope:''});
+
+ // A result of a search of every drive opens by its folder's path, and so does its retry.
+ reqs.length=0;ctx.confirmAction=async()=>({});
+ statuses.push({seq:5,running:false,confirm:'run',name:'tool.exe'},{seq:6,running:false,name:'tool.exe'});
+ await vm.runInContext("openEntry(null,'tool.exe','open','D:\\\\Apps')",ctx);
+ assert.deepEqual(reqs.map(r=>({...r})),[{dir:0,name:'tool.exe',action:'open',path:'D:\\Apps'},{dir:0,name:'tool.exe',action:'open',path:'D:\\Apps',confirmed:true}]);
+
+ // The drive bar offers what would make the index current, and hides what does not apply.
+ const made=[];
+ ctx.document.createElement=tag=>{const e={tag,children:[],textContent:'',dataset:{},setAttribute(){},append(...c){this.children.push(...c)},classList:{values:new Set(),add(n){this.values.add(n)},toggle(n,on){if(on)this.values.add(n);else this.values.delete(n)}}};made.push(e);return e};
+ let chips=[];element('driveChips').replaceChildren=(...c)=>{chips=c};
+ const hidden=id=>element(id).classList.values.has('hidden');
+ const text=e=>typeof e==='string'?e:(e.textContent||'')+e.children.map(text).join('');
+ vm.runInContext("renderDriveBar",ctx)({source:'app',admin:false,service:'',drives:[{root:'C:\\',mode:'snapshot',state:'ready',entries:5,built:Date.now()-7200e3},{root:'D:\\',state:'building',read:1200,entries:10}]});
+ assert.deepEqual(chips.map(text),['C:read 2 h ago','D:indexing · 1,200']);
+ assert.match(element('driveHint').textContent,/administrator rights or the background indexer/);
+ assert.deepEqual(['driveRefresh','driveAdmin','driveService','driveRemove'].map(hidden),[false,false,false,true]);
+ assert.equal(element('driveService').textContent,'Set up background indexer');
+ vm.runInContext("renderDriveBar",ctx)({source:'service',admin:false,service:'running',drives:[{root:'C:\\',mode:'live',state:'ready',entries:5}]});
+ assert.deepEqual(chips.map(text),['C:live']);
+ assert.deepEqual(['driveRefresh','driveAdmin','driveService','driveRemove'].map(hidden),[true,true,true,false]);
+ vm.runInContext("renderDriveBar",ctx)({source:'service',admin:false,service:'running',outdated:true,drives:[]});
+ assert.equal(hidden('driveService'),false);assert.equal(element('driveService').textContent,'Update background indexer');
+ console.log('UI map labels, opening, search and drive index passed');
+})().catch(err=>{console.error(err);process.exitCode=1});

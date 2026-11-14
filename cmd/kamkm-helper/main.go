@@ -3,7 +3,7 @@
 // kamkm-helper scans a folder on a Linux server for KamkmDirStat. It speaks the same
 // protocol as remote_report.py: a "SSE2 gzip" line, then gzip-compressed JSON frames with
 // progress and the finished overview, then one folder view for each request read from
-// standard input. It walks folders on every core, which is several times faster than find
+// standard input, or search results for a search request. It walks folders on every core, which is several times faster than find
 // and Python. The app stores it in ~/.cache/kamkmdirstat on the server.
 //
 // Usage: kamkm-helper report ROOT ONE_FILE_SYSTEM(0 or 1)
@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"cmp"
 	"compress/gzip"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 	"golang.org/x/sys/unix"
 )
 
@@ -111,17 +113,35 @@ func main() {
 	close(done)
 	<-stopped // no progress may follow the finished report
 	w.finish()
-	send(map[string]any{"type": "done", "view": w.view(0), "progress": w.progress(), "errors": w.errors, "errorCount": w.errorCount})
+	send(map[string]any{"type": "done", "view": w.view(0), "progress": w.progress(), "errors": w.errors, "errorCount": w.errorCount, "features": []string{"search"}})
 
 	in := bufio.NewScanner(os.Stdin)
 	in.Buffer(make([]byte, 4096), 4096)
+	var index *search.Index
 	for in.Scan() {
 		var request struct {
-			Type string `json:"type"`
-			ID   *int   `json:"id"`
+			Type  string       `json:"type"`
+			ID    *int         `json:"id"`
+			Query search.Query `json:"query"`
 		}
 		if json.Unmarshal(in.Bytes(), &request) != nil || request.Type == "close" {
 			return
+		}
+		if request.Type == "search" {
+			if index == nil {
+				index = w.index()
+			}
+			result, err := index.Search(context.Background(), request.Query, func(names []string) string { return path.Join(names...) })
+			if err != nil {
+				send(map[string]string{"type": "error", "error": err.Error()})
+				continue
+			}
+			send(map[string]any{"type": "search", "search": result})
+			continue
+		}
+		if request.Type != "view" {
+			send(map[string]string{"type": "error", "error": "The server scanner does not understand the request " + request.Type + "."})
+			continue
 		}
 		if request.ID == nil || *request.ID < 0 || *request.ID >= len(w.dirs) {
 			send(map[string]string{"type": "error", "error": "That folder is not in the scan results."})
@@ -371,6 +391,18 @@ func (w *walker) finish() {
 			d.parent.files += d.files
 		}
 	}
+}
+
+// index makes the search index the first time the user searches this scan.
+func (w *walker) index() *search.Index {
+	b := search.NewBuilder(int(w.entries.Load()), 0)
+	b.Add(w.root.name, -1, w.root.size, true, 0)
+	for _, d := range w.dirs {
+		for _, c := range d.children {
+			b.Add(c.name, d.id, c.size, c.dir, c.id)
+		}
+	}
+	return b.Finish()
 }
 
 type crumb struct {
