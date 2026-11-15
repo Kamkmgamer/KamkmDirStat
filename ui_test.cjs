@@ -244,7 +244,7 @@ console.log('UI treemap layout passed');
   return n;
  }
  function get(id){if(!els.has(id))els.set(id,node());return els.get(id)}
- for(const hours of [1,6,24,72]){const b=node('button');b.dataset.hours=String(hours);rangeButtons.push(b)}
+ for(const seconds of [300,900,3600,10800,21600,86400,259200]){const b=node('button');b.dataset.seconds=String(seconds);rangeButtons.push(b)}
  get('historyRanges').querySelectorAll=()=>rangeButtons;
  const emptyTitle=node('h2'),emptyDetail=node('p');get('historyEmpty').querySelector=s=>s==='h2'?emptyTitle:emptyDetail;
  const calls={strokes:0,fills:0,lines:0,text:0,rects:0};
@@ -283,10 +283,26 @@ console.log('UI treemap layout passed');
  console.log('UI history loading and alert baseline passed');
 
  // Range buttons use live relative ranges and clear any custom zoom.
- rangeButtons[1].onclick();await tick(10);
- assert.equal(vm.runInContext('historyHours',ctx),6);assert.equal(vm.runInContext('historyCustom',ctx),null);
+ rangeButtons[4].onclick();await tick(10);
+ assert.equal(vm.runInContext('historySeconds',ctx),21600);assert.equal(vm.runInContext('historyCustom',ctx),null);
  const sixHourQuery=queries.at(-1);assert.ok(Math.abs((sixHourQuery.to-sixHourQuery.from)-6*3600)<2);
- assert.equal(rangeButtons[1].attrs['aria-pressed'],'true');
+ assert.equal(rangeButtons[4].attrs['aria-pressed'],'true');
+ // A recording shorter than the range starts the chart at its first sample instead of leaving empty space.
+ assert.equal(vm.runInContext('historyData.from',ctx),points[0].time);
+ assert.ok(Math.abs(vm.runInContext('historyData.to',ctx)-sixHourQuery.to)<1);
+ assert.match(get('historyCoverage').textContent,/^Last 6 hours \(recorded 1 minute\)/);
+ rangeButtons[0].onclick();await tick(10);
+ const fiveMinuteQuery=queries.at(-1);assert.ok(Math.abs((fiveMinuteQuery.to-fiveMinuteQuery.from)-300)<2,'5-minute range requested');
+ assert.equal(vm.runInContext('historySeconds',ctx),300);assert.equal(rangeButtons[0].attrs['aria-pressed'],'true');
+ assert.equal(vm.runInContext('historyData.from',ctx),points[0].time);
+ // One fresh sample still gets a readable minimum span, and is drawn as a dot rather than an invisible line.
+ const single=vm.runInContext(`fitHistoryDomain({from:${now-3600},to:${now},points:[{time:${now-2},cpu:5}],events:[]})`,ctx);
+ assert.equal(single.to-single.from,30);
+ const arcs=[];const dotCtx={beginPath(){},moveTo(){},lineTo(){},stroke(){throw new Error('lone sample must not be stroked')},arc(...a){arcs.push(a)},fill(){}};
+ vm.runInContext('drawHistorySeries',ctx)(dotCtx,[{time:1,cpu:5}],null,p=>p.cpu,'#000',t=>t,v=>v,15);assert.equal(arcs.length,1);
+ const ticks=vm.runInContext(`historyTicks(${now-300},${now},720)`,ctx);
+ assert.ok(ticks.length>=3&&ticks.length<=8&&ticks.every(t=>t.time>=now-300&&t.time<=now),'ticks fit the visible span');
+ rangeButtons[4].onclick();await tick(10);
 
  // Process rows are CPU-sorted DOM nodes, and their nearest-snapshot queries are debounced.
  vm.runInContext(`inspectHistoryTime(${now-10})`,ctx);await tick(230);
@@ -308,7 +324,7 @@ console.log('UI treemap layout passed');
  canvas.onpointermove({pointerId:1,clientX:end});canvas.onpointerup({pointerId:1,clientX:end});await tick(20);
  const custom=vm.runInContext('historyCustom',ctx);assert.ok(custom&&custom.to>custom.from,'drag zoom selected a range');
  assert.ok(Math.abs((custom.to-custom.from)-160/(L.right-L.left)*beforeSpan)<2);
- assert.equal(vm.runInContext('historyHours',ctx),0);assert.ok(rangeButtons.every(b=>b.attrs['aria-pressed']==='false'));
+ assert.equal(vm.runInContext('historySeconds',ctx),0);assert.ok(rangeButtons.every(b=>b.attrs['aria-pressed']==='false'));
  console.log('UI history keyboard and drag zoom passed');
 
  // Exact types, alert/process groups, severity and text all compose locally.
@@ -360,7 +376,7 @@ console.log('UI treemap layout passed');
  let cleared=0;ctx.clearMonitorHistory=async()=>{cleared++};allEvents=[];processList=[];
  historyImpl=async q=>({from:q.from,to:q.to,points:[],events:[],...(q.processTime?{processTime:0,processes:[]}:{})});
  vm.runInContext("$('eventType').value='';$('eventSeverity').value='';$('eventSearch').value=''",ctx);
- await get('historyClear').onclick();assert.equal(cleared,1);assert.equal(vm.runInContext('historyHours',ctx),1);assert.equal(vm.runInContext('historyData.points.length',ctx),0);
+ await get('historyClear').onclick();assert.equal(cleared,1);assert.equal(vm.runInContext('historySeconds',ctx),3600);assert.equal(vm.runInContext('historyData.points.length',ctx),0);
  assert.equal(vm.runInContext('monitorEvents.length',ctx),0);assert.equal(vm.runInContext('knownEventIDs.size',ctx),0);assert.equal(get('historyEmpty').classList.contains('hidden'),false);
  console.log('UI history failures and clear workflow passed');
 })().catch(err=>{console.error(err);process.exitCode=1});

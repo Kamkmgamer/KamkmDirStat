@@ -472,6 +472,7 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 
 /* Local history and the event log share the monitor's compact, data-first layout. */
 .history-ranges{margin-left:auto}
+#history>.toolbar{flex-wrap:wrap;row-gap:8px}
 .history-grid{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px;min-height:560px;flex:1}
 .history-chart-panel,.history-process-panel,.events-panel{min-width:0;overflow:hidden}
 .history-chart-panel{display:flex;flex-direction:column}
@@ -997,7 +998,7 @@ refresh();
   <div class="toolbar">
     <div class="where"><h2 class="act-title">History</h2><p id="historySub">Resource use on this computer, kept for up to 72 hours.</p></div>
     <div class="pills history-ranges" id="historyRanges" role="group" aria-label="History range">
-      <button type="button" data-hours="1" aria-pressed="true">1 hour</button><button type="button" data-hours="6" aria-pressed="false">6 hours</button><button type="button" data-hours="24" aria-pressed="false">24 hours</button><button type="button" data-hours="72" aria-pressed="false">72 hours</button>
+      <button type="button" data-seconds="300" aria-pressed="false">5 min</button><button type="button" data-seconds="900" aria-pressed="false">15 min</button><button type="button" data-seconds="3600" aria-pressed="true">1 hour</button><button type="button" data-seconds="10800" aria-pressed="false">3 hours</button><button type="button" data-seconds="21600" aria-pressed="false">6 hours</button><button type="button" data-seconds="86400" aria-pressed="false">24 hours</button><button type="button" data-seconds="259200" aria-pressed="false">72 hours</button>
     </div>
     <button class="btn sm ghost" id="historyRefresh" type="button">Refresh</button>
     <button class="btn sm ghost danger" id="historyClear" type="button"><svg class="i"><use href="#i-trash"/></svg>Clear history</button>
@@ -2214,7 +2215,7 @@ for(const id of ['sCpu','sMem','sGpu','sNet']){
   c.onmouseleave=()=>{c._hover=null;c.nextElementSibling.classList.add('hidden');drawSpark(id)};
 }
 // ---- Local resource history and monitoring events ----
-let historyHours=1,historyCustom=null,historyData=null,historyCursor=null,historyHoverTime=null,historySelectedEvent=null;
+let historySeconds=3600,historyCustom=null,historyData=null,historyCursor=null,historyHoverTime=null,historySelectedEvent=null;
 let historyRequest=0,historyProcessRequest=0,historyProcessTimer=null,historyDrag=null,historyUpdateTimer=null;
 let monitorEvents=[],eventBaseline=false,knownEventIDs=new Set(),eventRequest=0;
 const historyCanvas=$('historyChart'),historyTip=$('historyTip');
@@ -2223,12 +2224,29 @@ const historyAlert=id=>!prefs||prefs.get(id,true)!==false;
 function clearElement(e){if(typeof e.replaceChildren==='function')e.replaceChildren();else e.textContent=''}
 function historyRange(){
   if(historyCustom)return {...historyCustom};
-  const to=historyNow();return {from:to-historyHours*3600,to};
+  const to=historyNow();return {from:to-historySeconds,to};
+}
+// The smallest span the chart shows, so a single fresh sample is not stretched into a vertical sliver.
+const HISTORY_MIN_SPAN=30;
+// Live ranges start at the first recorded sample (or event) in the window instead of at the window's edge,
+// so a recording that began minutes ago fills the chart rather than hugging its right side.
+function fitHistoryDomain(data){
+  if(historyCustom)return data;
+  const starts=[];
+  if(data.points.length)starts.push(data.points[0].time);
+  for(const e of data.events)if(e.time>=data.from&&e.time<=data.to)starts.push(e.time);
+  if(!starts.length)return data;
+  const to=data.to,from=Math.max(data.from,Math.min(Math.min(...starts),to-HISTORY_MIN_SPAN));
+  return {...data,from,to};
+}
+function historySpanLabel(seconds){
+  if(seconds<3600){const m=Math.round(seconds/60);return m+(m===1?' minute':' minutes')}
+  const h=Math.round(seconds/360)/10;return h+(h===1?' hour':' hours');
 }
 function syncHistoryRanges(){
   const box=$('historyRanges');if(!box||typeof box.querySelectorAll!=='function')return;
-  for(const b of box.querySelectorAll('button[data-hours]')){
-    const active=!historyCustom&&Number(b.dataset.hours)===historyHours;
+  for(const b of box.querySelectorAll('button[data-seconds]')){
+    const active=!historyCustom&&Number(b.dataset.seconds)===historySeconds;
     b.setAttribute('aria-pressed',String(active));
   }
 }
@@ -2251,8 +2269,9 @@ function eventsStorageWarning(text){
 }
 function historyCoverage(data){
   if(!data.points.length)return data.oldest?'No samples in this range':'No samples loaded';
-  const span=historyCustom?'Custom range':historyHours+(historyHours===1?' hour':' hours');
-  return span+' · '+count(data.points.length)+' samples · '+new Date(data.points[0].time*1000).toLocaleTimeString()+'–'+new Date(data.points[data.points.length-1].time*1000).toLocaleTimeString();
+  const requested=historyCustom?'Custom range':'Last '+historySpanLabel(historySeconds);
+  const shown=data.to-data.from,fitted=!historyCustom&&shown<historySeconds-60?' (recorded '+historySpanLabel(shown)+')':'';
+  return requested+fitted+' · '+count(data.points.length)+' samples · '+new Date(data.points[0].time*1000).toLocaleTimeString()+'–'+new Date(data.points[data.points.length-1].time*1000).toLocaleTimeString();
 }
 async function loadResourceHistory(background=false){
   if(typeof monitorHistory!=='function'){
@@ -2263,7 +2282,7 @@ async function loadResourceHistory(background=false){
   try{
     const data=await monitorHistory({...range,points:Math.max(200,Math.min(1600,historyCanvas.clientWidth||900)),eventType:'',eventLimit:5000});
     if(seq!==historyRequest)return null;
-    historyData={...data,points:Array.isArray(data.points)?data.points:[],events:Array.isArray(data.events)?data.events:[]};
+    historyData=fitHistoryDomain({...data,points:Array.isArray(data.points)?data.points:[],events:Array.isArray(data.events)?data.events:[]});
     if(historyCursor!==null&&(historyCursor<historyData.from||historyCursor>historyData.to))historyCursor=null;
     if(historySelectedEvent&&(historySelectedEvent.time<historyData.from||historySelectedEvent.time>historyData.to))historySelectedEvent=null;
     $('historyCoverage').textContent=historyCoverage(historyData);
@@ -2371,16 +2390,34 @@ function historyNiceMax(value){
   return (scaled<=1?1:scaled<=2?2:scaled<=5?5:10)*power;
 }
 function drawHistorySeries(ctx,points,lane,get,color,x,y,gap){
-  let started=false,previous=null;
+  // Segments break at gaps; a segment with a single sample is drawn as a dot so it stays visible.
+  let segment=0,previous=null,lone=null;
+  const dot=p=>{ctx.fillStyle=color;ctx.beginPath();ctx.arc(p[0],p[1],2.2,0,Math.PI*2);ctx.fill()};
+  const end=()=>{if(segment>1)ctx.stroke();else if(segment===1)dot(lone);segment=0;ctx.beginPath()};
   ctx.strokeStyle=color;ctx.lineWidth=1.45;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
   for(const p of points){
-    const value=get(p);
-    if(value===null||value===undefined||!isFinite(value)||previous!==null&&p.time-previous>gap){if(started)ctx.stroke();started=false;ctx.beginPath()}
-    previous=p.time;if(value===null||value===undefined||!isFinite(value))continue;
+    const value=get(p),missing=value===null||value===undefined||!isFinite(value);
+    if(missing||previous!==null&&p.time-previous>gap)end();
+    previous=p.time;if(missing)continue;
     const px=x(p.time),py=y(value);
-    if(!started){ctx.moveTo(px,py);started=true}else ctx.lineTo(px,py);
+    if(!segment){ctx.moveTo(px,py);lone=[px,py]}else ctx.lineTo(px,py);
+    segment++;
   }
-  if(started)ctx.stroke();
+  end();
+}
+// Tick labels adapt to both the visible span and the chart width.
+function historyTicks(from,to,width){
+  const span=to-from,count=Math.max(2,Math.min(8,Math.floor(width/120)+1)),steps=[5,10,15,30,60,120,300,600,900,1800,3600,7200,10800,21600,43200,86400];
+  const step=steps.find(s=>span/s<=count-1)||Math.ceil(span/(count-1)/86400)*86400;
+  const offset=new Date().getTimezoneOffset()*60,ticks=[];
+  for(let t=Math.ceil((from-offset)/step)*step+offset;t<=to;t+=step)ticks.push(t);
+  const fmt=t=>{
+    const d=new Date(t*1000);
+    if(span<=15*60)return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    if(span<=24*3600)return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    return d.toLocaleDateString([],{weekday:'short'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  };
+  return ticks.map(t=>({time:t,label:fmt(t)}));
 }
 function drawResourceHistory(){
   const c=historyCanvas;if(!c||typeof c.getContext!=='function'||!historyData)return;
@@ -2428,8 +2465,13 @@ function drawResourceHistory(){
     ctx.fillStyle=withAlpha(colors.accent,.14);ctx.fillRect(a,L.top,Math.max(1,b-a),L.bottom-L.top);ctx.strokeStyle=colors.accent;ctx.strokeRect(a+.5,L.top+.5,Math.max(1,b-a),L.bottom-L.top-1);
   }
   ctx.font='500 10px '+font;ctx.fillStyle=colors.faint;ctx.textBaseline='alphabetic';
-  const tick=t=>span<=6*3600?new Date(t*1000).toLocaleTimeString():new Date(t*1000).toLocaleDateString();
-  ctx.textAlign='left';ctx.fillText(tick(historyData.from),L.left,H-8);ctx.textAlign='center';ctx.fillText(tick(historyData.from+span/2),(L.left+L.right)/2,H-8);ctx.textAlign='right';ctx.fillText(tick(historyData.to),L.right,H-8);
+  let lastRight=-Infinity;
+  for(const t of historyTicks(historyData.from,historyData.to,L.right-L.left)){
+    const tx=x(t.time),w=ctx.measureText(t.label).width,left=Math.max(L.left,Math.min(L.right-w,tx-w/2));
+    if(left<lastRight+12)continue;
+    ctx.strokeStyle=colors.border;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(Math.round(tx)+.5,L.bottom);ctx.lineTo(Math.round(tx)+.5,L.bottom+4);ctx.stroke();
+    ctx.textAlign='left';ctx.fillText(t.label,left,H-8);lastRight=left+w;
+  }
   c._historyLayout=L;
 }
 function historyPointerTime(e){
@@ -2455,7 +2497,7 @@ if(historyCanvas){
     if(!historyDrag)return;
     const drag=historyDrag,p=historyPointerTime(e);historyDrag=null;historyHoverTime=null;historyTip.classList.add('hidden');
     if(drag.moved&&Math.abs(drag.startTime-p.time)>=1){
-      historyCustom={from:Math.min(drag.startTime,p.time),to:Math.max(drag.startTime,p.time)};historyHours=0;historyCursor=null;historySelectedEvent=null;resetHistoryProcesses();syncHistoryRanges();loadResourceHistory();
+      historyCustom={from:Math.min(drag.startTime,p.time),to:Math.max(drag.startTime,p.time)};historySeconds=0;historyCursor=null;historySelectedEvent=null;resetHistoryProcesses();syncHistoryRanges();loadResourceHistory();
     }else inspectHistoryTime(p.time);
     if(historyCanvas.releasePointerCapture&&historyCanvas.hasPointerCapture&&historyCanvas.hasPointerCapture(e.pointerId))historyCanvas.releasePointerCapture(e.pointerId);
   };
@@ -2468,8 +2510,8 @@ if(historyCanvas){
     historyHoverTime=null;inspectHistoryTime(points[index].time);
   };
 }
-if($('historyRanges')&&typeof $('historyRanges').querySelectorAll==='function')for(const b of $('historyRanges').querySelectorAll('button[data-hours]'))b.onclick=()=>{
-  historyHours=Number(b.dataset.hours);historyCustom=null;historyCursor=null;historySelectedEvent=null;historyHoverTime=null;resetHistoryProcesses();syncHistoryRanges();loadResourceHistory();
+if($('historyRanges')&&typeof $('historyRanges').querySelectorAll==='function')for(const b of $('historyRanges').querySelectorAll('button[data-seconds]'))b.onclick=()=>{
+  historySeconds=Number(b.dataset.seconds);historyCustom=null;historyCursor=null;historySelectedEvent=null;historyHoverTime=null;resetHistoryProcesses();syncHistoryRanges();loadResourceHistory();
 };
 $('historyRefresh').onclick=()=>loadResourceHistory();
 $('historyClear').onclick=async()=>{
@@ -2479,7 +2521,7 @@ $('historyClear').onclick=async()=>{
   try{
     await clearMonitorHistory();
     historyRequest++;historyProcessRequest++;eventRequest++;clearTimeout(historyProcessTimer);
-    historyData=null;historyCursor=null;historyHoverTime=null;historySelectedEvent=null;historyCustom=null;historyHours=1;monitorEvents=[];knownEventIDs=new Set();eventBaseline=false;
+    historyData=null;historyCursor=null;historyHoverTime=null;historySelectedEvent=null;historyCustom=null;historySeconds=3600;monitorEvents=[];knownEventIDs=new Set();eventBaseline=false;
     syncHistoryRanges();clearElement($('historyProcesses'));$('historyProcessTime').textContent='Process snapshots are taken every 10 seconds.';renderMonitorEvents();
     toast('Local monitoring history cleared.');await Promise.all([loadResourceHistory(),loadMonitorEvents()]);
   }catch(e){const message=String(e);historyStorageWarning(message);toast(message,{error:true})}
@@ -2545,7 +2587,7 @@ async function loadMonitorEvents(background=false){
   }
 }
 function inspectMonitorEvent(e){
-  historySelectedEvent=e;historyCursor=e.time;historyHoverTime=null;historyHours=0;historyCustom={from:e.time-1800,to:e.time+1800};
+  historySelectedEvent=e;historyCursor=e.time;historyHoverTime=null;historySeconds=0;historyCustom={from:e.time-1800,to:e.time+1800};
   clearTimeout(historyProcessTimer);syncHistoryRanges();setTab('history');
 }
 for(const [id] of [['alertFirstRun'],['alertUnsigned'],['alertResource']]){
