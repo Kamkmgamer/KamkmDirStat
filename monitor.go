@@ -201,6 +201,13 @@ func stopMonitor() error {
 	return nil
 }
 
+// recordSample publishes a local sample and records it before the page polls it. Remote
+// samples stay out of this PC's history.
+func recordSample(raw json.RawMessage) func(*MonitorStatus) {
+	recordMonitorSample(raw)
+	return func(s *MonitorStatus) { s.Sample = raw; s.Seq++ }
+}
+
 func monitorStatus() MonitorStatus {
 	monitorState.Lock()
 	defer monitorState.Unlock()
@@ -284,13 +291,18 @@ func runMonitor(ctx context.Context, c Connection, writes <-chan []byte, update 
 	if err := session.Start(command); err != nil {
 		return fmt.Errorf("The server does not allow running commands, which monitoring needs: %w", err)
 	}
-	return monitorProtocol(ctx, input, stdout, func() { _ = client.Close() }, "the server", writes, update)
+	return monitorProtocolMode(ctx, input, stdout, func() { _ = client.Close() }, "the server", writes, update, false)
 }
 
 // monitorProtocol talks to remote_monitor.py over its standard input and output, whether
 // it runs on a server or, on Linux, on this computer. abort unblocks stalled reads.
 func monitorProtocol(ctx context.Context, input io.Writer, stdout io.Reader, abort func(), where string,
 	writes <-chan []byte, update func(func(*MonitorStatus)) bool) error {
+	return monitorProtocolMode(ctx, input, stdout, abort, where, writes, update, false)
+}
+
+func monitorProtocolMode(ctx context.Context, input io.Writer, stdout io.Reader, abort func(), where string,
+	writes <-chan []byte, update func(func(*MonitorStatus)) bool, record bool) error {
 	output := bufio.NewReaderSize(stdout, 64<<10)
 	header := make(chan string, 1)
 	go func() { header <- readScriptHeader(output, "SSM1 ") }()
@@ -346,7 +358,11 @@ func monitorProtocol(ctx context.Context, input io.Writer, stdout io.Reader, abo
 		case "hello":
 			current = update(func(s *MonitorStatus) { s.Hello = raw; s.Connecting = false })
 		case "sample":
-			current = update(func(s *MonitorStatus) { s.Sample = raw; s.Seq++ })
+			publish := func(s *MonitorStatus) { s.Sample = raw; s.Seq++ }
+			if record {
+				publish = recordSample(raw)
+			}
+			current = update(publish)
 		case "result":
 			current = update(func(s *MonitorStatus) { addMonitorResult(s, raw) })
 		case "error":

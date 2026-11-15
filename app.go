@@ -30,32 +30,34 @@ func appPlatform() string { return runtime.GOOS }
 // bindAll exposes the app's functions to the page. extra holds platform-only functions.
 func bindAll(w window, extra map[string]interface{}) error {
 	functions := map[string]interface{}{
-		"appPlatform":       appPlatform,
-		"startResolve":      startResolve,
-		"resolveStatus":     resolveStatus,
-		"startFingerprint":  startFingerprint,
-		"fingerprintStatus": fingerprintStatus,
-		"startScan":         startScan,
-		"scanStatus":        scanStatus,
-		"cancelScan":        cancelScan,
-		"clearResults":      clearResults,
-		"startView":         startView,
-		"viewStatus":        viewStatus,
-		"startSearch":       startSearch,
-		"searchStatus":      searchStatus,
-		"startOpen":         startOpen,
-		"openStatus":        openStatus,
-		"cancelOpen":        cancelOpen,
-		"driveIndexStatus":  driveIndexStatus,
-		"refreshDriveIndex": refreshDriveIndex,
-		"setupIndexService": startIndexServiceSetup,
-		"startMonitor":      startMonitor,
-		"stopMonitor":       stopMonitor,
-		"monitorStatus":     monitorStatus,
-		"monitorAction":     monitorAction,
-		"listDrives":        listDrives,
-		"saveSettings":      saveSettings,
-		"exportTheme":       exportTheme,
+		"appPlatform":         appPlatform,
+		"startResolve":        startResolve,
+		"resolveStatus":       resolveStatus,
+		"startFingerprint":    startFingerprint,
+		"fingerprintStatus":   fingerprintStatus,
+		"startScan":           startScan,
+		"scanStatus":          scanStatus,
+		"cancelScan":          cancelScan,
+		"clearResults":        clearResults,
+		"startView":           startView,
+		"viewStatus":          viewStatus,
+		"startSearch":         startSearch,
+		"searchStatus":        searchStatus,
+		"startOpen":           startOpen,
+		"openStatus":          openStatus,
+		"cancelOpen":          cancelOpen,
+		"driveIndexStatus":    driveIndexStatus,
+		"refreshDriveIndex":   refreshDriveIndex,
+		"setupIndexService":   startIndexServiceSetup,
+		"startMonitor":        startMonitor,
+		"stopMonitor":         stopMonitor,
+		"monitorStatus":       monitorStatus,
+		"monitorAction":       monitorAction,
+		"monitorHistory":      monitorHistory,
+		"clearMonitorHistory": clearMonitorHistory,
+		"listDrives":          listDrives,
+		"saveSettings":        saveSettings,
+		"exportTheme":         exportTheme,
 	}
 	for name, f := range extra {
 		functions[name] = f
@@ -74,6 +76,7 @@ func runWindow(w window, settings json.RawMessage, extra map[string]interface{})
 	defer stopDriveIndex()
 	defer closeResults()
 	defer stopMonitor()
+	defer closeMonitorHistory()
 	defer cancelOpen()
 	w.SetTitle(windowTitle)
 	if err := bindAll(w, extra); err != nil {

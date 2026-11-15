@@ -259,7 +259,8 @@ def process_table(previous, elapsed, cores, total_memory, me):
             command = ''
         row['cmd'] = command[:300]
         row['protected'] = row['pid'] in guarded or row['ppid'] == launcher
-    return list(chosen.values()), len(rows), current
+    activity = rows if os.environ.get('KAMKM_LOCAL') == '1' else []
+    return list(chosen.values()), activity, len(rows), current
 
 
 def protected_pids():
@@ -400,7 +401,7 @@ def run():
     cpu_before, cores_before = cpu_times()
     net_before, procs_before = network(), {}
     last = time.monotonic()
-    _, _, procs_before = process_table({}, 0, 1, 0, me)
+    _, _, _, procs_before = process_table({}, 0, 1, 0, me)
     deadline = last + FIRST_INTERVAL
     while True:
         while True:
@@ -422,7 +423,7 @@ def run():
         cpu_now, cores_now = cpu_times()
         net_now = network()
         mem = memory()
-        rows, count, procs_before = process_table(procs_before, elapsed, max(1, len(cores_now)), mem['total'], me)
+        rows, activity, count, procs_before = process_table(procs_before, elapsed, max(1, len(cores_now)), mem['total'], me)
         gpu_list, gpu_note = gpus.sample()
         interfaces = []
         for name, (rx, tx) in sorted(net_now.items()):
@@ -444,7 +445,7 @@ def run():
                       'system': round(share(cpu_now, cpu_before, 3), 1), 'iowait': round(share(cpu_now, cpu_before, 4), 1),
                       'cores': cores},
               'memory': mem, 'gpus': gpu_list, 'gpuNote': gpu_note, 'network': interfaces,
-              'processes': rows, 'processCount': count})
+              'processes': rows, 'processActivity': activity, 'processCount': count})
         cpu_before, cores_before, net_before = cpu_now, cores_now, net_now
 
 

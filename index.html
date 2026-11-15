@@ -470,6 +470,54 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 .filter input{height:28px!important}
 .no-gpu .gpu-only{display:none}
 
+/* Local history and the event log share the monitor's compact, data-first layout. */
+.history-ranges{margin-left:auto}
+.history-grid{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px;min-height:560px;flex:1}
+.history-chart-panel,.history-process-panel,.events-panel{min-width:0;overflow:hidden}
+.history-chart-panel{display:flex;flex-direction:column}
+.timeline-wrap{position:relative;flex:1;min-height:410px;background:var(--surface)}
+#historyChart{position:absolute;inset:0;display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+.history-tip{z-index:3;max-width:290px;line-height:1.55;white-space:normal;pointer-events:none}
+.history-empty{position:absolute;inset:0;pointer-events:none;background:var(--surface)}
+.history-empty h2{margin:0;color:var(--text);font-size:15px}
+.history-empty p{max-width:390px;margin:0;line-height:1.6}
+.history-readout{min-height:35px;padding:9px 14px;border-top:1px solid var(--border);color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.history-process-panel{display:flex;flex-direction:column}
+.history-process-body{min-height:0;padding:12px 14px;overflow:auto}
+.history-process-body>.hint{display:block;margin-bottom:12px}
+.history-processes{display:flex;flex-direction:column}
+.history-process{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:10px 0;border-top:1px solid var(--border)}
+.history-process:first-child{border-top:0;padding-top:0}
+.history-process .pname{overflow:hidden;color:var(--text);font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.history-process .pcpu{color:var(--text);font-variant-numeric:tabular-nums;text-align:right}
+.history-process .pmeta{grid-column:1/-1;color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.history-process .ppath{grid-column:1/-1;color:var(--text-faint);font-family:var(--mono);font-size:10.5px;overflow-wrap:anywhere}
+.events-panel{display:flex;flex-direction:column;min-height:0;flex:1}
+.event-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.event-filters select{width:190px}
+.event-search{flex:1;min-width:230px;max-width:430px}
+.event-filters .found{margin-left:auto}
+.alert-preferences{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface-raised);color:var(--text-muted);font-size:12px}
+.alert-preferences>span:first-child{color:var(--text);font-weight:600}
+.alert-preferences>.hint{margin-left:auto}
+.check{display:inline-flex;align-items:center;gap:7px;color:var(--text-muted);cursor:pointer}
+.event-list{min-height:0;overflow:auto;flex:1}
+.event-row{display:grid;grid-template-columns:132px minmax(0,1fr);gap:16px;width:100%;padding:13px 16px;border:0;border-bottom:1px solid var(--border);background:var(--surface);color:var(--text);text-align:left;cursor:pointer}
+.event-row:hover{background:var(--hover)}
+.event-row:focus-visible{position:relative;z-index:1;outline-offset:-2px}
+.event-when{color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.event-when span{display:block;margin-top:3px;color:var(--text-faint)}
+.event-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-weight:600}
+.severity{display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:var(--r-sm);background:var(--surface-raised);color:var(--text-muted);font-size:10.5px;font-weight:600}
+.severity.warning{background:var(--warning-surface);color:var(--warning-foreground)}
+.severity.notice{background:var(--accent-surface);color:var(--accent-text)}
+.event-message{margin-top:3px;color:var(--text-muted);line-height:1.5;overflow-wrap:anywhere}
+.event-details{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:7px;color:var(--text-faint);font-size:11.5px}
+.event-path{margin-top:6px;color:var(--text-faint);font-family:var(--mono);font-size:11px;line-height:1.5;overflow-wrap:anywhere;user-select:text}
+.event-empty{padding:40px 20px}
+@media (max-width:1100px){.history-grid{grid-template-columns:minmax(0,1fr)}.history-process-panel{max-height:310px}.history-ranges{margin-left:0}.alert-preferences>.hint{margin-left:0;flex-basis:100%}}
+@media (max-width:900px){.event-row{grid-template-columns:105px minmax(0,1fr);gap:10px}.event-filters select{width:160px}}
+
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:var(--scrollbar);border:2px solid transparent;border-radius:6px;background-clip:padding-box}
 ::-webkit-scrollbar-thumb:hover{background-color:var(--scrollbar-hover)}
@@ -807,6 +855,8 @@ refresh();
   <symbol id="i-pen" viewBox="0 0 16 16"><path d="M10.5 2.75 13.25 5.5 5.75 13H3v-2.75z"/></symbol>
   <symbol id="i-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></symbol>
   <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13.25 9.5A5.75 5.75 0 0 1 6.5 2.75a5.75 5.75 0 1 0 6.75 6.75z"/></symbol>
+  <symbol id="i-history" viewBox="0 0 16 16"><path d="M2.25 5.25V1.75m0 3.5h3.5M2.4 5.1A6.25 6.25 0 1 1 1.75 9"/><path d="M8 4.75V8l2.25 1.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 1.75 14.25 13H1.75z"/><path d="M8 6v3.25M8 11.5h.01"/></symbol>
 </svg>
 
 <header class="titlebar">
@@ -814,6 +864,8 @@ refresh();
   <nav class="tabs" role="tablist" aria-label="View">
     <button class="tab" id="tabActivity" type="button" role="tab" aria-selected="true" aria-controls="activity" title="Activity (Ctrl+2)"><svg class="i"><use href="#i-pulse"/></svg>Activity<i class="live hidden" id="liveDot" title="Monitoring"></i></button>
     <button class="tab" id="tabStorage" type="button" role="tab" aria-selected="false" aria-controls="workspace" title="Storage (Ctrl+1)"><svg class="i"><use href="#i-drive"/></svg>Storage</button>
+    <button class="tab" id="tabHistory" type="button" role="tab" aria-selected="false" aria-controls="history" title="History (Ctrl+3)"><svg class="i"><use href="#i-history"/></svg>History</button>
+    <button class="tab" id="tabEvents" type="button" role="tab" aria-selected="false" aria-controls="events" title="Events (Ctrl+4)"><svg class="i"><use href="#i-alert"/></svg>Events</button>
   </nav>
   <div class="spacer"></div>
   <div class="conn" id="conn" data-state="idle" title="Connection"><i class="dot"></i><span id="connText">Not connected</span></div>
@@ -940,11 +992,62 @@ refresh();
     </div>
   </div>
 </main>
+
+<main id="history" class="activity hidden" role="tabpanel" aria-labelledby="tabHistory" aria-hidden="true">
+  <div class="toolbar">
+    <div class="where"><h2 class="act-title">History</h2><p id="historySub">Resource use on this computer, kept for up to 72 hours.</p></div>
+    <div class="pills history-ranges" id="historyRanges" role="group" aria-label="History range">
+      <button type="button" data-hours="1" aria-pressed="true">1 hour</button><button type="button" data-hours="6" aria-pressed="false">6 hours</button><button type="button" data-hours="24" aria-pressed="false">24 hours</button><button type="button" data-hours="72" aria-pressed="false">72 hours</button>
+    </div>
+    <button class="btn sm ghost" id="historyRefresh" type="button">Refresh</button>
+    <button class="btn sm ghost danger" id="historyClear" type="button"><svg class="i"><use href="#i-trash"/></svg>Clear history</button>
+  </div>
+  <div class="notice error hidden" id="historyStorage" role="status" aria-live="polite"><span id="historyStorageText"></span></div>
+  <div class="history-grid">
+    <section class="panel history-chart-panel" aria-labelledby="historyChartTitle">
+      <div class="panel-head"><h3 class="panel-title" id="historyChartTitle"><svg class="i"><use href="#i-history"/></svg>Resource timeline <small id="historyCoverage">No samples loaded</small></h3><span class="hint">Drag across the chart to zoom</span></div>
+      <div class="timeline-wrap" id="historyChartWrap">
+        <canvas id="historyChart" tabindex="0" aria-label="CPU, memory, GPU and network history. Use the left and right arrow keys to inspect samples."></canvas>
+        <div class="tip history-tip hidden" id="historyTip"></div>
+        <div class="empty history-empty" id="historyEmpty"><h2>No local history yet</h2><p>Keep local monitoring running to record resource use. History does not advance while the app is closed.</p></div>
+      </div>
+      <div class="history-readout" id="historyReadout" aria-live="polite">Hover over the timeline to inspect a time.</div>
+    </section>
+    <section class="panel history-process-panel" aria-labelledby="historyProcessesTitle">
+      <div class="panel-head"><h3 class="panel-title" id="historyProcessesTitle"><svg class="i"><use href="#i-list"/></svg>Processes at that time</h3></div>
+      <div class="history-process-body"><p class="hint" id="historyProcessTime">Process snapshots are taken every 10 seconds.</p><div id="historyProcesses" class="history-processes"></div></div>
+    </section>
+  </div>
+</main>
+
+<main id="events" class="activity hidden" role="tabpanel" aria-labelledby="tabEvents" aria-hidden="true">
+  <div class="toolbar">
+    <div class="where"><h2 class="act-title">Events</h2><p id="eventsSub">Process activity and alerts from local monitoring.</p></div>
+    <button class="btn sm ghost" id="eventsRefresh" type="button">Refresh</button>
+  </div>
+  <div class="notice error hidden" id="eventsStorage" role="status" aria-live="polite"><span id="eventsStorageText"></span></div>
+  <section class="panel events-panel">
+    <div class="event-filters">
+      <div class="input filter event-search"><svg class="i"><use href="#i-search"/></svg><input id="eventSearch" type="search" placeholder="Search process, path, publisher or PID" aria-label="Search events" spellcheck="false"></div>
+      <select id="eventType" aria-label="Event type"><option value="">All event types</option><option value="alerts">All alerts</option><option value="processes">Process starts and exits</option><option value="process_new">First-run alerts</option><option value="process_unsigned">Signature alerts</option><option value="resource_cpu">CPU alerts</option><option value="resource_memory">Memory alerts</option><option value="resource_gpu">GPU alerts</option></select>
+      <select id="eventSeverity" aria-label="Event severity"><option value="">Any severity</option><option value="warning">Warning</option><option value="notice">Notice</option><option value="info">Info</option></select>
+      <span class="found" id="eventCount" aria-live="polite"></span>
+    </div>
+    <div class="alert-preferences" aria-label="Alert pop-up preferences">
+      <span>Show alert pop-ups</span>
+      <label class="check"><input id="alertFirstRun" type="checkbox"><span>First run</span></label>
+      <label class="check"><input id="alertUnsigned" type="checkbox"><span>Unverified signature</span></label>
+      <label class="check"><input id="alertResource" type="checkbox"><span>Sustained high use</span></label>
+      <span class="hint">Events are recorded even when pop-ups are off.</span>
+    </div>
+    <div class="event-list" id="eventList"></div>
+  </section>
+</main>
 </div>
 
 <div id="menu" class="menu hidden" role="menu"></div>
 <div id="toast" class="toast hidden" role="status" aria-live="polite"><div class="row"><span class="msg" id="toastMsg"></span><button class="btn sm hidden" id="toastAct" type="button"></button><button class="icon-btn sm" id="toastClose" type="button" title="Dismiss" aria-label="Dismiss"><svg class="i"><use href="#i-x"/></svg></button></div><div class="bar hidden" id="toastBar"><i id="toastFill"></i></div><div class="sub hidden" id="toastSub"></div></div>
-<footer class="statusbar"><span id="footer">Ready</span><span class="keys" id="footerKeys"><kbd>Ctrl</kbd> <kbd>F</kbd> search &nbsp; <kbd>Backspace</kbd> up a folder &nbsp; <kbd>Ctrl</kbd> <kbd>1</kbd> <kbd>2</kbd> view &nbsp; <kbd>Ctrl</kbd> <kbd>B</kbd> panel &nbsp; <kbd>Ctrl</kbd> <kbd>,</kbd> appearance</span></footer>
+<footer class="statusbar"><span id="footer">Ready</span><span class="keys" id="footerKeys"><kbd>Ctrl</kbd> <kbd>F</kbd> search &nbsp; <kbd>Ctrl</kbd> <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> view &nbsp; <kbd>Ctrl</kbd> <kbd>B</kbd> panel &nbsp; <kbd>Ctrl</kbd> <kbd>,</kbd> appearance</span></footer>
 
 <div id="appearance" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appearanceTitle">
   <div class="dialog wide">
@@ -1034,7 +1137,7 @@ const localName=()=>platform==='darwin'?'This Mac':platform==='linux'?'This comp
 function applyPlatform(){
   $('localTargetName').textContent=localName();
   $('localFolder').placeholder=platform==='windows'?'C:\\Users\\you\\Downloads':platform==='darwin'?'/Users/you/Downloads':'/home/you/Downloads';
-  if(platform==='darwin'){$('findKey').textContent='⌘F';$('footerKeys').innerHTML='<kbd>⌘</kbd> <kbd>F</kbd> search &nbsp; <kbd>⌫</kbd> up a folder &nbsp; <kbd>⌘</kbd> <kbd>1</kbd> <kbd>2</kbd> view &nbsp; <kbd>⌘</kbd> <kbd>B</kbd> panel &nbsp; <kbd>⌘</kbd> <kbd>,</kbd> appearance'}
+  if(platform==='darwin'){$('findKey').textContent='⌘F';$('footerKeys').innerHTML='<kbd>⌘</kbd> <kbd>F</kbd> search &nbsp; <kbd>⌘</kbd> <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> view &nbsp; <kbd>⌘</kbd> <kbd>B</kbd> panel &nbsp; <kbd>⌘</kbd> <kbd>,</kbd> appearance'}
   syncFind();
 }
 try{if((prefs?prefs.get('target'):localStorage.getItem('kamkm.target'))==='remote')target='remote'}catch(e){}
@@ -1136,7 +1239,7 @@ document.onkeydown=e=>{
   if(e.key==='Escape'&&Dash.escape()){e.preventDefault();return}
   if((e.ctrlKey||e.metaKey)&&e.key===','){e.preventDefault();openAppearance();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();$('toggleSide').click();return}
-  if((e.ctrlKey||e.metaKey)&&(e.key==='1'||e.key==='2')){e.preventDefault();setTab(e.key==='1'?'storage':'activity');return}
+  if((e.ctrlKey||e.metaKey)&&['1','2','3','4'].includes(e.key)){e.preventDefault();setTab({1:'storage',2:'activity',3:'history',4:'events'}[e.key]);return}
   if(typing)return;
   if(tab==='storage'&&!filesMode&&(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp'))){e.preventDefault();goUp()}
 };
@@ -1739,12 +1842,24 @@ function record(s){
 }
 const activityVisible=()=>tab==='activity'&&!(typeof document.hidden==='boolean'&&document.hidden);
 function showActivity(){if(sample&&activityStale&&activityVisible()){activityStale=false;renderActivity()}}
+const TAB_VIEWS={storage:['workspace','tabStorage'],activity:['activity','tabActivity'],history:['history','tabHistory'],events:['events','tabEvents']};
 function setTab(t){
-  tab=t;$('workspace').classList.toggle('hidden',t!=='storage');$('activity').classList.toggle('hidden',t!=='activity');
-  $('tabStorage').setAttribute('aria-selected',String(t==='storage'));$('tabActivity').setAttribute('aria-selected',String(t==='activity'));
-  if(t==='storage')setTimeout(redraw,0);else setTimeout(()=>{showActivity();drawSparks()},0);
+  if(!TAB_VIEWS[t])return;
+  tab=t;
+  for(const [name,[panel,button]] of Object.entries(TAB_VIEWS)){
+    const selected=name===t;$(panel).classList.toggle('hidden',!selected);$(panel).setAttribute('aria-hidden',String(!selected));
+    $(button).setAttribute('aria-selected',String(selected));$(button).tabIndex=selected?0:-1;
+  }
+  if(t==='storage')setTimeout(redraw,0);
+  else if(t==='activity')setTimeout(()=>{showActivity();drawSparks()},0);
+  else if(t==='history')setTimeout(()=>{loadResourceHistory();drawResourceHistory()},0);
+  else setTimeout(loadMonitorEvents,0);
 }
-$('tabStorage').onclick=()=>setTab('storage');$('tabActivity').onclick=()=>setTab('activity');
+const tabButtons=Object.values(TAB_VIEWS).map(([,button])=>button);
+for(const [name,[,button]] of Object.entries(TAB_VIEWS)){
+  $(button).onclick=()=>setTab(name);
+  $(button).onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const current=tabButtons.indexOf(button),next=e.key==='Home'?0:e.key==='End'?tabButtons.length-1:(current+(e.key==='ArrowRight'?1:-1)+tabButtons.length)%tabButtons.length;$(tabButtons[next]).click();$(tabButtons[next]).focus()};
+}
 if(typeof document.addEventListener==='function')document.addEventListener('visibilitychange',showActivity);
 function notice(text,kind){const n=$('actNotice');$('actNoticeText').textContent=text;n.classList.toggle('error',kind==='error');n.classList.toggle('busy',kind==='busy');n.classList.toggle('hidden',!text)}
 $('actNoticeClose').onclick=()=>notice('');
@@ -2098,7 +2213,353 @@ for(const id of ['sCpu','sMem','sGpu','sNet']){
   };
   c.onmouseleave=()=>{c._hover=null;c.nextElementSibling.classList.add('hidden');drawSpark(id)};
 }
-window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{redraw();drawSparks()},150)});
+// ---- Local resource history and monitoring events ----
+let historyHours=1,historyCustom=null,historyData=null,historyCursor=null,historyHoverTime=null,historySelectedEvent=null;
+let historyRequest=0,historyProcessRequest=0,historyProcessTimer=null,historyDrag=null,historyUpdateTimer=null;
+let monitorEvents=[],eventBaseline=false,knownEventIDs=new Set(),eventRequest=0;
+const historyCanvas=$('historyChart'),historyTip=$('historyTip');
+const historyNow=()=>Date.now()/1000;
+const historyAlert=id=>!prefs||prefs.get(id,true)!==false;
+function clearElement(e){if(typeof e.replaceChildren==='function')e.replaceChildren();else e.textContent=''}
+function historyRange(){
+  if(historyCustom)return {...historyCustom};
+  const to=historyNow();return {from:to-historyHours*3600,to};
+}
+function syncHistoryRanges(){
+  const box=$('historyRanges');if(!box||typeof box.querySelectorAll!=='function')return;
+  for(const b of box.querySelectorAll('button[data-hours]')){
+    const active=!historyCustom&&Number(b.dataset.hours)===historyHours;
+    b.setAttribute('aria-pressed',String(active));
+  }
+}
+function setHistoryEmpty(title,detail,show=true){
+  const box=$('historyEmpty');box.classList.toggle('hidden',!show);if(!show)return;
+  if(typeof box.querySelector==='function'){
+    const h=box.querySelector('h2'),p=box.querySelector('p');if(h)h.textContent=title;if(p)p.textContent=detail;
+  }else box.textContent=title+(detail?' — '+detail:'');
+}
+function setEventEmpty(title,detail){
+  const box=$('eventList');clearElement(box);
+  if(typeof document.createElement!=='function'){box.textContent=title+(detail?' — '+detail:'');return}
+  const empty=el('div','empty event-empty');empty.append(el('h2','',title),el('p','',detail));box.append(empty);
+}
+function historyStorageWarning(text){
+  $('historyStorageText').textContent=text||'';$('historyStorage').classList.toggle('hidden',!text);
+}
+function eventsStorageWarning(text){
+  $('eventsStorageText').textContent=text||'';$('eventsStorage').classList.toggle('hidden',!text);
+}
+function historyCoverage(data){
+  if(!data.points.length)return data.oldest?'No samples in this range':'No samples loaded';
+  const span=historyCustom?'Custom range':historyHours+(historyHours===1?' hour':' hours');
+  return span+' · '+count(data.points.length)+' samples · '+new Date(data.points[0].time*1000).toLocaleTimeString()+'–'+new Date(data.points[data.points.length-1].time*1000).toLocaleTimeString();
+}
+async function loadResourceHistory(background=false){
+  if(typeof monitorHistory!=='function'){
+    $('historyCoverage').textContent='History is unavailable';setHistoryEmpty('History is unavailable','The local monitoring history service could not be started.');return null;
+  }
+  const seq=++historyRequest,range=historyRange();
+  if(!background||!historyData){$('historyCoverage').textContent='Loading history…';if(!historyData)setHistoryEmpty('Loading local history…','Resource samples will appear here.')}
+  try{
+    const data=await monitorHistory({...range,points:Math.max(200,Math.min(1600,historyCanvas.clientWidth||900)),eventType:'',eventLimit:5000});
+    if(seq!==historyRequest)return null;
+    historyData={...data,points:Array.isArray(data.points)?data.points:[],events:Array.isArray(data.events)?data.events:[]};
+    if(historyCursor!==null&&(historyCursor<historyData.from||historyCursor>historyData.to))historyCursor=null;
+    if(historySelectedEvent&&(historySelectedEvent.time<historyData.from||historySelectedEvent.time>historyData.to))historySelectedEvent=null;
+    $('historyCoverage').textContent=historyCoverage(historyData);
+    setHistoryEmpty('No samples in this range',historyData.oldest?'Recording has gaps. Choose another range or inspect a different time.':'Keep local monitoring running to record resource use. History does not advance while the app is closed.',!historyData.points.length);
+    if(!historyData.points.length)resetHistoryProcesses();
+    historyStorageWarning(data.storageWarning||'');
+    drawResourceHistory();
+    if(historyCursor!==null){updateHistoryInspection(historyCursor);queueHistoryProcesses(historyCursor)}
+    return historyData;
+  }catch(e){
+    if(seq!==historyRequest)return null;
+    const message=String(e);$('historyCoverage').textContent='Could not load history';
+    if(!historyData||!historyData.points.length)setHistoryEmpty('Could not load history',message);
+    historyStorageWarning(message);if(!background||tab==='history')toast(message,{error:true});return null;
+  }
+}
+function nearestHistoryPoint(time){
+  const a=historyData&&historyData.points||[];if(!a.length)return null;
+  let lo=0,hi=a.length-1;
+  while(lo<hi){const mid=Math.floor((lo+hi)/2);if(a[mid].time<time)lo=mid+1;else hi=mid}
+  if(lo>0&&Math.abs(a[lo-1].time-time)<=Math.abs(a[lo].time-time))return a[lo-1];
+  return a[lo];
+}
+function historyGap(){
+  const a=historyData&&historyData.points||[];if(a.length<3)return 15;
+  const deltas=[];for(let i=1;i<a.length;i++){const d=a[i].time-a[i-1].time;if(d>0)deltas.push(d)}
+  deltas.sort((x,y)=>x-y);const median=deltas.length?deltas[Math.floor(deltas.length/2)]:1;
+  return Math.max(15,median*3);
+}
+function historyEventsNear(time){
+  if(!historyData)return [];
+  const tolerance=Math.max(1,(historyData.to-historyData.from)/150);
+  return historyData.events.filter(e=>Math.abs(e.time-time)<=tolerance).slice(0,3);
+}
+function historyReadoutText(time){
+  const p=nearestHistoryPoint(time),when=new Date(time*1000).toLocaleString();
+  if(!p)return when+' · No resource sample';
+  const gpu=p.gpu===null||p.gpu===undefined?'no GPU data':pct0(p.gpu);
+  const events=historyEventsNear(time),suffix=events.length?' · '+events.map(e=>e.title).join(' · '):'';
+  return when+' · CPU '+pct0(p.cpu)+' · Memory '+pct0(p.memory)+' · GPU '+gpu+' · In '+rate(p.rx)+' · Out '+rate(p.tx)+suffix;
+}
+function updateHistoryInspection(time){
+  $('historyReadout').textContent=historyReadoutText(time);
+}
+function inspectHistoryTime(time,tip=false,x=0){
+  if(!historyData)return;
+  time=Math.max(historyData.from,Math.min(historyData.to,time));
+  historyCursor=time;historySelectedEvent=null;updateHistoryInspection(time);queueHistoryProcesses(time);
+  if(tip)showHistoryTip(time,x);drawResourceHistory();
+}
+function showHistoryTip(time,x){
+  historyTip.textContent=historyReadoutText(time);
+  const rect=historyCanvas.getBoundingClientRect(),width=rect.width||historyCanvas.clientWidth||600;
+  historyTip.style.left=Math.max(90,Math.min(width-90,x))+'px';historyTip.style.top='34px';historyTip.classList.remove('hidden');
+}
+function queueHistoryProcesses(time){
+  historyProcessRequest++;
+  clearTimeout(historyProcessTimer);
+  historyProcessTimer=setTimeout(()=>loadHistoryProcesses(time),180);
+}
+async function loadHistoryProcesses(time){
+  if(typeof monitorHistory!=='function'||!historyData)return;
+  const seq=++historyProcessRequest,range=historyRange();
+  $('historyProcessTime').textContent='Finding the nearest process snapshot…';
+  try{
+    const data=await monitorHistory({...range,points:1,processTime:time,eventType:'',eventLimit:1});
+    if(seq!==historyProcessRequest||time!==historyCursor)return;
+    if(!data.processTime){renderHistoryProcesses([],null);return}
+    renderHistoryProcesses(Array.isArray(data.processes)?data.processes:[],data.processTime);
+  }catch(e){
+    if(seq!==historyProcessRequest)return;
+    $('historyProcessTime').textContent='Could not load the process snapshot.';clearElement($('historyProcesses'));
+  }
+}
+function resetHistoryProcesses(){
+  historyProcessRequest++;clearTimeout(historyProcessTimer);clearElement($('historyProcesses'));
+  $('historyProcessTime').textContent='Process snapshots are taken every 10 seconds.';
+}
+function renderHistoryProcesses(processes,time){
+  const list=$('historyProcesses');clearElement(list);
+  if(!time){
+    $('historyProcessTime').textContent='No process snapshot within 30 seconds of this time.';
+    if(typeof document.createElement==='function')list.append(el('p','hint','Hover over a recorded sample to find its nearest snapshot.'));
+    return;
+  }
+  $('historyProcessTime').textContent='Nearest snapshot: '+new Date(time*1000).toLocaleString();
+  const sorted=[...processes].sort((a,b)=>(b.cpu||0)-(a.cpu||0)||(b.rss||0)-(a.rss||0)||String(a.name).localeCompare(String(b.name)));
+  if(!sorted.length){list.append(el('p','hint','The snapshot contains no process details.'));return}
+  for(const p of sorted){
+    const row=el('div','history-process'),name=el('span','pname',p.name||'Unknown process'),cpu=el('span','pcpu',(Number(p.cpu)||0).toFixed(1)+'%');
+    name.title=p.cmd||p.name||'';row.append(name,cpu);
+    const meta=['PID '+p.pid,p.user||'',size(p.rss),p.mem===undefined?'':pct0(p.mem)+' of memory',p.publisher||'',p.signed===false?'Unverified signature':''].filter(Boolean);
+    row.append(el('div','pmeta',meta.join(' · ')));
+    if(p.cmd)row.append(el('div','ppath',p.cmd));
+    list.append(row);
+  }
+}
+function historyChartLayout(W,H){
+  const left=66,right=Math.max(left+1,W-14),top=20,bottom=Math.max(top+4,H-27),gap=9,laneH=(bottom-top-gap*3)/4;
+  return {left,right,top,bottom,gap,laneH,lanes:[0,1,2,3].map(i=>({y:top+i*(laneH+gap),h:laneH}))};
+}
+function historyNiceMax(value){
+  if(!isFinite(value)||value<=0)return 1;
+  const power=10**Math.floor(Math.log10(value)),scaled=value/power;
+  return (scaled<=1?1:scaled<=2?2:scaled<=5?5:10)*power;
+}
+function drawHistorySeries(ctx,points,lane,get,color,x,y,gap){
+  let started=false,previous=null;
+  ctx.strokeStyle=color;ctx.lineWidth=1.45;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
+  for(const p of points){
+    const value=get(p);
+    if(value===null||value===undefined||!isFinite(value)||previous!==null&&p.time-previous>gap){if(started)ctx.stroke();started=false;ctx.beginPath()}
+    previous=p.time;if(value===null||value===undefined||!isFinite(value))continue;
+    const px=x(p.time),py=y(value);
+    if(!started){ctx.moveTo(px,py);started=true}else ctx.lineTo(px,py);
+  }
+  if(started)ctx.stroke();
+}
+function drawResourceHistory(){
+  const c=historyCanvas;if(!c||typeof c.getContext!=='function'||!historyData)return;
+  const W=c.clientWidth,H=c.clientHeight;if(W<120||H<150)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1),st=getComputedStyle(document.documentElement),cv=name=>st.getPropertyValue(name).trim();
+  if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){c.width=Math.round(W*dpr);c.height=Math.round(H*dpr)}
+  const ctx=c.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  const L=historyChartLayout(W,H),points=historyData.points,span=Math.max(.001,historyData.to-historyData.from),x=t=>L.left+(t-historyData.from)/span*(L.right-L.left),gap=historyGap();
+  const font=getComputedStyle(c).fontFamily||'sans-serif',colors={text:cv('--text'),muted:cv('--text-muted'),faint:cv('--text-faint'),border:cv('--border'),line:cv('--chart-1'),second:cv('--chart-2'),accent:cv('--accent'),warning:cv('--warning-foreground'),error:cv('--error-foreground')};
+  ctx.font='500 10.5px '+font;ctx.textBaseline='alphabetic';
+  for(let i=1;i<points.length;i++){
+    const p=points[i];if(p.time-points[i-1].time>gap){
+      ctx.strokeStyle=colors.border;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(x(p.time),L.top);ctx.lineTo(x(p.time),L.bottom);ctx.stroke();ctx.setLineDash([]);
+    }
+  }
+  const netMax=historyNiceMax(Math.max(1,...points.map(p=>Math.max(p.rx||0,p.tx||0))));
+  const configs=[
+    {label:'CPU',max:100,get:p=>p.cpu,color:colors.line,unit:'100%'},
+    {label:'Memory',max:100,get:p=>p.memory,color:colors.line,unit:'100%'},
+    {label:'GPU',max:100,get:p=>p.gpu,color:colors.line,unit:'100%'},
+    {label:'Network',max:netMax,get:p=>p.rx,color:colors.line,second:p=>p.tx,unit:rate(netMax)}
+  ];
+  configs.forEach((cfg,i)=>{
+    const lane=L.lanes[i],top=lane.y+18,bottom=lane.y+lane.h,h=Math.max(1,bottom-top),y=v=>bottom-Math.max(0,Math.min(1,v/cfg.max))*h;
+    ctx.strokeStyle=colors.border;ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(L.left,Math.round((top+bottom)/2)+.5);ctx.lineTo(L.right,Math.round((top+bottom)/2)+.5);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=colors.text;ctx.font='600 11px '+font;ctx.textAlign='left';ctx.fillText(cfg.label,9,lane.y+12);
+    ctx.fillStyle=colors.faint;ctx.font='500 10px '+font;ctx.textAlign='right';ctx.fillText(cfg.unit,L.left-9,lane.y+12);
+    drawHistorySeries(ctx,points,lane,cfg.get,cfg.color,x,y,gap);
+    if(cfg.second)drawHistorySeries(ctx,points,lane,cfg.second,colors.second,x,y,gap);
+  });
+  // Events stay visible even when their resource series is flat. The selected event gets a full-height rule.
+  for(const e of historyData.events){
+    if(e.time<historyData.from||e.time>historyData.to)continue;
+    const ex=x(e.time),color=e.severity==='warning'?colors.warning:e.severity==='notice'?colors.accent:colors.faint;
+    ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(ex,5);ctx.lineTo(ex+3.5,9);ctx.lineTo(ex,13);ctx.lineTo(ex-3.5,9);ctx.closePath();ctx.fill();
+  }
+  const selected=historySelectedEvent;
+  if(selected){ctx.strokeStyle=colors.warning;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x(selected.time)+.5,L.top);ctx.lineTo(x(selected.time)+.5,L.bottom);ctx.stroke()}
+  const cursor=historyHoverTime??historyCursor;
+  if(cursor!==null&&cursor>=historyData.from&&cursor<=historyData.to){
+    const cx=x(cursor);ctx.strokeStyle=colors.faint;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx+.5,L.top);ctx.lineTo(cx+.5,L.bottom);ctx.stroke();
+  }
+  if(historyDrag&&historyDrag.moved){
+    const a=x(Math.min(historyDrag.startTime,historyDrag.currentTime)),b=x(Math.max(historyDrag.startTime,historyDrag.currentTime));
+    ctx.fillStyle=withAlpha(colors.accent,.14);ctx.fillRect(a,L.top,Math.max(1,b-a),L.bottom-L.top);ctx.strokeStyle=colors.accent;ctx.strokeRect(a+.5,L.top+.5,Math.max(1,b-a),L.bottom-L.top-1);
+  }
+  ctx.font='500 10px '+font;ctx.fillStyle=colors.faint;ctx.textBaseline='alphabetic';
+  const tick=t=>span<=6*3600?new Date(t*1000).toLocaleTimeString():new Date(t*1000).toLocaleDateString();
+  ctx.textAlign='left';ctx.fillText(tick(historyData.from),L.left,H-8);ctx.textAlign='center';ctx.fillText(tick(historyData.from+span/2),(L.left+L.right)/2,H-8);ctx.textAlign='right';ctx.fillText(tick(historyData.to),L.right,H-8);
+  c._historyLayout=L;
+}
+function historyPointerTime(e){
+  const r=historyCanvas.getBoundingClientRect(),L=historyCanvas._historyLayout||historyChartLayout(r.width,r.height);
+  return {time:historyData.from+Math.max(0,Math.min(1,(e.clientX-r.left-L.left)/(L.right-L.left)))*(historyData.to-historyData.from),x:e.clientX-r.left};
+}
+if(historyCanvas){
+  historyCanvas.onpointerdown=e=>{
+    if(!historyData||!historyData.points.length||e.button!==0)return;
+    const p=historyPointerTime(e);historyDrag={startTime:p.time,currentTime:p.time,startX:p.x,moved:false,pointerId:e.pointerId};
+    historyHoverTime=p.time;historyCanvas.focus();if(historyCanvas.setPointerCapture)historyCanvas.setPointerCapture(e.pointerId);e.preventDefault();
+  };
+  historyCanvas.onpointermove=e=>{
+    if(!historyData||!historyData.points.length)return;
+    const p=historyPointerTime(e);historyHoverTime=p.time;
+    if(historyDrag){
+      historyDrag.currentTime=p.time;historyDrag.moved=historyDrag.moved||Math.abs(p.x-historyDrag.startX)>5;
+      if(historyDrag.moved){const a=new Date(Math.min(historyDrag.startTime,p.time)*1000).toLocaleTimeString(),b=new Date(Math.max(historyDrag.startTime,p.time)*1000).toLocaleTimeString();$('historyReadout').textContent='Zoom from '+a+' to '+b;historyTip.classList.add('hidden');drawResourceHistory();return}
+    }
+    inspectHistoryTime(p.time,true,p.x);
+  };
+  historyCanvas.onpointerup=e=>{
+    if(!historyDrag)return;
+    const drag=historyDrag,p=historyPointerTime(e);historyDrag=null;historyHoverTime=null;historyTip.classList.add('hidden');
+    if(drag.moved&&Math.abs(drag.startTime-p.time)>=1){
+      historyCustom={from:Math.min(drag.startTime,p.time),to:Math.max(drag.startTime,p.time)};historyHours=0;historyCursor=null;historySelectedEvent=null;resetHistoryProcesses();syncHistoryRanges();loadResourceHistory();
+    }else inspectHistoryTime(p.time);
+    if(historyCanvas.releasePointerCapture&&historyCanvas.hasPointerCapture&&historyCanvas.hasPointerCapture(e.pointerId))historyCanvas.releasePointerCapture(e.pointerId);
+  };
+  historyCanvas.onpointercancel=()=>{historyDrag=null;historyHoverTime=null;historyTip.classList.add('hidden');drawResourceHistory()};
+  historyCanvas.onpointerleave=()=>{if(!historyDrag){historyHoverTime=null;historyTip.classList.add('hidden');drawResourceHistory()}};
+  historyCanvas.onkeydown=e=>{
+    const points=historyData&&historyData.points||[];if(!points.length||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+    e.preventDefault();const base=historyCursor??historySelectedEvent?.time??points[points.length-1].time,current=nearestHistoryPoint(base);
+    let index=points.indexOf(current);if(e.key==='Home')index=0;else if(e.key==='End')index=points.length-1;else index=Math.max(0,Math.min(points.length-1,index+(e.key==='ArrowRight'?1:-1)));
+    historyHoverTime=null;inspectHistoryTime(points[index].time);
+  };
+}
+if($('historyRanges')&&typeof $('historyRanges').querySelectorAll==='function')for(const b of $('historyRanges').querySelectorAll('button[data-hours]'))b.onclick=()=>{
+  historyHours=Number(b.dataset.hours);historyCustom=null;historyCursor=null;historySelectedEvent=null;historyHoverTime=null;resetHistoryProcesses();syncHistoryRanges();loadResourceHistory();
+};
+$('historyRefresh').onclick=()=>loadResourceHistory();
+$('historyClear').onclick=async()=>{
+  if(typeof clearMonitorHistory!=='function'){toast('History is unavailable.',{error:true});return}
+  const ok=await confirmAction({title:'Clear local monitoring history?',text:'All recorded resource samples, process snapshots and events on this computer are permanently deleted. Monitoring continues recording new activity.',label:'Clear history'});if(!ok)return;
+  $('historyClear').disabled=true;
+  try{
+    await clearMonitorHistory();
+    historyRequest++;historyProcessRequest++;eventRequest++;clearTimeout(historyProcessTimer);
+    historyData=null;historyCursor=null;historyHoverTime=null;historySelectedEvent=null;historyCustom=null;historyHours=1;monitorEvents=[];knownEventIDs=new Set();eventBaseline=false;
+    syncHistoryRanges();clearElement($('historyProcesses'));$('historyProcessTime').textContent='Process snapshots are taken every 10 seconds.';renderMonitorEvents();
+    toast('Local monitoring history cleared.');await Promise.all([loadResourceHistory(),loadMonitorEvents()]);
+  }catch(e){const message=String(e);historyStorageWarning(message);toast(message,{error:true})}
+  finally{$('historyClear').disabled=false}
+};
+function eventGroup(kind){return kind==='process_new'||kind==='process_unsigned'||String(kind).startsWith('resource_')?'alerts':String(kind).startsWith('process_')?'processes':'other'}
+function filteredMonitorEvents(){
+  const query=$('eventSearch').value.trim().toLowerCase(),type=$('eventType').value,severity=$('eventSeverity').value;
+  return monitorEvents.filter(e=>{
+    if(type&&e.type!==type&&eventGroup(e.type)!==type)return false;
+    if(severity&&e.severity!==severity)return false;
+    if(!query)return true;
+    const p=e.process||{},haystack=[e.title,e.message,e.type,p.name,p.cmd,p.user,p.publisher,p.pid].filter(v=>v!==undefined&&v!==null).join(' ').toLowerCase();
+    return haystack.includes(query);
+  });
+}
+function eventTypeLabel(e){
+  return {process_start:'Process start',process_exit:'Process exit',process_new:'First run',process_unsigned:'Signature alert',resource_cpu:'CPU alert',resource_memory:'Memory alert',resource_gpu:'GPU alert'}[e.type]||e.type;
+}
+function renderMonitorEvents(){
+  const list=$('eventList'),events=filteredMonitorEvents();clearElement(list);
+  $('eventCount').textContent=events.length===monitorEvents.length?count(events.length)+' events':count(events.length)+' of '+count(monitorEvents.length)+' events';
+  if(!events.length){setEventEmpty(monitorEvents.length?'No matching events':'No local events yet',monitorEvents.length?'Change the search or filters to see more events.':'Process starts, exits and alert events are recorded while local monitoring runs.');return}
+  if(typeof document.createElement!=='function')return;
+  for(const e of events){
+    const row=el('button','event-row');row.type='button';row.setAttribute('aria-label',e.title+', '+new Date(e.time*1000).toLocaleString());row.onclick=()=>inspectMonitorEvent(e);
+    const when=el('div','event-when',new Date(e.time*1000).toLocaleString());when.append(el('span','',eventTypeLabel(e)));
+    const body=el('div','event-body'),title=el('div','event-title',e.title);title.append(el('span','severity '+(e.severity||'info'),e.severity||'info'));
+    body.append(title,el('div','event-message',e.message||''));
+    const p=e.process||{},details=[p.pid!==undefined?'PID '+p.pid:'',p.user||'',p.publisher||'',e.metric?e.metric+' '+pct0(e.value)+' (threshold '+pct0(e.threshold)+')':''].filter(Boolean);
+    if(details.length)body.append(el('div','event-details',details.join(' · ')));
+    if(p.cmd)body.append(el('div','event-path',p.cmd));
+    row.append(when,body);list.append(row);
+  }
+}
+function alertAllowed(e){
+  if(e.type==='process_new')return historyAlert('alertFirstRun');
+  if(e.type==='process_unsigned')return historyAlert('alertUnsigned');
+  if(String(e.type).startsWith('resource_'))return historyAlert('alertResource');
+  return false;
+}
+function announceMonitorEvents(events){
+  const alerts=events.filter(e=>eventGroup(e.type)==='alerts'&&alertAllowed(e));if(!alerts.length)return;
+  const latest=alerts[0],more=alerts.length-1;
+  toast(latest.title,{sub:latest.message+(more?' · '+(more+1)+' new alerts are in the Events tab.':'')});
+}
+async function loadMonitorEvents(background=false){
+  if(typeof monitorHistory!=='function'){
+    $('eventCount').textContent='Events unavailable';setEventEmpty('Events are unavailable','The local monitoring history service could not be started.');return null;
+  }
+  const seq=++eventRequest,to=historyNow();
+  if(!monitorEvents.length){$('eventCount').textContent='Loading events…';setEventEmpty('Loading local events…','Process activity and alerts will appear here.')}
+  try{
+    const data=await monitorHistory({from:to-72*3600,to,points:1,eventType:'',eventLimit:5000});
+    if(seq!==eventRequest)return null;
+    const events=Array.isArray(data.events)?data.events:[],fresh=eventBaseline?events.filter(e=>!knownEventIDs.has(e.id)):[];
+    monitorEvents=events;knownEventIDs=new Set(events.map(e=>e.id));eventBaseline=true;
+    eventsStorageWarning(data.storageWarning||'');renderMonitorEvents();announceMonitorEvents(fresh);return events;
+  }catch(e){
+    if(seq!==eventRequest)return null;
+    const message=String(e);eventsStorageWarning(message);$('eventCount').textContent='Could not load events';
+    if(!monitorEvents.length)setEventEmpty('Could not load events',message);if(!background||tab==='events')toast(message,{error:true});return null;
+  }
+}
+function inspectMonitorEvent(e){
+  historySelectedEvent=e;historyCursor=e.time;historyHoverTime=null;historyHours=0;historyCustom={from:e.time-1800,to:e.time+1800};
+  clearTimeout(historyProcessTimer);syncHistoryRanges();setTab('history');
+}
+for(const [id] of [['alertFirstRun'],['alertUnsigned'],['alertResource']]){
+  const box=$(id);box.checked=historyAlert(id);box.onchange=()=>{if(prefs)prefs.set(id,box.checked)};
+}
+$('eventSearch').oninput=renderMonitorEvents;$('eventType').onchange=renderMonitorEvents;$('eventSeverity').onchange=renderMonitorEvents;
+$('eventsRefresh').onclick=()=>loadMonitorEvents();
+function startHistoryUpdates(){
+  if(historyUpdateTimer!==null||typeof setInterval!=='function'||typeof monitorHistory!=='function')return;
+  loadMonitorEvents(true);
+  historyUpdateTimer=setInterval(()=>{loadMonitorEvents(true);if(tab==='history')loadResourceHistory(true)},5000);
+}
+syncHistoryRanges();
+window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{redraw();drawSparks();drawResourceHistory()},150)});
 
 // ---- Activity layout ----
 // The activity sections sit in a grid of 12 columns and rows of DASH_ROW pixels. In edit mode
@@ -2759,7 +3220,7 @@ $('fileCopy').onclick=async()=>{
   catch(e){$('fileText').readOnly=false;$('fileText').select();const ok=document.execCommand&&document.execCommand('copy');$('fileText').readOnly=true;fileMessage(ok?'Copied.':'Select the text and copy it.',!ok)}
 };
 $('fileSave').onclick=async()=>{try{const where=await window.exportTheme((fileTheme&&fileTheme.id)||'theme',$('fileText').value);fileMessage('Saved to '+where)}catch(e){fileMessage(String(e),true)}};
-if(TH)TH.onChange(()=>{drawSparks();if(!$('appearance').classList.contains('hidden')&&!editing)renderThemes()});
+if(TH)TH.onChange(()=>{drawSparks();drawResourceHistory();if(!$('appearance').classList.contains('hidden')&&!editing)renderThemes()});
 
 syncTools();if(target==='local')loadDrives();
 if(prefs){if(prefs.get('sidebar')===false)setSide(false);const f=prefs.get('split');if(typeof f==='number')setSplit(f,false)}
@@ -2775,5 +3236,6 @@ async function startLocalMonitoring(){
   finally{$('submit').disabled=false}
 }
 startLocalMonitoring();
+startHistoryUpdates();
 if(typeof appPlatform==='function')appPlatform().then(p=>{platform=p;applyPlatform();if(monitorTarget==='local'){$('actHost').textContent=localName();$('connText').dataset.who=localName()}}).catch(()=>{});
 </script></body></html>

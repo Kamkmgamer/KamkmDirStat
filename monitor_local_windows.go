@@ -133,7 +133,7 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 		if err != nil {
 			return err
 		}
-		if !update(func(st *MonitorStatus) { st.Sample = data; st.Seq++ }) {
+		if !update(recordSample(data)) {
 			return context.Canceled
 		}
 		select {
@@ -276,7 +276,7 @@ func (s *localSampler) sample() map[string]any {
 	}
 
 	memory := readLocalMemory()
-	processes, count := s.processes(elapsed, max(1, len(cores)), memory["total"].(int64))
+	processes, activity, count := s.processes(elapsed, max(1, len(cores)), memory["total"].(int64))
 	var uptime float64
 	if r, _, _ := procGetTickCount64.Call(); r != 0 {
 		uptime = float64(r) / 1000
@@ -284,7 +284,7 @@ func (s *localSampler) sample() map[string]any {
 	gpus, note := s.gpu.sample()
 	return map[string]any{"type": "sample", "time": float64(now.UnixNano()) / 1e9, "uptime": uptime, "load": []float64{},
 		"cpu": cpu, "memory": memory, "gpus": gpus, "gpuNote": note, "network": s.readNetwork(elapsed),
-		"processes": processes, "processCount": count}
+		"processes": processes, "processActivity": activity, "processCount": count}
 }
 
 // readLocalMemory reports memory the way Task Manager does: cached is the standby list,
@@ -412,7 +412,7 @@ func (s *localSampler) owner(key processKey) processOwner {
 	return o
 }
 
-func (s *localSampler) processes(elapsed float64, cores int, totalMemory int64) ([]map[string]any, int) {
+func (s *localSampler) processes(elapsed float64, cores int, totalMemory int64) ([]map[string]any, []HistoryProcess, int) {
 	list := s.readProcessList()
 	mine := appProcesses(list)
 	seen := make(map[processKey]bool, len(list))
@@ -440,6 +440,12 @@ func (s *localSampler) processes(elapsed float64, cores int, totalMemory int64) 
 	for _, p := range append(byCPU[:min(60, len(byCPU))], byMemory[:min(60, len(byMemory))]...) {
 		chosen[p.key.pid] = p
 	}
+	activity := make([]HistoryProcess, 0, len(list))
+	for _, p := range list {
+		o := s.owner(p.key)
+		activity = append(activity, HistoryProcess{PID: int(p.key.pid), PPID: int(p.ppid), Start: p.key.created / 10000,
+			Name: p.name, User: o.user, Cmd: o.path, CPU: round2(p.cpu), RSS: p.private, Memory: round2(percent(p.private, totalMemory))})
+	}
 	rows := make([]map[string]any, 0, len(chosen))
 	for _, p := range chosen {
 		o := s.owner(p.key)
@@ -453,7 +459,7 @@ func (s *localSampler) processes(elapsed float64, cores int, totalMemory int64) 
 			"user": user, "own": o.own, "cpu": round2(p.cpu), "rss": p.private, "mem": round2(percent(p.private, totalMemory)),
 			"kernel": kernel, "protected": mine[p.key.pid] || windowsCriticalProcessNames[lower], "cmd": o.path})
 	}
-	return rows, len(list)
+	return rows, activity, len(list)
 }
 
 func round2(v float64) float64 { return float64(int64(v*100+0.5)) / 100 }
