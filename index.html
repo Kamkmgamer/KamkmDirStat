@@ -908,6 +908,7 @@ refresh();
       </div>
       <div class="group remote-only">
         <h2 class="group-label">Scan</h2>
+        <p class="hint">Connecting starts monitoring. Files are scanned only when you choose Scan files.</p>
         <div class="field"><label for="path">Remote folder</label><div class="input"><svg class="i"><use href="#i-folder"/></svg><input id="path" value="/" spellcheck="false"></div></div>
         <label class="switch"><input id="skipVirtual" type="checkbox" checked><span><b>Stay on this file system</b><small>Skips /proc, /sys, /dev and other mounts</small></span></label>
         <label class="switch"><input id="serverHelper" type="checkbox" checked><span><b>Fast server scan</b><small>Keeps a 1 MB scanner in ~/.cache/kamkmdirstat on Linux servers; several times faster</small></span></label>
@@ -916,6 +917,7 @@ refresh();
     <div class="group" style="gap:8px">
       <button class="btn primary block" id="submit" type="submit"><svg class="i"><use href="#i-scan"/></svg><span id="submitLabel">Scan</span></button>
       <button class="btn danger block hidden" id="cancelScanButton" type="button">Cancel scan</button>
+      <button class="btn block hidden" id="scanServerButton" type="button"><svg class="i"><use href="#i-scan"/></svg><span id="scanServerLabel">Scan files</span></button>
     </div>
   </form>
   <div class="statusbox"><div id="status" class="status" role="status" aria-live="polite"></div><div id="progress" class="progress hidden" aria-hidden="true"><i id="progressFill"></i></div></div>
@@ -1208,25 +1210,63 @@ $('connect').onsubmit=async e=>{
 };
 $('reject').onclick=()=>{pending=null;showTrust(false);$('submit').disabled=false;status('Connection cancelled.');conn('idle','Not connected')};
 $('accept').onclick=()=>{const c=pending;pending=null;showTrust(false);begin(c,c.user+'@'+c.host+(c.port&&c.port!=='22'?':'+c.port:''))};
+// serverConn is the trusted server last connected to. Connecting to a server only starts the
+// monitor; its files are scanned when the user asks, using these details. They stay in memory
+// for this session and are never saved.
+let serverConn=null,serverWho='';
+function syncServerScan(){
+  const on=!!serverConn&&!poll;
+  $('scanServerButton').classList.toggle('hidden',!on);
+  if(on)$('scanServerLabel').textContent='Scan files on '+serverWho;
+}
+// serverScanPrompt fills the Storage view while a server is monitored but not yet scanned.
+function serverScanPrompt(){
+  if(!serverConn||viewId!==null||poll)return;
+  lastView=null;leaves=[];tops=new Map();$('workspace').classList.add('idle');
+  $('heading').replaceChildren(el('span','here','No scan yet'));$('subheading').textContent='Monitoring '+serverWho+'. Its files are scanned only when you ask.';$('up').classList.add('hidden');
+  const box=el('div','empty welcome'),b=el('button','btn primary');
+  box.append(el('h2','','Files on '+serverWho+' have not been scanned'),el('p','','Scanning reads every folder under '+(serverConn.path||'/')+' on the server, which can take a while on large disks. Monitoring keeps running meanwhile.'));
+  b.type='button';b.id='scanServerInline';b.append(icon('scan'),'Scan files');b.onclick=scanServer;box.append(b);
+  $('listing').replaceChildren(box);drawMap(null);
+}
+// beginScan starts a scan of c and shows its progress in the Storage view.
+async function beginScan(c,who,local){
+  await startScan(c);$('password').value='';$('passphrase').value='';$('cancelScanButton').classList.remove('hidden');
+  viewId=0;lastView=null;mode='';tick=0;$('clearResults').classList.add('hidden');resetFind();conn('busy','Scanning '+who);
+  placeholder(local?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
+  setTab('storage');poll=setInterval(pollScan,500);syncServerScan();
+}
+async function scanServer(){
+  if(!serverConn||poll)return;
+  const c=serverConn,who=serverWho;
+  $('submit').disabled=true;$('scanServerButton').disabled=true;status('Connecting and starting the scan…',false,true);
+  try{monitorOwnsConn=false;await beginScan(c,who,false)}
+  catch(e){$('submit').disabled=false;status(String(e),true);conn('error','Scan failed')}
+  finally{$('scanServerButton').disabled=false;syncServerScan()}
+}
 // begin starts the chosen tools once the computer is chosen and, for a server, trusted.
+// This computer is monitored and scanned; a server is only monitored until the user asks for a scan.
 async function begin(c,who){
-  const scanOn=true,monOn=true,local=!!c.local;
+  const local=!!c.local,scanOn=local,monOn=true;
+  serverConn=local?null:{...c};serverWho=local?'':who;syncServerScan();
   status(scanOn?(local?'Starting the scan…':'Connecting and starting the scan…'):(local?'Starting the monitor…':'Connecting and starting the monitor…'),false,true);
   $('connText').dataset.who=who;
   try{
-    if(monOn){if(!(local&&monitorPoll&&monitorTarget==='local')){await startMonitor(c);beginMonitor(who,local)}else monitorOwnsConn=!scanOn}else if(monitorPoll)await endMonitor('Monitoring stopped.');
-    if(!scanOn){$('password').value='';$('passphrase').value='';$('submit').disabled=false;status('Monitoring '+who+'.');conn('busy',(local?'Starting monitor · ':'Connecting monitor · ')+who);setTab('activity');return}
-    await startScan(c);$('password').value='';$('passphrase').value='';$('cancelScanButton').classList.remove('hidden');
-    viewId=0;lastView=null;mode='';tick=0;$('clearResults').classList.add('hidden');resetFind();conn('busy','Scanning '+who);
-    placeholder(local?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
-    setTab('storage');poll=setInterval(pollScan,500);
-  }catch(e){$('submit').disabled=false;status(String(e),true);conn('error',local?'Could not start':'Connection failed')}
+    if(monOn){if(!(local&&monitorPoll&&monitorTarget==='local')){await startMonitor(c);beginMonitor(who,local,!scanOn)}else monitorOwnsConn=!scanOn}else if(monitorPoll)await endMonitor('Monitoring stopped.');
+    if(!scanOn){
+      $('password').value='';$('passphrase').value='';$('submit').disabled=false;status('Monitoring '+who+'. Scan its files when you need them.');conn('busy',(local?'Starting monitor · ':'Connecting monitor · ')+who);
+      if(!local)serverScanPrompt();
+      syncServerScan();setTab('activity');return;
+    }
+    await beginScan(c,who,local);
+  }catch(e){$('submit').disabled=false;serverConn=null;syncServerScan();status(String(e),true);conn('error',local?'Could not start':'Connection failed')}
 }
 $('clearResults').onclick=async()=>{
   try{await clearResults()}catch(e){status(String(e),true);return}
   resetFind();viewId=null;placeholder('Results cleared. Their memory was released; scan again to see them.',true);
   $('clearResults').classList.add('hidden');$('footer').textContent='Ready';$('footer').title='';status('Results cleared.');
 };
+$('scanServerButton').onclick=scanServer;
 $('cancelScanButton').onclick=async()=>{try{await cancelScan();status('Cancelling scan…',false,true)}catch(e){status(String(e),true)}};
 function goUp(){if(lastView&&lastView.trail.length>1)go(lastView.trail[lastView.trail.length-2].id)}
 $('up').onclick=goUp;
@@ -1248,7 +1288,7 @@ document.onkeydown=e=>{
   if(typing)return;
   if(tab==='storage'&&!filesMode&&(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp'))){e.preventDefault();goUp()}
 };
-function finishScan(){clearInterval(poll);poll=null;$('cancelScanButton').classList.add('hidden');$('submit').disabled=false;$('progress').classList.add('hidden')}
+function finishScan(){clearInterval(poll);poll=null;syncServerScan();$('cancelScanButton').classList.add('hidden');$('submit').disabled=false;$('progress').classList.add('hidden')}
 // Remote reports publish only on completion. Streaming fallbacks can redraw partial results.
 async function pollScan(){
   if(polling)return;polling=true;

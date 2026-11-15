@@ -2,6 +2,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const html = fs.readFileSync('index.html', 'utf8');
+// The mocks below create any element on demand, so check separately that every element the
+// script looks up by id exists in the page; a missing one stops the real script while loading.
+{
+  const script = html.split('<script>')[1].split('</script>')[0];
+  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
+  const missing = [...new Set([...script.matchAll(/\$\('([A-Za-z0-9_-]+)'\)/g)].map(m => m[1]))].filter(id => !ids.has(id));
+  assert.deepEqual(missing, [], 'elements used by the script but missing from the page');
+}
 const elements = new Map();
 function element(id) {
   if (!elements.has(id)) elements.set(id, {value:'', textContent:'', dataset:{}, setAttribute(){}, classList:{values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name)},add(name){this.values.add(name)},remove(name){this.values.delete(name)}}});
@@ -95,6 +103,24 @@ console.log('UI treemap layout passed');
  assert.equal(calls[0].local,true,'monitor starts on this computer');
  assert.equal(vm.runInContext('tab',startup),'activity','activity is the opening view');
  console.log('UI automatic monitoring passed');
+
+ // Connecting to a server monitors it without scanning; the scan starts from its button.
+ const scans=[];
+ startup.startScan=async c=>scans.push(c);
+ vm.runInContext('var prompts=0;serverScanPrompt=()=>{prompts++};placeholder=()=>{};redraw=()=>{};resetFind=()=>{}',startup);
+ const server={host:'buildbox',port:'22',user:'root',method:'auto',path:'/srv',fingerprint:'SHA256:x'};
+ await vm.runInContext('begin',startup)(server,'root@buildbox');
+ assert.equal(calls.at(-1).host,'buildbox','the server is monitored');assert.equal(scans.length,0,'connecting does not scan the server');
+ assert.equal(vm.runInContext('prompts',startup),1,'the storage view offers a scan');assert.equal(vm.runInContext('tab',startup),'activity');
+ assert.equal(element('scanServerButton').classList.values.has('hidden'),false,'the scan button is offered');
+ assert.equal(element('scanServerLabel').textContent,'Scan files on root@buildbox');
+ await vm.runInContext('scanServer()',startup); // other suites share these mock elements and replace their handlers
+ assert.equal(scans.length,1);assert.equal(scans[0].host,'buildbox');assert.equal(scans[0].path,'/srv');assert.equal(scans[0].fingerprint,'SHA256:x');
+ assert.equal(vm.runInContext('tab',startup),'storage');assert.equal(element('scanServerButton').classList.values.has('hidden'),true,'no second scan while one runs');
+ vm.runInContext('finishScan()',startup);assert.equal(element('scanServerButton').classList.values.has('hidden'),false,'the server can be scanned again');
+ await vm.runInContext('begin',startup)({local:true,paths:['C:\\']},'This PC');
+ assert.equal(scans.length,2,'this computer is still scanned on start');assert.equal(element('scanServerButton').classList.values.has('hidden'),true,'the server button goes away');
+ console.log('UI server monitoring without a scan passed');
 })().catch(err=>{console.error(err);process.exitCode=1});
 
 // Themes: every built-in theme keeps text readable, the CSS defaults match what the engine
