@@ -426,4 +426,27 @@ console.log('UI treemap layout passed');
  get('eventsMachine').value='local';get('eventsMachine').onchange();await tick(20);
  assert.equal(vm.runInContext('historyMachine',ctx),'local');assert.equal(queries.at(-1).machine,'local');
  console.log('UI per-computer history passed');
+
+ // Busy computers: background updates fetch only new events, a hidden list is not rebuilt,
+ // the visible list is paged, and the chart asks only for alerts.
+ let stored=Array.from({length:300},(_,i)=>({id:'e'+i,time:now-400+i,type:'process_start',severity:'info',title:'p'+i+' started',message:''})).reverse();
+ historyImpl=async q=>{queries.push(q);return {from:q.from,to:q.to,points:[],events:stored.filter(e=>e.time>=q.from&&e.time<=q.to&&(!q.eventType||q.eventType!=='alerts'||e.type!=='process_start')).slice(0,q.eventLimit)}};
+ vm.runInContext("setTab('activity');selectHistoryMachine('local');eventBaseline=false;monitorEvents=[];loadMonitorEvents(true)",ctx);await tick(20);
+ assert.equal(vm.runInContext('monitorEvents.length',ctx),300);
+ get('eventList').children=[];
+ stored=[{id:'new1',time:now-50,type:'process_exit',severity:'info',title:'p exited',message:''},...stored];
+ await vm.runInContext('loadMonitorEvents(true)',ctx);
+ assert.equal(queries.at(-1).from,now-101,'background update asks only for events since the newest one');
+ assert.equal(vm.runInContext('monitorEvents.length',ctx),301);assert.equal(vm.runInContext('monitorEvents[0].id',ctx),'new1');
+ assert.equal(get('eventList').children.length,0,'hidden list is not rebuilt');assert.equal(vm.runInContext('eventsDirty',ctx),true);
+ const before=queries.length;await vm.runInContext('loadMonitorEvents(true)',ctx);
+ assert.equal(queries.length,before+1);assert.equal(vm.runInContext('monitorEvents.length',ctx),301,'no duplicate events');
+ vm.runInContext("tab='events';renderMonitorEvents()",ctx);
+ const rows=get('eventList').children;assert.equal(rows.length,201,'first page of rows plus a show-more button');assert.equal(rows.at(-1).id,'eventMore');
+ rows.at(-1).onclick();assert.equal(get('eventList').children.length,301,'show more adds the next rows');
+ vm.runInContext("$('eventSearch').value='p1';$('eventSearch').oninput();$('eventSearch').value='';$('eventSearch').oninput()",ctx);
+ assert.equal(get('eventList').children.length,201,'changing the filter starts again from the first page');
+ vm.runInContext("tab='history'",ctx);await vm.runInContext('loadResourceHistory()',ctx);
+ assert.equal(queries.at(-1).eventType,'alerts','the chart only fetches alerts');
+ console.log('UI busy event streams passed');
 })().catch(err=>{console.error(err);process.exitCode=1});

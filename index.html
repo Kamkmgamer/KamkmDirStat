@@ -478,6 +478,13 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 .history-grid{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px;min-height:560px;flex:1}
 .history-chart-panel,.history-process-panel,.events-panel{min-width:0;overflow:hidden}
 .history-chart-panel{display:flex;flex-direction:column}
+/* The header stays one line high whatever the coverage text says, so the chart never moves
+   when that text changes length (for example to "Loading history…" and back). */
+.history-chart-panel>.panel-head{flex-wrap:nowrap}
+.history-chart-panel .panel-title{flex:1 1 auto;overflow:hidden;white-space:nowrap}
+.history-chart-panel .panel-title small{flex:0 1 auto;min-width:0}
+.history-chart-panel>.panel-head>.hint{flex:none;white-space:nowrap}
+@media (max-width:760px){.history-chart-panel>.panel-head>.hint{display:none}}
 .timeline-wrap{position:relative;flex:1;min-height:410px;background:var(--surface)}
 #historyChart{position:absolute;inset:0;display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
 .history-tip{z-index:3;max-width:290px;line-height:1.55;white-space:normal;pointer-events:none}
@@ -498,6 +505,7 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 .events-panel{display:flex;flex-direction:column;min-height:0;flex:1}
 .event-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
 .event-filters select{width:190px}
+.event-more{align-self:center;margin:10px auto}
 .event-search{flex:1;min-width:230px;max-width:430px}
 .event-filters .found{margin-left:auto}
 .alert-preferences{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface-raised);color:var(--text-muted);font-size:12px}
@@ -1898,7 +1906,7 @@ function setTab(t){
   if(t==='storage')setTimeout(redraw,0);
   else if(t==='activity')setTimeout(()=>{showActivity();drawSparks()},0);
   else if(t==='history')setTimeout(()=>{loadHistoryMachineList();loadResourceHistory();drawResourceHistory()},0);
-  else setTimeout(()=>{loadHistoryMachineList();loadMonitorEvents()},0);
+  else setTimeout(()=>{loadHistoryMachineList();if(eventsDirty)renderMonitorEvents();loadMonitorEvents(eventBaseline)},0);
 }
 const tabButtons=Object.values(TAB_VIEWS).map(([,button])=>button);
 for(const [name,[,button]] of Object.entries(TAB_VIEWS)){
@@ -2356,12 +2364,12 @@ async function loadResourceHistory(background=false){
   const seq=++historyRequest,range=historyRange();
   if(!background||!historyData){$('historyCoverage').textContent='Loading history…';if(!historyData)setHistoryEmpty('Loading local history…','Resource samples will appear here.')}
   try{
-    const data=await monitorHistory({...range,machine:historyMachine,points:Math.max(200,Math.min(1600,historyCanvas.clientWidth||900)),eventType:'',eventLimit:5000});
+    const data=await monitorHistory({...range,machine:historyMachine,points:Math.max(200,Math.min(1600,historyCanvas.clientWidth||900)),eventType:'alerts',eventLimit:1000});
     if(seq!==historyRequest)return null;
     historyData=fitHistoryDomain({...data,points:Array.isArray(data.points)?data.points:[],events:Array.isArray(data.events)?data.events:[]});
     if(historyCursor!==null&&(historyCursor<historyData.from||historyCursor>historyData.to))historyCursor=null;
     if(historySelectedEvent&&(historySelectedEvent.time<historyData.from||historySelectedEvent.time>historyData.to))historySelectedEvent=null;
-    $('historyCoverage').textContent=historyCoverage(historyData);
+    $('historyCoverage').textContent=historyCoverage(historyData);$('historyCoverage').title=$('historyCoverage').textContent;
     setHistoryEmpty('No samples in this range',historyData.oldest?'Recording has gaps. Choose another range or inspect a different time.':'Keep monitoring '+machineName(historyMachine)+' to record resource use. History only advances while the app is monitoring it.',!historyData.points.length);
     if(!historyData.points.length)resetHistoryProcesses();
     historyStorageWarning(data.storageWarning||'');
@@ -2520,7 +2528,8 @@ function drawResourceHistory(){
     const lane=L.lanes[i],top=lane.y+18,bottom=lane.y+lane.h,h=Math.max(1,bottom-top),y=v=>bottom-Math.max(0,Math.min(1,v/cfg.max))*h;
     ctx.strokeStyle=colors.border;ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(L.left,Math.round((top+bottom)/2)+.5);ctx.lineTo(L.right,Math.round((top+bottom)/2)+.5);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle=colors.text;ctx.font='600 11px '+font;ctx.textAlign='left';ctx.fillText(cfg.label,9,lane.y+12);
-    ctx.fillStyle=colors.faint;ctx.font='500 10px '+font;ctx.textAlign='right';ctx.fillText(cfg.unit,L.left-9,lane.y+12);
+    // The scale sits under the label, so long labels such as Memory and Network never overlap it.
+    ctx.fillStyle=colors.faint;ctx.font='500 10px '+font;ctx.fillText(cfg.unit,9,lane.y+25);
     drawHistorySeries(ctx,points,lane,cfg.get,cfg.color,x,y,gap);
     if(cfg.second)drawHistorySeries(ctx,points,lane,cfg.second,colors.second,x,y,gap);
   });
@@ -2618,12 +2627,17 @@ function filteredMonitorEvents(){
 function eventTypeLabel(e){
   return {process_start:'Process start',process_exit:'Process exit',process_new:'First run',process_unsigned:'Signature alert',resource_cpu:'CPU alert',resource_memory:'Memory alert',resource_gpu:'GPU alert'}[e.type]||e.type;
 }
+// The list shows EVENT_PAGE rows at first and more on request; thousands of rows at once make
+// every update slow.
+const EVENT_PAGE=200;
+let eventRowLimit=EVENT_PAGE;
 function renderMonitorEvents(){
+  eventsDirty=false;
   const list=$('eventList'),events=filteredMonitorEvents();clearElement(list);
   $('eventCount').textContent=events.length===monitorEvents.length?count(events.length)+' events':count(events.length)+' of '+count(monitorEvents.length)+' events';
-  if(!events.length){setEventEmpty(monitorEvents.length?'No matching events':'No local events yet',monitorEvents.length?'Change the search or filters to see more events.':'Process starts, exits and alert events are recorded while local monitoring runs.');return}
+  if(!events.length){setEventEmpty(monitorEvents.length?'No matching events':'No events yet',monitorEvents.length?'Change the search or filters to see more events.':'Process starts, exits and alert events are recorded while monitoring runs.');return}
   if(typeof document.createElement!=='function')return;
-  for(const e of events){
+  for(const e of events.slice(0,eventRowLimit)){
     const row=el('button','event-row');row.type='button';row.setAttribute('aria-label',e.title+', '+new Date(e.time*1000).toLocaleString());row.onclick=()=>inspectMonitorEvent(e);
     const when=el('div','event-when',new Date(e.time*1000).toLocaleString());when.append(el('span','',eventTypeLabel(e)));
     const body=el('div','event-body'),title=el('div','event-title',e.title);title.append(el('span','severity '+(e.severity||'info'),e.severity||'info'));
@@ -2632,6 +2646,10 @@ function renderMonitorEvents(){
     if(details.length)body.append(el('div','event-details',details.join(' · ')));
     if(p.cmd)body.append(el('div','event-path',p.cmd));
     row.append(when,body);list.append(row);
+  }
+  if(events.length>eventRowLimit){
+    const more=el('button','btn sm ghost event-more','Show '+count(Math.min(EVENT_PAGE,events.length-eventRowLimit))+' more · '+count(events.length-eventRowLimit)+' not shown');
+    more.type='button';more.id='eventMore';more.onclick=()=>{eventRowLimit+=EVENT_PAGE;renderMonitorEvents()};list.append(more);
   }
 }
 function alertAllowed(e){
@@ -2645,18 +2663,31 @@ function announceMonitorEvents(events){
   const latest=alerts[0],more=alerts.length-1;
   toast(latest.title,{sub:latest.message+(more?' · '+(more+1)+' new alerts are in the Events tab.':'')});
 }
+// Busy computers record several process events a second, so background updates only fetch
+// events since the newest one already loaded, and the list is rebuilt only while it is visible.
+const MAX_MONITOR_EVENTS=5000;
+let eventsDirty=false;
 async function loadMonitorEvents(background=false){
   if(typeof monitorHistory!=='function'){
     $('eventCount').textContent='Events unavailable';setEventEmpty('Events are unavailable','The local monitoring history service could not be started.');return null;
   }
-  const seq=++eventRequest,to=historyNow();
-  if(!monitorEvents.length){$('eventCount').textContent='Loading events…';setEventEmpty('Loading events…','Process activity and alerts will appear here.')}
+  const seq=++eventRequest,to=historyNow(),incremental=background&&eventBaseline&&monitorEvents.length>0;
+  // The newest event's own second is fetched again; events already known are skipped by ID.
+  const from=incremental?monitorEvents[0].time:to-72*3600;
+  if(!monitorEvents.length&&!background){$('eventCount').textContent='Loading events…';setEventEmpty('Loading events…','Process activity and alerts will appear here.')}
   try{
-    const data=await monitorHistory({from:to-72*3600,to,machine:historyMachine,points:1,eventType:'',eventLimit:5000});
+    const data=await monitorHistory({from,to,machine:historyMachine,points:1,eventType:'',eventLimit:MAX_MONITOR_EVENTS});
     if(seq!==eventRequest)return null;
     const events=Array.isArray(data.events)?data.events:[],fresh=eventBaseline?events.filter(e=>!knownEventIDs.has(e.id)):[];
-    monitorEvents=events;knownEventIDs=new Set(events.map(e=>e.id));eventBaseline=true;
-    eventsStorageWarning(data.storageWarning||'');renderMonitorEvents();announceMonitorEvents(fresh);return events;
+    eventsStorageWarning(data.storageWarning||'');
+    if(incremental){
+      if(!fresh.length)return monitorEvents;
+      const cutoff=to-72*3600;
+      monitorEvents=fresh.concat(monitorEvents).filter(e=>e.time>=cutoff).slice(0,MAX_MONITOR_EVENTS);
+    }else monitorEvents=events;
+    knownEventIDs=new Set(monitorEvents.map(e=>e.id));const announce=eventBaseline;eventBaseline=true;
+    if(tab==='events'||!background)renderMonitorEvents();else eventsDirty=true;
+    if(announce)announceMonitorEvents(fresh);return monitorEvents;
   }catch(e){
     if(seq!==eventRequest)return null;
     const message=String(e);eventsStorageWarning(message);$('eventCount').textContent='Could not load events';
@@ -2670,7 +2701,9 @@ function inspectMonitorEvent(e){
 for(const [id] of [['alertFirstRun'],['alertUnsigned'],['alertResource']]){
   const box=$(id);box.checked=historyAlert(id);box.onchange=()=>{if(prefs)prefs.set(id,box.checked)};
 }
-$('eventSearch').oninput=renderMonitorEvents;$('eventType').onchange=renderMonitorEvents;$('eventSeverity').onchange=renderMonitorEvents;
+// Changing the filters starts again from the first page of rows.
+const refilterEvents=()=>{eventRowLimit=EVENT_PAGE;renderMonitorEvents()};
+$('eventSearch').oninput=refilterEvents;$('eventType').onchange=refilterEvents;$('eventSeverity').onchange=refilterEvents;
 $('eventsRefresh').onclick=()=>loadMonitorEvents();
 function startHistoryUpdates(){
   if(historyUpdateTimer!==null||typeof setInterval!=='function'||typeof monitorHistory!=='function')return;
