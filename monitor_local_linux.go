@@ -30,7 +30,7 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	err = monitorProtocolMode(ctx, input, output, func() { _ = cmd.Process.Kill() }, "this computer", writes, update, true)
+	err = monitorProtocolMode(ctx, input, output, func() { _ = cmd.Process.Kill() }, "this computer", writes, update, localHistoryMachine)
 	_ = input.Close() // the sampler exits when its input closes
 	_ = cmd.Wait()
 	return err

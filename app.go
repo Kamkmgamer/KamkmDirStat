@@ -55,6 +55,7 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"monitorAction":       monitorAction,
 		"monitorHistory":      monitorHistory,
 		"clearMonitorHistory": clearMonitorHistory,
+		"historyMachines":     historyMachines,
 		"listDrives":          listDrives,
 		"saveSettings":        saveSettings,
 		"exportTheme":         exportTheme,

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,6 +78,7 @@ type MonitorEvent struct {
 
 type historyRecord struct {
 	Kind     string           `json:"kind"`
+	Machine  string           `json:"machine,omitempty"`
 	Point    *HistoryPoint    `json:"point,omitempty"`
 	Snapshot *HistorySnapshot `json:"snapshot,omitempty"`
 	Event    *MonitorEvent    `json:"event,omitempty"`
@@ -88,11 +91,22 @@ type HistoryQuery struct {
 	ProcessTime float64 `json:"processTime"`
 	EventType   string  `json:"eventType"`
 	EventLimit  int     `json:"eventLimit"`
+	// Machine selects whose history to read: "local" (or empty) for this computer, or the
+	// key of a server, as reported by monitorStatus and historyMachines.
+	Machine string `json:"machine"`
+}
+
+// HistoryMachine is a computer with recorded history.
+type HistoryMachine struct {
+	Key    string  `json:"key"`
+	Local  bool    `json:"local"`
+	Newest float64 `json:"newest"`
 }
 
 type MonitorHistory struct {
 	From           float64          `json:"from"`
 	To             float64          `json:"to"`
+	Machine        string           `json:"machine"`
 	Oldest         float64          `json:"oldest"`
 	Newest         float64          `json:"newest"`
 	Points         []HistoryPoint   `json:"points"`
@@ -110,6 +124,7 @@ type resourceState struct {
 type historyStore struct {
 	mu             sync.Mutex
 	path           string
+	machine        string
 	file           *os.File
 	points         []HistoryPoint
 	snapshots      []HistorySnapshot
@@ -162,6 +177,10 @@ func (h *historyStore) load(now time.Time) error {
 			continue
 		}
 		switch r.Kind {
+		case "meta":
+			if r.Machine != "" {
+				h.machine = r.Machine
+			}
 		case "point":
 			if r.Point != nil && r.Point.Time >= cutoff && r.Point.Time <= float64(now.UnixNano())/1e9+60 {
 				h.points = append(h.points, *r.Point)
@@ -217,6 +236,9 @@ func (h *historyStore) rewrite() error {
 		if err == nil {
 			err = enc.Encode(r)
 		}
+	}
+	if h.machine != "" {
+		write(historyRecord{Kind: "meta", Machine: h.machine})
 	}
 	for i := range h.points {
 		write(historyRecord{Kind: "point", Point: &h.points[i]})
@@ -476,7 +498,7 @@ func (h *historyStore) query(q HistoryQuery) MonitorHistory {
 		q.Points = 600
 	}
 	q.Points = min(2000, q.Points)
-	out := MonitorHistory{From: q.From, To: q.To, Points: []HistoryPoint{}, Events: []MonitorEvent{}, StorageWarning: h.storageWarning}
+	out := MonitorHistory{Machine: h.machine, From: q.From, To: q.To, Points: []HistoryPoint{}, Events: []MonitorEvent{}, StorageWarning: h.storageWarning}
 	if len(h.points) > 0 {
 		out.Oldest = h.points[0].Time
 		out.Newest = h.points[len(h.points)-1].Time
@@ -623,52 +645,184 @@ func (h *historyStore) clear() error {
 	return nil
 }
 
-var appHistory struct {
-	sync.Mutex
-	store *historyStore
-	err   error
+// Each computer has its own history file. This computer keeps the original file name; a
+// server's file is named after a hash of its key, which the file also records in a meta line.
+const localHistoryMachine = "local"
+
+func normalizeHistoryMachine(machine string) string {
+	machine = strings.TrimSpace(machine)
+	if machine == "" || strings.EqualFold(machine, localHistoryMachine) {
+		return localHistoryMachine
+	}
+	return machine
 }
 
-func defaultHistoryStore() (*historyStore, error) {
+// remoteHistoryMachine identifies a server by user, host and port, so two accounts on the
+// same server, or two servers behind one address, keep separate histories.
+func remoteHistoryMachine(c Connection) string {
+	port := strings.TrimSpace(c.Port)
+	if port == "" {
+		port = "22"
+	}
+	return strings.TrimSpace(c.User) + "@" + strings.ToLower(strings.TrimSpace(c.Host)) + ":" + port
+}
+
+func historyFileName(machine string) string {
+	if machine == localHistoryMachine {
+		return "monitor-history.jsonl"
+	}
+	sum := sha256.Sum256([]byte(machine))
+	return "monitor-history-" + hex.EncodeToString(sum[:8]) + ".jsonl"
+}
+
+var appHistory = struct {
+	sync.Mutex
+	stores map[string]*historyStore
+	errs   map[string]error
+}{stores: map[string]*historyStore{}, errs: map[string]error{}}
+
+func historyStoreFor(machine string) (*historyStore, error) {
+	machine = normalizeHistoryMachine(machine)
 	appHistory.Lock()
 	defer appHistory.Unlock()
-	if appHistory.store != nil || appHistory.err != nil {
-		return appHistory.store, appHistory.err
+	if h := appHistory.stores[machine]; h != nil {
+		return h, nil
+	}
+	if err := appHistory.errs[machine]; err != nil {
+		return nil, err
 	}
 	dir, err := settingsDir()
+	var h *historyStore
 	if err == nil {
-		appHistory.store, err = openHistoryStore(filepath.Join(dir, "monitor-history.jsonl"), time.Now())
+		h, err = openMachineHistory(filepath.Join(dir, historyFileName(machine)), machine, time.Now())
 	}
-	appHistory.err = err
-	return appHistory.store, err
+	if err != nil {
+		appHistory.errs[machine] = err
+		return nil, err
+	}
+	appHistory.stores[machine] = h
+	return h, nil
 }
 
-func recordMonitorSample(raw json.RawMessage) {
-	if h, err := defaultHistoryStore(); err == nil {
+func openMachineHistory(path, machine string, now time.Time) (*historyStore, error) {
+	h, err := openHistoryStore(path, now)
+	if err != nil {
+		return nil, err
+	}
+	if machine != localHistoryMachine {
+		// Signatures are checked against files on this computer, which says nothing about a server.
+		h.identify = func(p HistoryProcess) HistoryProcess { return p }
+	}
+	if h.machine != machine {
+		h.mu.Lock()
+		h.machine = machine
+		err = h.compactLocked(float64(now.UnixNano()) / 1e9)
+		h.mu.Unlock()
+		if err != nil {
+			h.close()
+			return nil, err
+		}
+	}
+	return h, nil
+}
+
+func defaultHistoryStore() (*historyStore, error) { return historyStoreFor(localHistoryMachine) }
+
+func recordMonitorSample(machine string, raw json.RawMessage) {
+	if h, err := historyStoreFor(machine); err == nil {
 		h.record(raw)
 	}
 }
+
 func monitorHistory(q HistoryQuery) (MonitorHistory, error) {
-	h, err := defaultHistoryStore()
+	h, err := historyStoreFor(q.Machine)
 	if err != nil {
 		return MonitorHistory{}, errors.New("Monitoring history is unavailable: " + err.Error())
 	}
 	return h.query(q), nil
 }
-func clearMonitorHistory() error {
-	h, err := defaultHistoryStore()
+
+func clearMonitorHistory(machine string) error {
+	h, err := historyStoreFor(machine)
 	if err != nil {
 		return err
 	}
 	return h.clear()
 }
 
+// historyMachines lists this computer and every server with a history file, newest first
+// after this computer. Files that are not open are dated by their last change.
+func historyMachines() ([]HistoryMachine, error) {
+	dir, err := settingsDir()
+	if err != nil {
+		return nil, err
+	}
+	found := map[string]float64{localHistoryMachine: 0}
+	appHistory.Lock()
+	open := map[string]*historyStore{}
+	for k, h := range appHistory.stores {
+		open[k] = h
+	}
+	appHistory.Unlock()
+	files, _ := filepath.Glob(filepath.Join(dir, "monitor-history-*.jsonl"))
+	for _, path := range files {
+		machine := readHistoryMachine(path)
+		if machine == "" || machine == localHistoryMachine || historyFileName(machine) != filepath.Base(path) {
+			continue
+		}
+		if info, err := os.Stat(path); err == nil {
+			found[machine] = float64(info.ModTime().UnixNano()) / 1e9
+		}
+	}
+	for k, h := range open {
+		h.mu.Lock()
+		if n := len(h.points); n > 0 {
+			found[k] = h.points[n-1].Time
+		} else if _, ok := found[k]; !ok {
+			found[k] = 0
+		}
+		h.mu.Unlock()
+	}
+	out := make([]HistoryMachine, 0, len(found))
+	for k, newest := range found {
+		out = append(out, HistoryMachine{Key: k, Local: k == localHistoryMachine, Newest: newest})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Local != out[j].Local {
+			return out[i].Local
+		}
+		if out[i].Newest != out[j].Newest {
+			return out[i].Newest > out[j].Newest
+		}
+		return out[i].Key < out[j].Key
+	})
+	return out, nil
+}
+
+func readHistoryMachine(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	s := bufio.NewScanner(f)
+	s.Buffer(make([]byte, 4<<10), 64<<10)
+	if !s.Scan() {
+		return ""
+	}
+	var r historyRecord
+	if json.Unmarshal(s.Bytes(), &r) != nil || r.Kind != "meta" {
+		return ""
+	}
+	return r.Machine
+}
+
 func closeMonitorHistory() {
 	appHistory.Lock()
 	defer appHistory.Unlock()
-	if appHistory.store != nil {
-		appHistory.store.close()
-		appHistory.store = nil
+	for k, h := range appHistory.stores {
+		h.close()
+		delete(appHistory.stores, k)
 	}
-	appHistory.err = nil
+	appHistory.errs = map[string]error{}
 }

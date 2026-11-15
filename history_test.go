@@ -284,3 +284,60 @@ func mustHistoryJSON(t *testing.T, s sampleData) json.RawMessage {
 }
 
 func epoch(t time.Time) float64 { return float64(t.UnixNano()) / 1e9 }
+
+// Each computer keeps its own history: a server's samples, events and file stay apart from
+// this computer's, its processes are not checked against local files, and the server is
+// listed again after the stores are closed and reopened.
+func TestHistoryPerMachine(t *testing.T) {
+	dir := useSettingsDir(t)
+	closeMonitorHistory()
+	t.Cleanup(closeMonitorHistory)
+	server := remoteHistoryMachine(Connection{User: "root", Host: "Host-01", Port: ""})
+	if server != "root@host-01:22" {
+		t.Fatalf("server key = %q", server)
+	}
+	now := float64(time.Now().Unix())
+	recordMonitorSample(localHistoryMachine, mustHistoryJSON(t, historySample(now-2)))
+	remote := historySample(now - 1)
+	remote.CPU.Total = 77
+	recordMonitorSample(server, mustHistoryJSON(t, remote))
+
+	local, err := monitorHistory(HistoryQuery{From: now - 60, To: now + 1})
+	if err != nil || len(local.Points) != 1 || local.Points[0].CPU != 20 || local.Machine != localHistoryMachine {
+		t.Fatalf("local history = %+v, %v", local, err)
+	}
+	got, err := monitorHistory(HistoryQuery{From: now - 60, To: now + 1, Machine: server})
+	if err != nil || len(got.Points) != 1 || got.Points[0].CPU != 77 || got.Machine != server {
+		t.Fatalf("server history = %+v, %v", got, err)
+	}
+	h, _ := historyStoreFor(server)
+	if p := h.identify(HistoryProcess{Name: "sshd", Cmd: "/usr/sbin/sshd"}); p.Signed != nil || p.Publisher != "" {
+		t.Fatalf("server process was checked locally: %+v", p)
+	}
+	if _, err := os.Stat(filepath.Join(dir, historyFileName(server))); err != nil {
+		t.Fatalf("server history file: %v", err)
+	}
+
+	closeMonitorHistory()
+	machines, err := historyMachines()
+	if err != nil || len(machines) != 2 || !machines[0].Local || machines[1].Key != server || machines[1].Newest == 0 {
+		t.Fatalf("machines = %+v, %v", machines, err)
+	}
+	got, err = monitorHistory(HistoryQuery{From: now - 60, To: now + 1, Machine: server})
+	if err != nil || len(got.Points) != 1 || got.Points[0].CPU != 77 {
+		t.Fatalf("server history after reopening = %+v, %v", got, err)
+	}
+	if err := clearMonitorHistory(server); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = monitorHistory(HistoryQuery{From: now - 60, To: now + 1, Machine: server}); len(got.Points) != 0 {
+		t.Fatalf("server history was not cleared: %+v", got.Points)
+	}
+	if local, _ = monitorHistory(HistoryQuery{From: now - 60, To: now + 1}); len(local.Points) != 1 {
+		t.Fatal("clearing a server cleared this computer's history")
+	}
+	closeMonitorHistory()
+	if machines, _ = historyMachines(); len(machines) != 2 {
+		t.Fatalf("a cleared server should stay listed: %+v", machines)
+	}
+}

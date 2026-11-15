@@ -473,6 +473,8 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 /* Local history and the event log share the monitor's compact, data-first layout. */
 .history-ranges{margin-left:auto}
 #history>.toolbar{flex-wrap:wrap;row-gap:8px}
+.history-machine{width:auto;max-width:260px;height:28px;font-size:12px;background-position:calc(100% - 15px) 12px,calc(100% - 11px) 12px!important}
+#events .history-machine{margin-left:auto}
 .history-grid{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px;min-height:560px;flex:1}
 .history-chart-panel,.history-process-panel,.events-panel{min-width:0;overflow:hidden}
 .history-chart-panel{display:flex;flex-direction:column}
@@ -997,6 +999,7 @@ refresh();
 <main id="history" class="activity hidden" role="tabpanel" aria-labelledby="tabHistory" aria-hidden="true">
   <div class="toolbar">
     <div class="where"><h2 class="act-title">History</h2><p id="historySub">Resource use on this computer, kept for up to 72 hours.</p></div>
+    <select class="history-machine" id="historyMachine" aria-label="Computer whose history is shown"><option value="local">This computer</option></select>
     <div class="pills history-ranges" id="historyRanges" role="group" aria-label="History range">
       <button type="button" data-seconds="300" aria-pressed="false">5 min</button><button type="button" data-seconds="900" aria-pressed="false">15 min</button><button type="button" data-seconds="3600" aria-pressed="true">1 hour</button><button type="button" data-seconds="10800" aria-pressed="false">3 hours</button><button type="button" data-seconds="21600" aria-pressed="false">6 hours</button><button type="button" data-seconds="86400" aria-pressed="false">24 hours</button><button type="button" data-seconds="259200" aria-pressed="false">72 hours</button>
     </div>
@@ -1023,7 +1026,8 @@ refresh();
 
 <main id="events" class="activity hidden" role="tabpanel" aria-labelledby="tabEvents" aria-hidden="true">
   <div class="toolbar">
-    <div class="where"><h2 class="act-title">Events</h2><p id="eventsSub">Process activity and alerts from local monitoring.</p></div>
+    <div class="where"><h2 class="act-title">Events</h2><p id="eventsSub">Process activity and alerts from monitoring this computer.</p></div>
+    <select class="history-machine" id="eventsMachine" aria-label="Computer whose events are shown"><option value="local">This computer</option></select>
     <button class="btn sm ghost" id="eventsRefresh" type="button">Refresh</button>
   </div>
   <div class="notice error hidden" id="eventsStorage" role="status" aria-live="polite"><span id="eventsStorageText"></span></div>
@@ -1853,8 +1857,8 @@ function setTab(t){
   }
   if(t==='storage')setTimeout(redraw,0);
   else if(t==='activity')setTimeout(()=>{showActivity();drawSparks()},0);
-  else if(t==='history')setTimeout(()=>{loadResourceHistory();drawResourceHistory()},0);
-  else setTimeout(loadMonitorEvents,0);
+  else if(t==='history')setTimeout(()=>{loadHistoryMachineList();loadResourceHistory();drawResourceHistory()},0);
+  else setTimeout(()=>{loadHistoryMachineList();loadMonitorEvents()},0);
 }
 const tabButtons=Object.values(TAB_VIEWS).map(([,button])=>button);
 for(const [name,[,button]] of Object.entries(TAB_VIEWS)){
@@ -1889,6 +1893,7 @@ async function pollMonitor(){
   try{
     const s=await monitorStatus();
     if(!monitorPoll)return;
+    if(s.machine&&s.machine!==monitorMachine){monitorMachine=s.machine;selectHistoryMachine(s.machine);loadHistoryMachineList()}
     if(s.hello&&!hello){
       hello=s.hello;const [label,detail]=privilegeInfo(),p=$('actPriv');
       $('elevateButton').classList.toggle('hidden',!(onWindows()&&hello.privilege==='none'));
@@ -2218,7 +2223,38 @@ for(const id of ['sCpu','sMem','sGpu','sNet']){
 let historySeconds=3600,historyCustom=null,historyData=null,historyCursor=null,historyHoverTime=null,historySelectedEvent=null;
 let historyRequest=0,historyProcessRequest=0,historyProcessTimer=null,historyDrag=null,historyUpdateTimer=null;
 let monitorEvents=[],eventBaseline=false,knownEventIDs=new Set(),eventRequest=0;
+// historyMachine is the computer whose history and events are shown: "local", or a server's
+// user@host:port key. It follows the monitor when it starts on another computer.
+let historyMachine='local',historyMachineList=[],monitorMachine=null;
 const historyCanvas=$('historyChart'),historyTip=$('historyTip');
+const machineName=k=>!k||k==='local'?'this computer':k;
+function renderMachinePickers(){
+  const keys=[...new Set(['local',historyMachine,...(monitorMachine?[monitorMachine]:[]),...historyMachineList.map(m=>m.key)])];
+  for(const id of ['historyMachine','eventsMachine']){
+    const s=$(id);if(!s)continue;
+    if(typeof document.createElement==='function'){
+      clearElement(s);
+      for(const k of keys){const o=document.createElement('option');o.value=k;o.textContent=(k==='local'?'This computer':k)+(k===monitorMachine?' · monitoring':'');s.append(o)}
+    }
+    s.value=historyMachine;
+  }
+  $('historySub').textContent='Resource use on '+machineName(historyMachine)+', kept for up to 72 hours.';
+  $('eventsSub').textContent='Process activity and alerts from monitoring '+machineName(historyMachine)+'.';
+}
+async function loadHistoryMachineList(){
+  if(typeof historyMachines==='function'){try{const list=await historyMachines();historyMachineList=Array.isArray(list)?list:[]}catch(e){}}
+  renderMachinePickers();
+}
+function selectHistoryMachine(key){
+  key=key||'local';if(key===historyMachine){renderMachinePickers();return}
+  historyMachine=key;historyRequest++;historyProcessRequest++;eventRequest++;clearTimeout(historyProcessTimer);
+  historyData=null;historyCursor=null;historyHoverTime=null;historySelectedEvent=null;historyCustom=null;if(!historySeconds)historySeconds=3600;
+  // Events already recorded for the newly shown computer set its baseline instead of popping up.
+  monitorEvents=[];knownEventIDs=new Set();eventBaseline=false;
+  resetHistoryProcesses();syncHistoryRanges();renderMachinePickers();renderMonitorEvents();
+  loadMonitorEvents(true);if(tab==='history')loadResourceHistory();
+}
+for(const id of ['historyMachine','eventsMachine'])if($(id))$(id).onchange=()=>selectHistoryMachine($(id).value);
 const historyNow=()=>Date.now()/1000;
 const historyAlert=id=>!prefs||prefs.get(id,true)!==false;
 function clearElement(e){if(typeof e.replaceChildren==='function')e.replaceChildren();else e.textContent=''}
@@ -2280,13 +2316,13 @@ async function loadResourceHistory(background=false){
   const seq=++historyRequest,range=historyRange();
   if(!background||!historyData){$('historyCoverage').textContent='Loading history…';if(!historyData)setHistoryEmpty('Loading local history…','Resource samples will appear here.')}
   try{
-    const data=await monitorHistory({...range,points:Math.max(200,Math.min(1600,historyCanvas.clientWidth||900)),eventType:'',eventLimit:5000});
+    const data=await monitorHistory({...range,machine:historyMachine,points:Math.max(200,Math.min(1600,historyCanvas.clientWidth||900)),eventType:'',eventLimit:5000});
     if(seq!==historyRequest)return null;
     historyData=fitHistoryDomain({...data,points:Array.isArray(data.points)?data.points:[],events:Array.isArray(data.events)?data.events:[]});
     if(historyCursor!==null&&(historyCursor<historyData.from||historyCursor>historyData.to))historyCursor=null;
     if(historySelectedEvent&&(historySelectedEvent.time<historyData.from||historySelectedEvent.time>historyData.to))historySelectedEvent=null;
     $('historyCoverage').textContent=historyCoverage(historyData);
-    setHistoryEmpty('No samples in this range',historyData.oldest?'Recording has gaps. Choose another range or inspect a different time.':'Keep local monitoring running to record resource use. History does not advance while the app is closed.',!historyData.points.length);
+    setHistoryEmpty('No samples in this range',historyData.oldest?'Recording has gaps. Choose another range or inspect a different time.':'Keep monitoring '+machineName(historyMachine)+' to record resource use. History only advances while the app is monitoring it.',!historyData.points.length);
     if(!historyData.points.length)resetHistoryProcesses();
     historyStorageWarning(data.storageWarning||'');
     drawResourceHistory();
@@ -2348,7 +2384,7 @@ async function loadHistoryProcesses(time){
   const seq=++historyProcessRequest,range=historyRange();
   $('historyProcessTime').textContent='Finding the nearest process snapshot…';
   try{
-    const data=await monitorHistory({...range,points:1,processTime:time,eventType:'',eventLimit:1});
+    const data=await monitorHistory({...range,machine:historyMachine,points:1,processTime:time,eventType:'',eventLimit:1});
     if(seq!==historyProcessRequest||time!==historyCursor)return;
     if(!data.processTime){renderHistoryProcesses([],null);return}
     renderHistoryProcesses(Array.isArray(data.processes)?data.processes:[],data.processTime);
@@ -2516,14 +2552,15 @@ if($('historyRanges')&&typeof $('historyRanges').querySelectorAll==='function')f
 $('historyRefresh').onclick=()=>loadResourceHistory();
 $('historyClear').onclick=async()=>{
   if(typeof clearMonitorHistory!=='function'){toast('History is unavailable.',{error:true});return}
-  const ok=await confirmAction({title:'Clear local monitoring history?',text:'All recorded resource samples, process snapshots and events on this computer are permanently deleted. Monitoring continues recording new activity.',label:'Clear history'});if(!ok)return;
+  const machine=historyMachine,name=machineName(machine);
+  const ok=await confirmAction({title:'Clear the monitoring history of '+name+'?',text:'All resource samples, process snapshots and events recorded for '+name+' are permanently deleted. Other computers keep their history. Monitoring continues recording new activity.',label:'Clear history'});if(!ok)return;
   $('historyClear').disabled=true;
   try{
-    await clearMonitorHistory();
+    await clearMonitorHistory(machine);if(machine!==historyMachine)return;
     historyRequest++;historyProcessRequest++;eventRequest++;clearTimeout(historyProcessTimer);
     historyData=null;historyCursor=null;historyHoverTime=null;historySelectedEvent=null;historyCustom=null;historySeconds=3600;monitorEvents=[];knownEventIDs=new Set();eventBaseline=false;
     syncHistoryRanges();clearElement($('historyProcesses'));$('historyProcessTime').textContent='Process snapshots are taken every 10 seconds.';renderMonitorEvents();
-    toast('Local monitoring history cleared.');await Promise.all([loadResourceHistory(),loadMonitorEvents()]);
+    toast('Monitoring history of '+name+' cleared.');await Promise.all([loadResourceHistory(),loadMonitorEvents()]);
   }catch(e){const message=String(e);historyStorageWarning(message);toast(message,{error:true})}
   finally{$('historyClear').disabled=false}
 };
@@ -2573,9 +2610,9 @@ async function loadMonitorEvents(background=false){
     $('eventCount').textContent='Events unavailable';setEventEmpty('Events are unavailable','The local monitoring history service could not be started.');return null;
   }
   const seq=++eventRequest,to=historyNow();
-  if(!monitorEvents.length){$('eventCount').textContent='Loading events…';setEventEmpty('Loading local events…','Process activity and alerts will appear here.')}
+  if(!monitorEvents.length){$('eventCount').textContent='Loading events…';setEventEmpty('Loading events…','Process activity and alerts will appear here.')}
   try{
-    const data=await monitorHistory({from:to-72*3600,to,points:1,eventType:'',eventLimit:5000});
+    const data=await monitorHistory({from:to-72*3600,to,machine:historyMachine,points:1,eventType:'',eventLimit:5000});
     if(seq!==eventRequest)return null;
     const events=Array.isArray(data.events)?data.events:[],fresh=eventBaseline?events.filter(e=>!knownEventIDs.has(e.id)):[];
     monitorEvents=events;knownEventIDs=new Set(events.map(e=>e.id));eventBaseline=true;
@@ -2597,7 +2634,7 @@ $('eventSearch').oninput=renderMonitorEvents;$('eventType').onchange=renderMonit
 $('eventsRefresh').onclick=()=>loadMonitorEvents();
 function startHistoryUpdates(){
   if(historyUpdateTimer!==null||typeof setInterval!=='function'||typeof monitorHistory!=='function')return;
-  loadMonitorEvents(true);
+  loadHistoryMachineList();loadMonitorEvents(true);
   historyUpdateTimer=setInterval(()=>{loadMonitorEvents(true);if(tab==='history')loadResourceHistory(true)},5000);
 }
 syncHistoryRanges();

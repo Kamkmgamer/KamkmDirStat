@@ -21,8 +21,10 @@ var remoteMonitorScript string
 // Samples pass through to the page unchanged.
 
 type MonitorStatus struct {
-	Running    bool `json:"running"`
-	Connecting bool `json:"connecting,omitempty"`
+	Running bool `json:"running"`
+	// Machine is the history key of the monitored computer: "local", or user@host:port.
+	Machine    string `json:"machine,omitempty"`
+	Connecting bool   `json:"connecting,omitempty"`
 	// Reconnecting is set while the monitor replaces a connection that stalled or dropped.
 	Reconnecting bool              `json:"reconnecting,omitempty"`
 	Error        string            `json:"error,omitempty"`
@@ -66,7 +68,11 @@ func startMonitor(c Connection) error {
 	writes := make(chan []byte, 16)
 	monitorState.cancel = cancel
 	monitorState.writes = writes
-	monitorState.status = MonitorStatus{Running: true, Connecting: true}
+	machine := localHistoryMachine
+	if !c.Local {
+		machine = remoteHistoryMachine(c)
+	}
+	monitorState.status = MonitorStatus{Running: true, Connecting: true, Machine: machine}
 	monitorState.Unlock()
 	go func() {
 		update := func(update func(*MonitorStatus)) bool {
@@ -82,7 +88,7 @@ func startMonitor(c Connection) error {
 			if c.Local {
 				return runLocalMonitor(ctx, writes, update)
 			}
-			return runMonitor(ctx, c, writes, update)
+			return runMonitor(ctx, c, machine, writes, update)
 		}
 		err := superviseMonitor(ctx, run, update)
 		cancel()
@@ -201,10 +207,10 @@ func stopMonitor() error {
 	return nil
 }
 
-// recordSample publishes a local sample and records it before the page polls it. Remote
-// samples stay out of this PC's history.
-func recordSample(raw json.RawMessage) func(*MonitorStatus) {
-	recordMonitorSample(raw)
+// recordSample records a sample in its machine's history, then publishes it, so the
+// history already holds a sample by the time the page polls it.
+func recordSample(machine string, raw json.RawMessage) func(*MonitorStatus) {
+	recordMonitorSample(machine, raw)
 	return func(s *MonitorStatus) { s.Sample = raw; s.Seq++ }
 }
 
@@ -265,7 +271,7 @@ func monitorAction(a MonitorAction) error {
 	}
 }
 
-func runMonitor(ctx context.Context, c Connection, writes <-chan []byte, update func(func(*MonitorStatus)) bool) error {
+func runMonitor(ctx context.Context, c Connection, machine string, writes <-chan []byte, update func(func(*MonitorStatus)) bool) error {
 	client, err := connectVerified(ctx, c)
 	if err != nil {
 		return err
@@ -291,18 +297,19 @@ func runMonitor(ctx context.Context, c Connection, writes <-chan []byte, update 
 	if err := session.Start(command); err != nil {
 		return fmt.Errorf("The server does not allow running commands, which monitoring needs: %w", err)
 	}
-	return monitorProtocolMode(ctx, input, stdout, func() { _ = client.Close() }, "the server", writes, update, false)
+	return monitorProtocolMode(ctx, input, stdout, func() { _ = client.Close() }, "the server", writes, update, machine)
 }
 
 // monitorProtocol talks to remote_monitor.py over its standard input and output, whether
 // it runs on a server or, on Linux, on this computer. abort unblocks stalled reads.
 func monitorProtocol(ctx context.Context, input io.Writer, stdout io.Reader, abort func(), where string,
 	writes <-chan []byte, update func(func(*MonitorStatus)) bool) error {
-	return monitorProtocolMode(ctx, input, stdout, abort, where, writes, update, false)
+	return monitorProtocolMode(ctx, input, stdout, abort, where, writes, update, "")
 }
 
+// monitorProtocolMode records samples in the history of machine, unless machine is empty.
 func monitorProtocolMode(ctx context.Context, input io.Writer, stdout io.Reader, abort func(), where string,
-	writes <-chan []byte, update func(func(*MonitorStatus)) bool, record bool) error {
+	writes <-chan []byte, update func(func(*MonitorStatus)) bool, machine string) error {
 	output := bufio.NewReaderSize(stdout, 64<<10)
 	header := make(chan string, 1)
 	go func() { header <- readScriptHeader(output, "SSM1 ") }()
@@ -359,8 +366,8 @@ func monitorProtocolMode(ctx context.Context, input io.Writer, stdout io.Reader,
 			current = update(func(s *MonitorStatus) { s.Hello = raw; s.Connecting = false })
 		case "sample":
 			publish := func(s *MonitorStatus) { s.Sample = raw; s.Seq++ }
-			if record {
-				publish = recordSample(raw)
+			if machine != "" {
+				publish = recordSample(machine, raw)
 			}
 			current = update(publish)
 		case "result":

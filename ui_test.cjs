@@ -379,4 +379,25 @@ console.log('UI treemap layout passed');
  await get('historyClear').onclick();assert.equal(cleared,1);assert.equal(vm.runInContext('historySeconds',ctx),3600);assert.equal(vm.runInContext('historyData.points.length',ctx),0);
  assert.equal(vm.runInContext('monitorEvents.length',ctx),0);assert.equal(vm.runInContext('knownEventIDs.size',ctx),0);assert.equal(get('historyEmpty').classList.contains('hidden'),false);
  console.log('UI history failures and clear workflow passed');
+
+ // History follows the monitored computer; each query and clear names it, and switching
+ // machines makes the new machine's existing events a baseline rather than pop-ups.
+ const server='root@host-01:22';
+ ctx.historyMachines=async()=>[{key:'local',local:true,newest:now},{key:server,local:false,newest:now}];
+ const serverEvent={id:'srv-cpu',time:now-5,type:'resource_cpu',severity:'warning',title:'Server CPU use is high',message:'high'};
+ historyImpl=async q=>{queries.push(q);return q.machine===server?{from:q.from,to:q.to,machine:server,points:[{time:now-5,cpu:77,memory:10,rx:0,tx:0}],events:[serverEvent]}:{from:q.from,to:q.to,points:[],events:[]}};
+ const toastsBefore=toasts.length;
+ vm.runInContext("setTab('history')",ctx);vm.runInContext(`selectHistoryMachine('${server}')`,ctx);await tick(20);
+ assert.equal(vm.runInContext('historyMachine',ctx),server);
+ assert.ok(queries.slice(-3).every(q=>q.machine===server),'history and event queries name the server');
+ assert.equal(vm.runInContext('historyData.points[0].cpu',ctx),77);
+ assert.equal(toasts.length,toastsBefore,'existing server alerts do not pop up');
+ await vm.runInContext('loadHistoryMachineList()',ctx);
+ assert.deepEqual(get('historyMachine').children.map(o=>o.value),['local',server]);assert.equal(get('eventsMachine').value,server);
+ assert.match(get('historySub').textContent,/root@host-01:22/);
+ let clearedMachine=null;ctx.clearMonitorHistory=async m=>{clearedMachine=m};
+ await get('historyClear').onclick();assert.equal(clearedMachine,server,'clear targets the shown computer');
+ get('eventsMachine').value='local';get('eventsMachine').onchange();await tick(20);
+ assert.equal(vm.runInContext('historyMachine',ctx),'local');assert.equal(queries.at(-1).machine,'local');
+ console.log('UI per-computer history passed');
 })().catch(err=>{console.error(err);process.exitCode=1});

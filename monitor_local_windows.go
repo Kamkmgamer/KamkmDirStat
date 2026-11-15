@@ -133,7 +133,7 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 		if err != nil {
 			return err
 		}
-		if !update(recordSample(data)) {
+		if !update(recordSample(localHistoryMachine, data)) {
 			return context.Canceled
 		}
 		select {
