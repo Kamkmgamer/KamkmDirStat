@@ -5,6 +5,8 @@
 :root{
   --font:"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,Ubuntu,Cantarell,"Noto Sans",sans-serif;
   --mono:"Cascadia Mono","Cascadia Code",ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;
+  /* Titles and large figures use the display cut of the system face where one exists. */
+  --font-display:"Segoe UI Variable Display","Segoe UI",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,Ubuntu,Cantarell,"Noto Sans",sans-serif;
   --r-sm:4px;--r:6px;--r-lg:9px;--r-xl:12px;--side:296px;
   font:13px/1.45 var(--font);color:var(--text);background:var(--canvas);
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
@@ -104,7 +106,6 @@ input[type=checkbox]:checked::after{content:"";position:absolute;left:4.5px;top:
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:30px;padding:0 12px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:500;white-space:nowrap;cursor:pointer;transition:background .12s,border-color .12s}
 .btn:hover:not(:disabled){background:var(--hover)}
-.btn:disabled{opacity:.45;cursor:default}
 .btn svg.i{width:15px;height:15px}
 .btn.primary{background:var(--accent);border-color:transparent;color:var(--accent-foreground);font-weight:600}
 .btn.primary:hover:not(:disabled){background:var(--accent-hover)}
@@ -116,6 +117,10 @@ input[type=checkbox]:checked::after{content:"";position:absolute;left:4.5px;top:
 .btn.sm{height:26px;padding:0 9px;font-size:12px}
 .btn.ghost{border-color:transparent;background:none}
 .btn.ghost:hover:not(:disabled){background:var(--hover)}
+/* Disabled buttons go quiet in the theme's own colours rather than fading the accent to a muddy
+   tint. Listed after every variant so it wins over primary and danger colours. */
+.btn:disabled,.btn.primary:disabled,.btn.primary.danger:disabled{cursor:default;color:var(--text-faint);filter:none}
+.btn:not(.ghost):disabled,.btn.primary:not(.ghost):disabled{background:color-mix(in srgb,var(--text) 5%,var(--surface));border-color:var(--border)}
 
 /* Drive list */
 .drives{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);overflow:hidden}
@@ -126,7 +131,9 @@ input[type=checkbox]:checked::after{content:"";position:absolute;left:4.5px;top:
 .drive b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
 .drive .kind{color:var(--text-faint);font-size:11.5px}
 .drive .free{color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.drive .meter{grid-column:2/4;height:3px}
+.drive .free.warn{color:var(--warning-foreground)}
+.drive .free.crit{color:var(--error-foreground)}
+.drive .meter{grid-column:2/4;height:4px}
 .drives .hint{padding:10px 12px}
 
 /* Status */
@@ -150,14 +157,16 @@ main{min-width:0;min-height:0;background:var(--canvas)}
 #workspace{--list:42%;display:grid;grid-template-rows:auto minmax(120px,var(--list)) 10px minmax(160px,1fr);padding:0 16px 14px}
 .toolbar{display:flex;align-items:center;gap:8px;min-width:0;padding:14px 0 12px}
 .where{flex:1;min-width:0}
-.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:1px;min-height:26px;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:1px;min-height:26px;font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.012em}
 .crumbs button{display:inline-flex;align-items:center;gap:6px;padding:2px 5px;border:0;border-radius:var(--r-sm);background:none;color:var(--text-muted);font:inherit;cursor:pointer}
 .crumbs button:hover{background:var(--hover);color:var(--text)}
 .crumbs svg.i{color:var(--text-faint)}
 .crumbs .sep{display:inline-flex;color:var(--text-faint)}
 .crumbs .sep svg.i{width:12px;height:12px}
 .crumbs .here{display:inline-flex;align-items:center;gap:6px;padding:2px 5px;overflow-wrap:anywhere;color:var(--text)}
-#subheading{display:flex;flex-wrap:wrap;gap:4px 14px;margin:2px 0 0 5px;color:var(--text-muted);font-size:12px}
+#subheading{display:flex;flex-wrap:wrap;gap:4px 14px}
+/* The line under each view's title: the same place, size and colour on every tab. */
+#subheading,#actSub,.view-sub{margin:2px 0 0 5px;color:var(--text-muted);font-size:12px;line-height:1.45}
 #subheading b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
 .badge{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:var(--r-sm);background:var(--warning-surface);color:var(--warning-foreground);font-size:11px;font-weight:600;white-space:nowrap}
 
@@ -221,6 +230,13 @@ main{min-width:0;min-height:0;background:var(--canvas)}
 .pills button{height:24px;padding:0 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text-muted);font-size:12px;font-weight:500;white-space:nowrap;cursor:pointer}
 .pills button:hover{color:var(--text);border-color:var(--border-strong)}
 .pills button[aria-pressed=true]{background:var(--accent-surface);border-color:var(--accent-text);color:var(--accent-text)}
+/* A segmented control picks one of a few modes (where to search, how to order, which range),
+   so it reads differently from the filter pills beside it. */
+.segmented{display:inline-flex;flex:none;gap:2px;padding:2px;border:1px solid var(--border);border-radius:calc(var(--r) + 1px);background:var(--surface-raised)}
+.segmented button{height:22px;padding:0 9px;border:0;border-radius:var(--r-sm);background:none;color:var(--text-muted);font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer}
+.segmented button:hover{color:var(--text)}
+.segmented button[aria-pressed=true]{background:var(--surface-overlay);color:var(--text);box-shadow:0 0 0 1px var(--border-strong),0 1px 2px rgba(0,0,0,.12)}
+.segmented button:focus-visible{outline-offset:-1px}
 .files-bar select{width:auto;max-width:230px;height:26px;font-size:12px}
 .drive-bar{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding-top:2px;color:var(--text-muted);font-size:12px}
 .drive-bar .chips{display:flex;flex-wrap:wrap;gap:4px}
@@ -274,7 +290,7 @@ main{min-width:0;min-height:0;background:var(--canvas)}
 .art .a{fill:var(--accent-surface);stroke:var(--accent-text)}
 .art .b{fill:var(--surface);stroke:currentColor}
 .art .l1{stroke:var(--chart-1)}.art .l2{stroke:var(--chart-2)}
-.welcome h2{margin:0;color:var(--text);font-size:17px;font-weight:600;letter-spacing:-.01em}
+.welcome h2{margin:0;color:var(--text);font-family:var(--font-display);font-size:18px;font-weight:600;letter-spacing:-.015em}
 .welcome p{margin:0;color:var(--text-muted);line-height:1.6}
 .steps{display:flex;flex-direction:column;gap:7px;align-self:stretch;margin:14px auto 0;padding:14px 0 0;border-top:1px solid var(--border);list-style:none;text-align:left;max-width:340px;width:100%}
 .steps li{display:flex;gap:12px;color:var(--text-muted);font-size:12.5px}
@@ -293,7 +309,7 @@ kbd{display:inline-block;min-width:16px;padding:0 4px;border:1px solid var(--bor
 .dialog .shield{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:var(--warning-surface);color:var(--warning-foreground)}
 .dialog .shield svg.i{width:19px;height:19px}
 .dialog .shield.danger{background:var(--error-surface);color:var(--error-foreground)}
-.dialog h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.dialog h2{margin:0;font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.012em}
 .dialog p{margin:0;color:var(--text-muted);line-height:1.55}
 .kv{display:flex;flex-direction:column;gap:5px}
 .kv span{color:var(--text-muted);font-size:12px}
@@ -340,10 +356,10 @@ kbd{display:inline-block;min-width:16px;padding:0 4px;border:1px solid var(--bor
 /* Activity monitor */
 .activity{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0;padding:0 16px 16px;overflow:auto}
 .activity .toolbar{padding-bottom:0}
-.act-title{display:flex;align-items:center;gap:9px;margin:0;padding:2px 5px;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.act-title{display:flex;align-items:center;gap:9px;min-height:26px;margin:0;padding:0 5px;font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.012em}
+.act-title .priv{font-family:var(--font)}
 .priv{display:inline-flex;align-items:center;height:20px;padding:0 7px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-raised);color:var(--text-muted);font-size:11.5px;font-weight:500;letter-spacing:0}
 .priv[data-level=root],.priv[data-level=sudo],.priv[data-level=sudo-password],.priv[data-level=admin]{border-color:transparent;background:var(--accent-surface);color:var(--accent-text)}
-#actSub{margin:2px 0 0 5px;color:var(--text-muted);font-size:12px}
 .notice{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);color:var(--text-muted);font-size:12.5px}
 .notice::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--success)}
 .notice.busy::before{width:12px;height:12px;background:none;border:2px solid var(--border-strong);border-top-color:var(--accent-text);animation:spin .8s linear infinite}
@@ -354,7 +370,7 @@ kbd{display:inline-block;min-width:16px;padding:0 4px;border:1px solid var(--bor
 .tile h3,.panel-title{display:flex;align-items:center;gap:7px;margin:0;color:var(--text-muted);font-size:12px;font-weight:500}
 .tile h3 svg.i,.panel-title svg.i{color:var(--text-faint)}
 .tile h3 .keys{display:flex;gap:10px;margin-left:auto}
-.tile .big{margin-top:6px;font-size:24px;font-weight:600;line-height:1.2;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .big{margin-top:6px;font-family:var(--font-display);font-size:26px;font-weight:600;line-height:1.15;letter-spacing:-.025em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tile .sub{margin-top:1px;color:var(--text-muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tile>:not(.spark){flex-shrink:0}
 /* A tile two rows high has room for its figure and graph but not the line under the figure. */
@@ -435,6 +451,8 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 .meter{display:flex;gap:2px;height:6px;border-radius:3px;background:var(--border);overflow:hidden}
 .meter i{display:block;height:100%;min-width:0;border-radius:3px;background:var(--chart-1)}
 .meter i.s2{background:var(--chart-2)}
+.meter i.warn{background:var(--warning)}
+.meter i.crit{background:var(--error)}
 .keyrow{display:flex;flex-wrap:wrap;gap:4px 14px}
 .kvs{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px 14px}
 .kvs div{display:flex;flex-direction:column;gap:1px;min-width:0}
@@ -456,6 +474,8 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 .mini td{padding:6px 0;border-top:1px solid var(--border);color:var(--text-muted);text-align:right}
 .mini th:first-child,.mini td:first-child{color:var(--text);text-align:left}
 .mini th+th,.mini td+td{padding-left:14px;white-space:nowrap}
+/* Long interface names end in an ellipsis instead of wrapping out of their row. */
+#netPanel .mini td:first-child{max-width:1px;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .procs .listing{max-height:480px;border-radius:0 0 var(--r-lg) var(--r-lg)}
 .procs col.c-pid{width:80px}.procs col.c-user{width:120px}.procs col.c-cpu{width:76px}.procs col.c-mem{width:100px}.procs col.c-act{width:168px}
 .procs td.left,.procs th.left{text-align:left!important}
@@ -471,27 +491,25 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 .no-gpu .gpu-only{display:none}
 
 /* Local history and the event log share the monitor's compact, data-first layout. */
-.history-ranges{margin-left:auto}
-#history>.toolbar{flex-wrap:wrap;row-gap:8px}
+#history>.toolbar,#events>.toolbar{flex-wrap:wrap;row-gap:8px}
+#history .where,#events .where{flex:1 1 280px}
 .history-machine{width:auto;max-width:260px;height:28px;font-size:12px;background-position:calc(100% - 15px) 12px,calc(100% - 11px) 12px!important}
-#events .history-machine{margin-left:auto}
 .history-grid{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px;min-height:560px;flex:1}
 .history-chart-panel,.history-process-panel,.events-panel{min-width:0;overflow:hidden}
 .history-chart-panel{display:flex;flex-direction:column}
-/* The header stays one line high whatever the coverage text says, so the chart never moves
-   when that text changes length (for example to "Loading history…" and back). */
+/* The header and footer stay one line high whatever their text says, so the chart never moves
+   when the coverage or the readout changes length (for example to "Loading history…" and back). */
 .history-chart-panel>.panel-head{flex-wrap:nowrap}
 .history-chart-panel .panel-title{flex:1 1 auto;overflow:hidden;white-space:nowrap}
-.history-chart-panel .panel-title small{flex:0 1 auto;min-width:0}
-.history-chart-panel>.panel-head>.hint{flex:none;white-space:nowrap}
-@media (max-width:760px){.history-chart-panel>.panel-head>.hint{display:none}}
 .timeline-wrap{position:relative;flex:1;min-height:410px;background:var(--surface)}
 #historyChart{position:absolute;inset:0;display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
 .history-tip{z-index:3;max-width:290px;line-height:1.55;white-space:normal;pointer-events:none}
 .history-empty{position:absolute;inset:0;pointer-events:none;background:var(--surface)}
 .history-empty h2{margin:0;color:var(--text);font-size:15px}
 .history-empty p{max-width:390px;margin:0;line-height:1.6}
-.history-readout{min-height:35px;padding:9px 14px;border-top:1px solid var(--border);color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.history-foot{display:flex;align-items:center;gap:16px;height:35px;padding:0 14px;border-top:1px solid var(--border);color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.history-readout{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.history-foot small{flex:0 1 auto;min-width:0;max-width:55%;overflow:hidden;color:var(--text-faint);font-size:11.5px;text-overflow:ellipsis}
 .history-process-panel{display:flex;flex-direction:column}
 .history-process-body{min-height:0;padding:12px 14px;overflow:auto}
 .history-process-body>.hint{display:block;margin-bottom:12px}
@@ -513,21 +531,29 @@ body.resizing-card,body.resizing-card *{cursor:var(--resize-cursor,nwse-resize)!
 .alert-preferences>.hint{margin-left:auto}
 .check{display:inline-flex;align-items:center;gap:7px;color:var(--text-muted);cursor:pointer}
 .event-list{min-height:0;overflow:auto;flex:1}
-.event-row{display:grid;grid-template-columns:132px minmax(0,1fr);gap:16px;width:100%;padding:13px 16px;border:0;border-bottom:1px solid var(--border);background:var(--surface);color:var(--text);text-align:left;cursor:pointer}
+/* Events are a dense log: two lines for routine process starts and exits, three for alerts,
+   which also carry a mark in their severity's colour along the left edge. */
+.event-row{position:relative;display:grid;grid-template-columns:112px minmax(0,1fr);gap:14px;width:100%;padding:9px 16px 10px;border:0;border-bottom:1px solid var(--border);background:var(--surface);color:var(--text);text-align:left;cursor:pointer}
 .event-row:hover{background:var(--hover)}
-.event-row:focus-visible{position:relative;z-index:1;outline-offset:-2px}
-.event-when{color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
-.event-when span{display:block;margin-top:3px;color:var(--text-faint)}
+.event-row:focus-visible{z-index:1;outline-offset:-2px}
+.event-row.sev-warning::before,.event-row.sev-notice::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 2px 2px 0;background:var(--warning)}
+.event-row.sev-notice::before{background:var(--accent-text)}
+.event-when{padding-top:1px;color:var(--text-muted);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.event-when span{display:block;margin-top:3px;overflow:hidden;color:var(--text-faint);text-overflow:ellipsis}
+.event-body{min-width:0}
 .event-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-weight:600}
-.severity{display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:var(--r-sm);background:var(--surface-raised);color:var(--text-muted);font-size:10.5px;font-weight:600}
-.severity.warning{background:var(--warning-surface);color:var(--warning-foreground)}
-.severity.notice{background:var(--accent-surface);color:var(--accent-text)}
-.event-message{margin-top:3px;color:var(--text-muted);line-height:1.5;overflow-wrap:anywhere}
-.event-details{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:7px;color:var(--text-faint);font-size:11.5px}
-.event-path{margin-top:6px;color:var(--text-faint);font-family:var(--mono);font-size:11px;line-height:1.5;overflow-wrap:anywhere;user-select:text}
+.severity{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:var(--r-sm);background:var(--surface-raised);color:var(--text-muted);font-size:10.5px;font-weight:600;text-transform:capitalize}
+.severity.sev-warning{background:var(--warning-surface);color:var(--warning-foreground)}
+.severity.sev-notice{background:var(--accent-surface);color:var(--accent-text)}
+.event-message{margin-top:2px;color:var(--text-muted);line-height:1.5;overflow-wrap:anywhere}
+.event-meta{display:flex;align-items:baseline;gap:12px;min-width:0;margin-top:3px;color:var(--text-faint);font-size:11.5px;white-space:nowrap}
+.event-details{flex:0 0 auto;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.event-path{flex:0 1 auto;min-width:0;overflow:hidden;font-family:var(--mono);font-size:11px;text-overflow:ellipsis;user-select:text}
 .event-empty{padding:40px 20px}
-@media (max-width:1100px){.history-grid{grid-template-columns:minmax(0,1fr)}.history-process-panel{max-height:310px}.history-ranges{margin-left:0}.alert-preferences>.hint{margin-left:0;flex-basis:100%}}
-@media (max-width:900px){.event-row{grid-template-columns:105px minmax(0,1fr);gap:10px}.event-filters select{width:160px}}
+@media (max-width:1100px){.history-grid{grid-template-columns:minmax(0,1fr)}.history-process-panel{max-height:310px}.alert-preferences>.hint{margin-left:0;flex-basis:100%}}
+@media (max-width:900px){.event-row{grid-template-columns:96px minmax(0,1fr);gap:10px}.event-filters select{width:160px}.event-path{display:none}}
+@media (max-width:1040px){#history .where{flex-basis:100%}}
+@media (max-width:760px){.history-foot small{display:none}}
 
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:var(--scrollbar);border:2px solid transparent;border-radius:6px;background-clip:padding-box}
@@ -867,6 +893,7 @@ refresh();
   <symbol id="i-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></symbol>
   <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13.25 9.5A5.75 5.75 0 0 1 6.5 2.75a5.75 5.75 0 1 0 6.75 6.75z"/></symbol>
   <symbol id="i-history" viewBox="0 0 16 16"><path d="M2.25 5.25V1.75m0 3.5h3.5M2.4 5.1A6.25 6.25 0 1 1 1.75 9"/><path d="M8 4.75V8l2.25 1.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13.25 3.25v3h-3M13 6.25A5.25 5.25 0 1 0 13.25 9"/></symbol>
   <symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 1.75 14.25 13H1.75z"/><path d="M8 6v3.25M8 11.5h.01"/></symbol>
 </svg>
 
@@ -912,7 +939,7 @@ refresh();
       <div class="group local-only" id="localFields">
         <div class="field-head"><h2 class="group-label" id="drivesLabel">Drives</h2><span class="links"><button class="linkbtn" id="allDrives" type="button">All</button><button class="linkbtn" id="noDrives" type="button">None</button><button class="linkbtn" id="refreshDrives" type="button" title="Look for drives again">Refresh</button></span></div>
         <div class="drives" id="drives" role="group" aria-labelledby="drivesLabel"><p class="hint">Looking for drives…</p></div>
-        <div class="field"><label for="localFolder">Or scan one folder <span class="opt">replaces the drives</span></label><div class="input"><svg class="i"><use href="#i-folder"/></svg><input id="localFolder" placeholder="C:\Users\you\Downloads" spellcheck="false"></div></div>
+        <div class="field"><label for="localFolder">Or scan one folder <span class="opt">instead of drives</span></label><div class="input"><svg class="i"><use href="#i-folder"/></svg><input id="localFolder" placeholder="C:\Users\you\Downloads" spellcheck="false"></div></div>
       </div>
       <div class="group remote-only">
         <h2 class="group-label">Scan</h2>
@@ -943,10 +970,10 @@ refresh();
     <button class="btn sm hidden" id="clearResults" type="button" title="Forget these results and give their memory back to the system">Clear results</button>
   </div>
   <section class="panel list"><div class="files-bar hidden" id="filesBar">
-    <div class="pills hidden" id="scopes" role="group" aria-label="Search in"><button type="button" data-scope="" aria-pressed="true">This scan</button><button type="button" data-scope="drives" aria-pressed="false">All drives</button></div>
+    <div class="segmented hidden" id="scopes" role="group" aria-label="Search in"><button type="button" data-scope="" aria-pressed="true">This scan</button><button type="button" data-scope="drives" aria-pressed="false">All drives</button></div>
     <div class="pills" id="kinds" role="group" aria-label="Type"><button type="button" data-kind="all" aria-pressed="true">All</button><button type="button" data-kind="folders" aria-pressed="false">Folders</button><button type="button" data-kind="images" aria-pressed="false">Images</button><button type="button" data-kind="videos" aria-pressed="false">Videos</button><button type="button" data-kind="audio" aria-pressed="false">Audio</button><button type="button" data-kind="documents" aria-pressed="false">Documents</button><button type="button" data-kind="archives" aria-pressed="false">Archives</button></div>
     <select id="extFilter" aria-label="File extension"><option value="">Any extension</option></select>
-    <div class="pills hidden" id="sorts" role="group" aria-label="Order"><button type="button" data-sort="" aria-pressed="true">Best match</button><button type="button" data-sort="size" aria-pressed="false">Largest</button></div>
+    <div class="segmented hidden" id="sorts" role="group" aria-label="Order"><button type="button" data-sort="" aria-pressed="true">Best match</button><button type="button" data-sort="size" aria-pressed="false">Largest</button></div>
     <span class="found" id="found" aria-live="polite"></span>
     <button class="icon-btn sm" id="closeFiles" type="button" title="Back to folders (Esc)" aria-label="Back to folders"><svg class="i"><use href="#i-x"/></svg></button>
     <div class="drive-bar hidden" id="driveBar" aria-live="polite"><span class="chips" id="driveChips"></span><span class="hint" id="driveHint"></span><button class="btn sm hidden" id="driveRefresh" type="button" title="Read the folders of drives without a live index again">Refresh</button><button class="btn sm hidden" id="driveAdmin" type="button">Restart as administrator</button><button class="btn sm hidden" id="driveService" type="button">Set up background indexer</button><button class="btn sm ghost hidden" id="driveRemove" type="button">Remove background indexer</button></div>
@@ -1008,37 +1035,37 @@ refresh();
 
 <main id="history" class="activity hidden" role="tabpanel" aria-labelledby="tabHistory" aria-hidden="true">
   <div class="toolbar">
-    <div class="where"><h2 class="act-title">History</h2><p id="historySub">Resource use on this computer, kept for up to 72 hours.</p></div>
+    <div class="where"><h2 class="act-title">History</h2><p class="view-sub" id="historySub">Resource use on this computer, kept for up to 72 hours.</p></div>
     <select class="history-machine" id="historyMachine" aria-label="Computer whose history is shown"><option value="local">This computer</option></select>
-    <div class="pills history-ranges" id="historyRanges" role="group" aria-label="History range">
-      <button type="button" data-seconds="300" aria-pressed="false">5 min</button><button type="button" data-seconds="900" aria-pressed="false">15 min</button><button type="button" data-seconds="3600" aria-pressed="true">1 hour</button><button type="button" data-seconds="10800" aria-pressed="false">3 hours</button><button type="button" data-seconds="21600" aria-pressed="false">6 hours</button><button type="button" data-seconds="86400" aria-pressed="false">24 hours</button><button type="button" data-seconds="259200" aria-pressed="false">72 hours</button>
-    </div>
-    <button class="btn sm ghost" id="historyRefresh" type="button">Refresh</button>
+    <button class="btn sm ghost" id="historyRefresh" type="button"><svg class="i"><use href="#i-refresh"/></svg>Refresh</button>
     <button class="btn sm ghost danger" id="historyClear" type="button"><svg class="i"><use href="#i-trash"/></svg>Clear history</button>
   </div>
   <div class="notice error hidden" id="historyStorage" role="status" aria-live="polite"><span id="historyStorageText"></span></div>
   <div class="history-grid">
     <section class="panel history-chart-panel" aria-labelledby="historyChartTitle">
-      <div class="panel-head"><h3 class="panel-title" id="historyChartTitle"><svg class="i"><use href="#i-history"/></svg>Resource timeline <small id="historyCoverage">No samples loaded</small></h3><span class="hint">Drag across the chart to zoom</span></div>
+      <div class="panel-head"><h3 class="panel-title" id="historyChartTitle"><svg class="i"><use href="#i-history"/></svg>Resource timeline</h3>
+        <div class="segmented" id="historyRanges" role="group" aria-label="History range">
+          <button type="button" data-seconds="300" aria-pressed="false" aria-label="5 minutes" title="Last 5 minutes">5m</button><button type="button" data-seconds="900" aria-pressed="false" aria-label="15 minutes" title="Last 15 minutes">15m</button><button type="button" data-seconds="3600" aria-pressed="true" aria-label="1 hour" title="Last hour">1h</button><button type="button" data-seconds="10800" aria-pressed="false" aria-label="3 hours" title="Last 3 hours">3h</button><button type="button" data-seconds="21600" aria-pressed="false" aria-label="6 hours" title="Last 6 hours">6h</button><button type="button" data-seconds="86400" aria-pressed="false" aria-label="24 hours" title="Last 24 hours">24h</button><button type="button" data-seconds="259200" aria-pressed="false" aria-label="72 hours" title="Last 72 hours">72h</button>
+        </div></div>
       <div class="timeline-wrap" id="historyChartWrap">
         <canvas id="historyChart" tabindex="0" aria-label="CPU, memory, GPU and network history. Use the left and right arrow keys to inspect samples."></canvas>
         <div class="tip history-tip hidden" id="historyTip"></div>
         <div class="empty history-empty" id="historyEmpty"><h2>No local history yet</h2><p>Keep local monitoring running to record resource use. History does not advance while the app is closed.</p></div>
       </div>
-      <div class="history-readout" id="historyReadout" aria-live="polite">Hover over the timeline to inspect a time.</div>
+      <div class="history-foot"><div class="history-readout" id="historyReadout" aria-live="polite">Hover over the timeline to inspect a time, or drag across it to zoom.</div><small id="historyCoverage">No samples loaded</small></div>
     </section>
     <section class="panel history-process-panel" aria-labelledby="historyProcessesTitle">
       <div class="panel-head"><h3 class="panel-title" id="historyProcessesTitle"><svg class="i"><use href="#i-list"/></svg>Processes at that time</h3></div>
-      <div class="history-process-body"><p class="hint" id="historyProcessTime">Process snapshots are taken every 10 seconds.</p><div id="historyProcesses" class="history-processes"></div></div>
+      <div class="history-process-body"><p class="hint" id="historyProcessTime">Hover over the timeline to see the busiest processes at that time. Snapshots are taken every 10 seconds.</p><div id="historyProcesses" class="history-processes"></div></div>
     </section>
   </div>
 </main>
 
 <main id="events" class="activity hidden" role="tabpanel" aria-labelledby="tabEvents" aria-hidden="true">
   <div class="toolbar">
-    <div class="where"><h2 class="act-title">Events</h2><p id="eventsSub">Process activity and alerts from monitoring this computer.</p></div>
+    <div class="where"><h2 class="act-title">Events</h2><p class="view-sub" id="eventsSub">Process activity and alerts from monitoring this computer.</p></div>
     <select class="history-machine" id="eventsMachine" aria-label="Computer whose events are shown"><option value="local">This computer</option></select>
-    <button class="btn sm ghost" id="eventsRefresh" type="button">Refresh</button>
+    <button class="btn sm ghost" id="eventsRefresh" type="button"><svg class="i"><use href="#i-refresh"/></svg>Refresh</button>
   </div>
   <div class="notice error hidden" id="eventsStorage" role="status" aria-live="polite"><span id="eventsStorageText"></span></div>
   <section class="panel events-panel">
@@ -1187,7 +1214,9 @@ function renderDrives(){
     cb.type='checkbox';cb.checked=d.checked;cb.onchange=()=>{d.checked=cb.checked};
     name.append(el('b','',driveName(d)));if(kind)name.append(el('span','kind',kind));
     row.title=`${d.path} · ${d.fileSystem||'unknown file system'} · ${size(d.free)} free of ${size(d.total)} · ${pct(used,d.total)} used`;
-    row.append(cb,name,el('span','free',`${size(d.free)} free`),meter([[d.total?100*used/d.total:0]]));
+    // A drive that is nearly full is the likeliest reason to scan, so it stands out.
+    const share=d.total?100*used/d.total:0,level=share>=95?'crit':share>=90?'warn':'';
+    row.append(cb,name,el('span','free'+(level?' '+level:''),`${size(d.free)} free`),meter([[share,level]]));
     return row;
   }));
 }
@@ -2007,7 +2036,7 @@ function renderActivity(){
   const np=$('netPanel'),nets=s.network||[];
   if(!nets.length)np.replaceChildren(el('p','muted','No network interfaces reported.'));
   else{const t=el('table','mini'),h=el('tr');for(const x of ['Interface','In','Out','Received','Sent'])h.append(el('th','',x));t.append(h);
-    for(const n of [...nets].sort((a,b)=>(b.rx+b.tx)-(a.rx+a.tx))){const r=el('tr');r.append(el('td','',n.name),el('td','',rate(n.rx)),el('td','',rate(n.tx)),el('td','',size(n.rxTotal)),el('td','',size(n.txTotal)));t.append(r)}
+    for(const n of [...nets].sort((a,b)=>(b.rx+b.tx)-(a.rx+a.tx))){const r=el('tr'),name=el('td','',n.name);name.title=n.name;r.append(name,el('td','',rate(n.rx)),el('td','',rate(n.tx)),el('td','',size(n.rxTotal)),el('td','',size(n.txTotal)));t.append(r)}
     np.replaceChildren(t)}
   renderProcesses();
 }
@@ -2443,7 +2472,7 @@ async function loadHistoryProcesses(time){
 }
 function resetHistoryProcesses(){
   historyProcessRequest++;clearTimeout(historyProcessTimer);clearElement($('historyProcesses'));
-  $('historyProcessTime').textContent='Process snapshots are taken every 10 seconds.';
+  $('historyProcessTime').textContent='Hover over the timeline to see the busiest processes at that time. Snapshots are taken every 10 seconds.';
 }
 function renderHistoryProcesses(processes,time){
   const list=$('historyProcesses');clearElement(list);
@@ -2608,7 +2637,7 @@ $('historyClear').onclick=async()=>{
     await clearMonitorHistory(machine);if(machine!==historyMachine)return;
     historyRequest++;historyProcessRequest++;eventRequest++;clearTimeout(historyProcessTimer);
     historyData=null;historyCursor=null;historyHoverTime=null;historySelectedEvent=null;historyCustom=null;historySeconds=3600;monitorEvents=[];knownEventIDs=new Set();eventBaseline=false;
-    syncHistoryRanges();clearElement($('historyProcesses'));$('historyProcessTime').textContent='Process snapshots are taken every 10 seconds.';renderMonitorEvents();
+    syncHistoryRanges();clearElement($('historyProcesses'));$('historyProcessTime').textContent='Hover over the timeline to see the busiest processes at that time. Snapshots are taken every 10 seconds.';renderMonitorEvents();
     toast('Monitoring history of '+name+' cleared.');await Promise.all([loadResourceHistory(),loadMonitorEvents()]);
   }catch(e){const message=String(e);historyStorageWarning(message);toast(message,{error:true})}
   finally{$('historyClear').disabled=false}
@@ -2637,14 +2666,25 @@ function renderMonitorEvents(){
   $('eventCount').textContent=events.length===monitorEvents.length?count(events.length)+' events':count(events.length)+' of '+count(monitorEvents.length)+' events';
   if(!events.length){setEventEmpty(monitorEvents.length?'No matching events':'No events yet',monitorEvents.length?'Change the search or filters to see more events.':'Process starts, exits and alert events are recorded while monitoring runs.');return}
   if(typeof document.createElement!=='function')return;
+  const today=new Date().toDateString();
   for(const e of events.slice(0,eventRowLimit)){
-    const row=el('button','event-row');row.type='button';row.setAttribute('aria-label',e.title+', '+new Date(e.time*1000).toLocaleString());row.onclick=()=>inspectMonitorEvent(e);
-    const when=el('div','event-when',new Date(e.time*1000).toLocaleString());when.append(el('span','',eventTypeLabel(e)));
-    const body=el('div','event-body'),title=el('div','event-title',e.title);title.append(el('span','severity '+(e.severity||'info'),e.severity||'info'));
-    body.append(title,el('div','event-message',e.message||''));
+    const severity=e.severity||'info',at=new Date(e.time*1000);
+    const row=el('button','event-row sev-'+severity);row.type='button';row.setAttribute('aria-label',e.title+', '+at.toLocaleString());row.onclick=()=>inspectMonitorEvent(e);
+    // Today's events show the time alone; older ones the date too, with the full time on hover.
+    const when=el('div','event-when',at.toDateString()===today?at.toLocaleTimeString():at.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}));
+    when.title=at.toLocaleString();when.append(el('span','',eventTypeLabel(e)));
+    // Routine events carry no severity label; their kind is in the left column.
+    const body=el('div','event-body'),title=el('div','event-title',e.title);if(severity!=='info')title.append(el('span','severity sev-'+severity,severity));
+    body.append(title);
+    // A process start or exit message only repeats the title and PID, so it is left out.
+    if(e.message&&e.type!=='process_start'&&e.type!=='process_exit')body.append(el('div','event-message',e.message));
     const p=e.process||{},details=[p.pid!==undefined?'PID '+p.pid:'',p.user||'',p.publisher||'',e.metric?e.metric+' '+pct0(e.value)+' (threshold '+pct0(e.threshold)+')':''].filter(Boolean);
-    if(details.length)body.append(el('div','event-details',details.join(' · ')));
-    if(p.cmd)body.append(el('div','event-path',p.cmd));
+    if(details.length||p.cmd){
+      const meta=el('div','event-meta');
+      if(details.length)meta.append(el('span','event-details',details.join(' · ')));
+      if(p.cmd){const path=el('span','event-path',p.cmd);path.title=p.cmd;meta.append(path)}
+      body.append(meta);
+    }
     row.append(when,body);list.append(row);
   }
   if(events.length>eventRowLimit){
