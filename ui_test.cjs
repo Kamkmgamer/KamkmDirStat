@@ -620,4 +620,26 @@ console.log('UI treemap layout passed');
  vm.runInContext("itemMenu({preventDefault(){},stopPropagation(){},clientX:5,clientY:5},{parent:3,name:'big.iso',dir:false,size:5})",ctx);
  assert.equal(get('menu').children.some(b=>b.tag==='button'&&/Delete|Recycle/.test(b.children.at(-1))),false);
  console.log('UI storage clean up and delete passed');
+ // Back, Forward and Up beside the map, Alt+Left and Alt+Right, Alt-clicks and the mouse's
+ // back and forward buttons.
+ vm.runInContext("target='local';tab='storage';storageSessions.local.back=[];storageSessions.local.fwd=[];viewId=1;lastView={id:1,trail:[{id:0,name:'C:'},{id:1,name:'Users'}],entries:[],size:0};refresh=()=>{};syncNav()",ctx);
+ assert.equal(get('mapBack').disabled,true);assert.equal(get('mapForward').disabled,true);assert.equal(get('mapUp').disabled,false,'Up is offered below the top folder');
+ vm.runInContext('go(5);go(7)',ctx);
+ assert.deepEqual(Array.from(vm.runInContext('storageSessions.local.back',ctx)),[1,5]);assert.equal(get('mapBack').disabled,false);
+ get('mapBack').onclick();assert.equal(vm.runInContext('viewId',ctx),5);assert.equal(get('mapForward').disabled,false);
+ for(const id of ['trust','confirm','appearance','menu'])get(id).classList.add('hidden');
+ let stopped=0;const key=(k,extra={})=>vm.runInContext('document.onkeydown',ctx)({key:k,altKey:true,ctrlKey:false,shiftKey:false,metaKey:false,target:{tagName:'INPUT'},preventDefault(){stopped++},...extra});
+ key('ArrowLeft');assert.equal(vm.runInContext('viewId',ctx),1,'Alt+Left goes back, even from the search box');
+ key('ArrowRight');assert.equal(vm.runInContext('viewId',ctx),5,'Alt+Right goes forward');
+ assert.equal(stopped,2,'the browser does not go back a page');
+ const click=(button,altKey=false)=>vm.runInContext('storageNavClick',ctx)({button,altKey,preventDefault(){},stopPropagation(){}});
+ assert.equal(click(3),'back');assert.equal(click(4),'forward');assert.equal(click(0,true),'back');assert.equal(click(2,true),'forward');
+ assert.equal(click(0),false,'a plain click opens folders as before');assert.equal(click(2),false,'a plain right-click opens the menu as before');
+ // Opening a new folder after going back drops the forward list.
+ vm.runInContext('goBack();go(9)',ctx);
+ assert.equal(vm.runInContext('storageSessions.local.fwd.length',ctx),0);assert.equal(get('mapForward').disabled,true);
+ // Up goes to the folder above.
+ vm.runInContext("lastView={id:9,trail:[{id:0,name:'C:'},{id:4,name:'Users'},{id:9,name:'me'}],entries:[],size:0};viewId=9",ctx);
+ get('mapUp').onclick();assert.equal(vm.runInContext('viewId',ctx),4);
+ console.log('UI map navigation passed');
 })().catch(err=>{console.error(err);process.exitCode=1});

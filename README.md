@@ -36,7 +36,7 @@ The report appears when the remote scan is complete. Click a folder in the list 
 
 ### Map, search and opening files
 
-The storage map labels each folder with a band across its top, such as `Users\ (120.8 GB)`, and puts its contents below; large files show their names too. **Names** in the map's title bar turns the labels off. Click a block to open its folder.
+The storage map labels each folder with a band across its top, such as `Users\ (120.8 GB)`, and puts its contents below; large files show their names too. **Names** in the map's title bar turns the labels off. Click a block to open its folder. The arrows in the map's title bar go **Back**, **Forward** and **Up** a folder. Alt+Left and Alt+Right, Alt+click and Alt+right-click, and the mouse's back and forward buttons go back and forward too, and Backspace or Alt+Up goes up.
 
 The folder list, the map, the search results and opening files all belong to the tab selected in the panel on the left, so browsing the server's folders leaves this PC's scan untouched, and the other way round.
 

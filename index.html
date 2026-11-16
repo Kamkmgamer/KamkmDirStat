@@ -201,6 +201,10 @@ main{min-width:0;min-height:0;background:var(--canvas)}
 .splitter:focus-visible{outline:none}
 
 .graph-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 16px;min-height:40px;padding:7px 12px;border-bottom:1px solid var(--border)}
+.map-lead{display:flex;align-items:center;gap:10px;min-width:0}
+.map-nav{display:flex;gap:2px;padding-right:10px;border-right:1px solid var(--border)}
+.map-nav .icon-btn:disabled{opacity:.35;cursor:default;background:none}
+svg.i.flip{transform:scaleX(-1)}
 .graph-title{display:flex;align-items:center;gap:7px;margin:0;color:var(--text);font-size:12.5px;font-weight:600}
 .graph-title svg.i{color:var(--text-faint)}
 .graph-title small{color:var(--text-muted);font-weight:400}
@@ -1029,7 +1033,11 @@ refresh();
   </div></section>
   <div class="splitter" id="splitter" role="separator" aria-orientation="horizontal" aria-label="Resize list and map" tabindex="0"></div>
   <section class="panel graph">
-    <div class="graph-head"><p class="graph-title"><svg class="i"><use href="#i-map"/></svg>Storage map <small>Click to open a folder · double-click a file to open it</small></p><div class="legend" id="legend"></div><button class="toggle" id="mapLabels" type="button" aria-pressed="true" title="Show folder and file names on the map">Names</button></div>
+    <div class="graph-head"><div class="map-lead"><div class="map-nav" role="group" aria-label="Folder navigation">
+      <button class="icon-btn sm" id="mapBack" type="button" title="Back (Alt+Left, Alt+click or the mouse's back button)" aria-label="Back" disabled><svg class="i flip"><use href="#i-chev"/></svg></button>
+      <button class="icon-btn sm" id="mapForward" type="button" title="Forward (Alt+Right, Alt+right-click or the mouse's forward button)" aria-label="Forward" disabled><svg class="i"><use href="#i-chev"/></svg></button>
+      <button class="icon-btn sm" id="mapUp" type="button" title="Up one folder (Backspace or Alt+Up)" aria-label="Up one folder" disabled><svg class="i"><use href="#i-up"/></svg></button>
+    </div><p class="graph-title"><svg class="i"><use href="#i-map"/></svg>Storage map <small>Click to open a folder · double-click a file to open it</small></p></div><div class="legend" id="legend"></div><button class="toggle" id="mapLabels" type="button" aria-pressed="true" title="Show folder and file names on the map">Names</button></div>
     <div class="treemap" id="treemap"><canvas id="map" aria-label="Storage map"></canvas><div id="hoverBox" class="hover hidden"></div><div id="tip" class="tip hidden"></div><div class="empty" id="mapEmpty">The map will show how space is distributed.</div></div>
   </section>
 </main>
@@ -1216,7 +1224,7 @@ function conn(state,text){$('conn').dataset.state=state;$('connText').textConten
 function showTrust(on){$('trust').classList.toggle('hidden',!on);if(on)$('reject').focus()}
 $('method').onchange=()=>{let key=$('method').value==='key';$('passwordFields').classList.toggle('hidden',$('method').value!=='password');$('keyFields').classList.toggle('hidden',!key)};
 let target='local',drives=[],platform='windows';
-function newStorageSession(){return {who:'',viewId:null,lastView:null,poll:null,polling:false,refreshing:null,refreshAgain:false,leaves:[],tops:new Map(),mode:'',tick:0,scanReady:false,status:null,needsFinal:false,footer:'Ready',footerTitle:'',statusText:'Ready',statusError:false,statusBusy:false,filesMode:false,flashTarget:null,findKind:'all',findSort:'',typesLoaded:false,types:[],searchSeq:0,searchTimer:null,findScope:'',savedListing:null,searchValue:'',extValue:''}}
+function newStorageSession(){return {who:'',viewId:null,lastView:null,poll:null,polling:false,refreshing:null,refreshAgain:false,leaves:[],tops:new Map(),mode:'',tick:0,scanReady:false,status:null,needsFinal:false,footer:'Ready',footerTitle:'',statusText:'Ready',statusError:false,statusBusy:false,filesMode:false,flashTarget:null,findKind:'all',findSort:'',typesLoaded:false,types:[],searchSeq:0,searchTimer:null,findScope:'',savedListing:null,searchValue:'',extValue:'',back:[],fwd:[]}}
 const storageSessions={local:newStorageSession(),remote:newStorageSession()};
 const localName=()=>platform==='darwin'?'This Mac':platform==='linux'?'This computer':'This PC';
 // The page starts with Windows wording and adjusts once the app reports its platform.
@@ -1344,7 +1352,7 @@ async function beginScan(c,who,local){
   Object.assign(s,{who,viewId:0,lastView:null,mode:'',tick:0,scanReady:false,status:{running:true},needsFinal:false});
   clearInterval(s.poll);s.poll=setInterval(()=>pollScanFor(t),500);
   if(target===t){
-    restoreStorageTarget(t);resetFind();scanReady=false;s.scanReady=false;$('cancelScanButton').classList.remove('hidden');$('clearResults').classList.add('hidden');conn('busy','Scanning '+who);
+    restoreStorageTarget(t);resetFind();scanReady=false;s.scanReady=false;s.back=[];s.fwd=[];$('cancelScanButton').classList.remove('hidden');$('clearResults').classList.add('hidden');conn('busy','Scanning '+who);
     placeholder(local?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
   }
   setTab('storage');syncServerScan();
@@ -1377,13 +1385,31 @@ async function begin(c,who){
 $('clearResults').onclick=async()=>{
   try{await clearResults(target)}catch(e){status(String(e),true);return}
   cleanExit(false);$('cleanButton').classList.add('hidden');
-  resetFind();viewId=null;Object.assign(storageSessions[target],{viewId:null,lastView:null,leaves:[],tops:new Map(),status:{cleared:true},scanReady:false,needsFinal:false});placeholder('Results cleared. Their memory was released; scan again to see them.',true);
+  resetFind();viewId=null;Object.assign(storageSessions[target],{viewId:null,lastView:null,leaves:[],tops:new Map(),status:{cleared:true},scanReady:false,needsFinal:false,back:[],fwd:[]});syncNav();placeholder('Results cleared. Their memory was released; scan again to see them.',true);
   $('clearResults').classList.add('hidden');$('footer').textContent='Ready';$('footer').title='';status('Results cleared.');
 };
 $('scanServerButton').onclick=scanServer;
 $('cancelScanButton').onclick=async()=>{try{await cancelScan(target);status('Cancelling scan…',false,true)}catch(e){status(String(e),true)}};
 function goUp(){if(lastView&&lastView.trail.length>1)go(lastView.trail[lastView.trail.length-2].id)}
 $('up').onclick=goUp;
+$('mapUp').onclick=goUp;$('mapBack').onclick=goBack;$('mapForward').onclick=goForward;
+// The mouse's back and forward buttons, and Alt with a left or right click, go back and
+// forward through the folders opened in Storage. The browser's own back navigation is
+// stopped, as it would leave the page.
+function storageNavClick(e){
+  if(tab!=='storage'||!lastView)return false;
+  const back=e.button===3||(e.altKey&&e.button===0),forward=e.button===4||(e.altKey&&e.button===2);
+  if(!back&&!forward)return false;
+  e.preventDefault();e.stopPropagation();
+  return back?'back':'forward';
+}
+if(typeof document.addEventListener==='function'){
+  document.addEventListener('mousedown',e=>{if(e.button===3||e.button===4)e.preventDefault()},true);
+  document.addEventListener('mouseup',e=>{const way=storageNavClick(e);if(way==='back')goBack();else if(way==='forward')goForward()},true);
+  // The click and context menu that follow are swallowed so the folder under the pointer
+  // is not opened and no menu appears.
+  for(const type of ['click','auxclick','contextmenu'])document.addEventListener(type,e=>{if(tab==='storage'&&lastView&&(e.button===3||e.button===4||(e.altKey&&(e.button===0||e.button===2))))storageNavClick(e)},true);
+}
 function setSide(on){$('layout').classList.toggle('collapsed',!on);$('toggleSide').setAttribute('aria-pressed',String(on))}
 $('toggleSide').onclick=()=>{const on=$('layout').classList.contains('collapsed');setSide(on);if(prefs)prefs.set('sidebar',on)};
 const dialogOpen=id=>!$(id).classList.contains('hidden');
@@ -1400,6 +1426,7 @@ document.onkeydown=e=>{
   if((e.ctrlKey||e.metaKey)&&e.key===','){e.preventDefault();openAppearance();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();$('toggleSide').click();return}
   if((e.ctrlKey||e.metaKey)&&['1','2','3','4'].includes(e.key)){e.preventDefault();setTab({1:'storage',2:'activity',3:'history',4:'events'}[e.key]);return}
+  if(tab==='storage'&&e.altKey&&!e.ctrlKey&&!e.shiftKey&&!e.metaKey&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();if(e.key==='ArrowLeft')goBack();else goForward();return}
   if(typing)return;
   if(tab==='storage'&&!filesMode&&(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp'))){e.preventDefault();goUp()}
 };
@@ -1477,10 +1504,23 @@ function refresh(){
   if(t===target)refreshing=state.refreshing;
   return state.refreshing;
 }
-function go(id){if(id===undefined||id===null)return;viewId=id;storageSessions[target].viewId=id;refresh()}
+// go opens a folder of the scan. Folders opened by the user are remembered, so Back and
+// Forward can return to them; going back or forward itself passes fromHistory.
+function go(id,fromHistory){
+  if(id===undefined||id===null)return;
+  const s=storageSessions[target];
+  if(!fromHistory&&viewId!==null&&viewId!==undefined&&id!==viewId){s.back.push(viewId);if(s.back.length>200)s.back.shift();s.fwd.length=0}
+  viewId=id;s.viewId=id;syncNav();refresh();
+}
+function goBack(){const s=storageSessions[target];if(!s.back.length||!lastView)return;s.fwd.push(viewId);go(s.back.pop(),true)}
+function goForward(){const s=storageSessions[target];if(!s.fwd.length||!lastView)return;s.back.push(viewId);go(s.fwd.pop(),true)}
+function syncNav(){
+  const s=storageSessions[target],ready=!!lastView;
+  $('mapBack').disabled=!(ready&&s.back.length);$('mapForward').disabled=!(ready&&s.fwd.length);$('mapUp').disabled=!(ready&&lastView.trail.length>1);
+}
 function placeholder(text,done=false){
   lastView=null;leaves=[];tops=new Map();$('workspace').classList.add('idle');
-  $('heading').replaceChildren(el('span','here',done?'No results':'Scanning…'));$('subheading').textContent='';$('up').classList.add('hidden');
+  $('heading').replaceChildren(el('span','here',done?'No results':'Scanning…'));$('subheading').textContent='';$('up').classList.add('hidden');syncNav();
   const box=el('div','empty');if(!done)box.append(el('div','spinner'));box.append(el('div','',text));if(!done){const d=el('div','scan-detail');d.id='scanDetail';box.append(d)}
   $('listing').replaceChildren(box);drawMap(null);
 }
@@ -1499,7 +1539,7 @@ function render(v){
   const sub=$('subheading');sub.replaceChildren();
   for(const [k,t] of [[size(v.size),'total'],[count(v.items),'items'],[count(v.files),'files']]){const s=el('span');s.append(el('b','',k),' '+t);sub.append(s)}
   if(v.incomplete)sub.append(el('span','badge','Incomplete'));
-  $('up').classList.toggle('hidden',v.trail.length<2);
+  $('up').classList.toggle('hidden',v.trail.length<2);syncNav();
   computeColors(v);
   if(!filesMode&&!cleanOn())renderList(v);
   drawMap(v);
