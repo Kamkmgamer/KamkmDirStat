@@ -424,3 +424,23 @@ func TestHistoryEventsStayBounded(t *testing.T) {
 		t.Fatalf("query returned %d events", len(out.Events))
 	}
 }
+
+// Most Windows programs carry no signature of their own; Windows signs them in its catalogs.
+func TestHistoryIdentityCatalogSigned(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Authenticode is Windows-only")
+	}
+	for _, name := range []string{`System32\conhost.exe`, `System32\cmd.exe`} {
+		p := identifyHistoryProcess(HistoryProcess{Cmd: filepath.Join(os.Getenv("SystemRoot"), name)})
+		if p.Signed == nil || !*p.Signed || p.Publisher == "" {
+			t.Fatalf("catalog-signed %s was not verified: %+v", name, p)
+		}
+	}
+	unsigned := filepath.Join(t.TempDir(), "unsigned.exe")
+	if err := os.WriteFile(unsigned, []byte("MZ not a real program"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if p := identifyHistoryProcess(HistoryProcess{Cmd: unsigned}); p.Signed == nil || *p.Signed {
+		t.Fatalf("an unsigned file was reported as signed: %+v", p)
+	}
+}
