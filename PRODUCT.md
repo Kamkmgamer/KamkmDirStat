@@ -8,6 +8,10 @@ Desktop application for Windows, Linux and macOS written in Go. The interface is
 
 Inspect disk usage on this PC (one, some or all drives, or a folder) and on SSH-accessible machines through a folder list and an interactive treemap inspired by WinDirStat, and monitor CPU, memory, GPU, network and processes live.
 
+## This PC and SSH server
+
+This PC and one SSH server are separate tabs that run side by side. This PC is monitored from start-up, and connecting to a server adds a second monitor and a second scan beside it. Switching tabs changes only what is shown: the machine in the background keeps monitoring, keeps recording its history and keeps its finished scan and the folder it was browsing. Searches, the folder list, the map and opening files follow the selected tab.
+
 ## Connections
 
 Support SSH config aliases, agent authentication, passwords, and private keys. Verify the server host-key fingerprint before sending credentials. Credentials are not saved.

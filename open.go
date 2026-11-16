@@ -24,6 +24,7 @@ import (
 // videos and music, after asking. Programs and scripts are run only after asking too.
 
 type OpenRequest struct {
+	Target    string `json:"target,omitempty"`
 	Dir       int    `json:"dir"`
 	Name      string `json:"name"`   // empty for the folder itself
 	Action    string `json:"action"` // "open", "reveal" (show in the file manager) or "path"
@@ -64,9 +65,10 @@ func startOpen(req OpenRequest) (int, error) {
 	default:
 		return 0, errors.New("Unknown action.")
 	}
-	scanState.Lock()
-	tree := scanState.tree
-	scanState.Unlock()
+	state := scanForTarget(req.Target)
+	state.Lock()
+	tree := state.tree
+	state.Unlock()
 	if tree == nil && req.Path == "" {
 		return 0, errors.New("No scan results yet.")
 	}

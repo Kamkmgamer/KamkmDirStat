@@ -43,13 +43,34 @@ type MonitorAction struct {
 	Password string `json:"password,omitempty"`
 }
 
-var monitorState struct {
+type monitorSession struct {
 	sync.Mutex
 	status     MonitorStatus
 	generation int
 	cancel     context.CancelFunc
 	writes     chan []byte
 }
+
+// Each computer has its own monitor. Selecting another computer in the page never stops
+// the first one, and samples continue into each computer's own status and history.
+var (
+	monitorState       monitorSession // this computer
+	remoteMonitorState monitorSession // the SSH server
+)
+
+func monitorFor(local bool) *monitorSession {
+	if local {
+		return &monitorState
+	}
+	return &remoteMonitorState
+}
+
+func monitorForTarget(target string) *monitorSession { return monitorFor(target != "remote") }
+
+var (
+	localMonitorRun  = runLocalMonitor
+	remoteMonitorRun = runMonitor
+)
 
 const maxMonitorResults = 20
 
@@ -58,52 +79,53 @@ const maxMonitorResults = 20
 const firstMonitorSample = 250 * time.Millisecond
 
 func startMonitor(c Connection) error {
-	monitorState.Lock()
-	if monitorState.cancel != nil {
-		monitorState.cancel()
+	state := monitorFor(c.Local)
+	state.Lock()
+	if state.cancel != nil {
+		state.cancel()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	monitorState.generation++
-	gen := monitorState.generation
+	state.generation++
+	gen := state.generation
 	writes := make(chan []byte, 16)
-	monitorState.cancel = cancel
-	monitorState.writes = writes
+	state.cancel = cancel
+	state.writes = writes
 	machine := localHistoryMachine
 	if !c.Local {
 		machine = remoteHistoryMachine(c)
 	}
-	monitorState.status = MonitorStatus{Running: true, Connecting: true, Machine: machine}
-	monitorState.Unlock()
+	state.status = MonitorStatus{Running: true, Connecting: true, Machine: machine}
+	state.Unlock()
 	go func() {
 		update := func(update func(*MonitorStatus)) bool {
-			monitorState.Lock()
-			defer monitorState.Unlock()
-			if monitorState.generation != gen {
+			state.Lock()
+			defer state.Unlock()
+			if state.generation != gen {
 				return false
 			}
-			update(&monitorState.status)
+			update(&state.status)
 			return true
 		}
 		run := func(ctx context.Context, update func(func(*MonitorStatus)) bool) error {
 			if c.Local {
-				return runLocalMonitor(ctx, writes, update)
+				return localMonitorRun(ctx, writes, update)
 			}
-			return runMonitor(ctx, c, machine, writes, update)
+			return remoteMonitorRun(ctx, c, machine, writes, update)
 		}
 		err := superviseMonitor(ctx, run, update)
 		cancel()
-		monitorState.Lock()
-		defer monitorState.Unlock()
-		if monitorState.generation != gen {
+		state.Lock()
+		defer state.Unlock()
+		if state.generation != gen {
 			return
 		}
-		monitorState.cancel = nil
-		monitorState.writes = nil
-		monitorState.status.Running = false
-		monitorState.status.Connecting = false
-		monitorState.status.Reconnecting = false
+		state.cancel = nil
+		state.writes = nil
+		state.status.Running = false
+		state.status.Connecting = false
+		state.status.Reconnecting = false
 		if err != nil && !errors.Is(err, context.Canceled) {
-			monitorState.status.Error = err.Error()
+			state.status.Error = err.Error()
 		}
 	}()
 	return nil
@@ -192,19 +214,27 @@ func superviseMonitor(ctx context.Context, run func(context.Context, func(func(*
 	}
 }
 
-func stopMonitor() error {
-	monitorState.Lock()
-	defer monitorState.Unlock()
-	if monitorState.cancel != nil {
-		monitorState.cancel()
+func stopMonitor() error { return stopMonitorFor("local") }
+
+func stopMonitorFor(target string) error {
+	state := monitorForTarget(target)
+	state.Lock()
+	defer state.Unlock()
+	if state.cancel != nil {
+		state.cancel()
 	}
-	monitorState.generation++
-	monitorState.cancel = nil
-	monitorState.writes = nil
-	monitorState.status.Running = false
-	monitorState.status.Connecting = false
-	monitorState.status.Reconnecting = false
+	state.generation++
+	state.cancel = nil
+	state.writes = nil
+	state.status.Running = false
+	state.status.Connecting = false
+	state.status.Reconnecting = false
 	return nil
+}
+
+func stopAllMonitors() {
+	_ = stopMonitorFor("local")
+	_ = stopMonitorFor("remote")
 }
 
 // recordSample records a sample in its machine's history, then publishes it, so the
@@ -214,10 +244,13 @@ func recordSample(machine string, raw json.RawMessage) func(*MonitorStatus) {
 	return func(s *MonitorStatus) { s.Sample = raw; s.Seq++ }
 }
 
-func monitorStatus() MonitorStatus {
-	monitorState.Lock()
-	defer monitorState.Unlock()
-	s := monitorState.status
+func monitorStatus() MonitorStatus { return monitorStatusFor("local") }
+
+func monitorStatusFor(target string) MonitorStatus {
+	state := monitorForTarget(target)
+	state.Lock()
+	defer state.Unlock()
+	s := state.status
 	s.Results = append([]json.RawMessage(nil), s.Results...)
 	return s
 }
@@ -250,7 +283,9 @@ func validateMonitorAction(a MonitorAction) error {
 
 // monitorAction queues a request for the server. Its outcome arrives later as a result with
 // the same ID in monitorStatus.
-func monitorAction(a MonitorAction) error {
+func monitorAction(a MonitorAction) error { return monitorActionFor("local", a) }
+
+func monitorActionFor(target string, a MonitorAction) error {
 	if err := validateMonitorAction(a); err != nil {
 		return err
 	}
@@ -258,13 +293,14 @@ func monitorAction(a MonitorAction) error {
 	if err != nil {
 		return err
 	}
-	monitorState.Lock()
-	defer monitorState.Unlock()
-	if monitorState.writes == nil || monitorState.status.Connecting {
+	state := monitorForTarget(target)
+	state.Lock()
+	defer state.Unlock()
+	if state.writes == nil || state.status.Connecting {
 		return errors.New("The monitor is not connected.")
 	}
 	select {
-	case monitorState.writes <- append(line, '\n'):
+	case state.writes <- append(line, '\n'):
 		return nil
 	default:
 		return errors.New("The server is still handling earlier requests. Try again shortly.")

@@ -33,12 +33,31 @@ type ScanStatus struct {
 	Cleared bool `json:"cleared,omitempty"`
 }
 
-var scanState struct {
+type scanSession struct {
 	sync.Mutex
 	status ScanStatus
 	cancel context.CancelFunc
 	tree   *Tree
 }
+
+var (
+	scanState       scanSession // this computer
+	remoteScanState scanSession // the SSH server
+)
+
+func scanFor(local bool) *scanSession {
+	if local {
+		return &scanState
+	}
+	return &remoteScanState
+}
+
+func scanForTarget(target string) *scanSession { return scanFor(target != "remote") }
+
+var (
+	localScanRun  = localScanInto
+	remoteScanRun = scanInto
+)
 
 func startScan(c Connection) error {
 	var tree *Tree
@@ -59,31 +78,35 @@ func startScan(c Connection) error {
 		tree = newTree(root)
 	}
 	root := tree.RootPath
-	scanState.Lock()
-	if scanState.status.Running {
-		scanState.Unlock()
+	state := scanFor(c.Local)
+	state.Lock()
+	if state.status.Running {
+		state.Unlock()
+		tree.close()
 		return errScanRunning
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	scanState.cancel = cancel
-	oldTree := scanState.tree
-	scanState.tree = tree
-	scanState.status = ScanStatus{Running: true, RootPath: root}
-	scanState.Unlock()
+	state.cancel = cancel
+	oldTree := state.tree
+	state.tree = tree
+	state.status = ScanStatus{Running: true, RootPath: root}
+	state.Unlock()
 	oldTree.close()
 	started := time.Now()
 	go func() {
 		report := func(p ScanProgress) {
-			scanState.Lock()
-			scanState.status.Progress = p
-			scanState.Unlock()
+			state.Lock()
+			if state.tree == tree && state.status.Running {
+				state.status.Progress = p
+			}
+			state.Unlock()
 		}
 		var result ScanResult
 		var err error
 		if c.Local {
-			result, err = localScanInto(ctx, localRoots, tree, report)
+			result, err = localScanRun(ctx, localRoots, tree, report)
 		} else {
-			result, err = scanInto(ctx, c, tree, report)
+			result, err = remoteScanRun(ctx, c, tree, report)
 		}
 		cancel()
 		s := ScanStatus{RootPath: root, Mode: result.Mode, Errors: result.Errors, ErrorCount: result.ErrorCount, Skipped: result.Skipped, Notes: result.Notes, Seconds: time.Since(started).Seconds()}
@@ -105,57 +128,80 @@ func startScan(c Connection) error {
 				s.Error = "Scan cancelled."
 			}
 		}
-		scanState.Lock()
-		s.Progress = scanState.status.Progress
-		scanState.cancel = nil
-		scanState.status = s
-		scanState.Unlock()
+		state.Lock()
+		if state.tree != tree {
+			state.Unlock()
+			tree.close()
+			return
+		}
+		s.Progress = state.status.Progress
+		state.cancel = nil
+		state.status = s
+		state.Unlock()
 		// The finished tree no longer changes, so move it out of memory. The window can
 		// already browse it meanwhile; views switch to the file once it is written.
 		if onDisk, _ := tree.releaseMemory(); !onDisk {
 			freeMemory()
 			return
 		}
-		scanState.Lock()
-		if scanState.tree == tree && !scanState.status.Running {
-			scanState.status.OnDisk = true
+		state.Lock()
+		if state.tree == tree && !state.status.Running {
+			state.status.OnDisk = true
 		}
-		scanState.Unlock()
+		state.Unlock()
 	}()
 	return nil
 }
 
-// clearResults forgets the current scan results and returns their memory to the system.
-func clearResults() error {
-	scanState.Lock()
-	if scanState.status.Running {
-		scanState.Unlock()
+// clearResults forgets this computer's scan results and returns their memory to the system.
+func clearResults() error { return clearResultsFor("local") }
+
+func clearResultsFor(target string) error {
+	state := scanForTarget(target)
+	state.Lock()
+	if state.status.Running {
+		state.Unlock()
 		return errors.New("Cancel the scan before clearing its results.")
 	}
-	tree := scanState.tree
-	scanState.tree = nil
-	scanState.status = ScanStatus{Cleared: true}
-	scanState.Unlock()
+	tree := state.tree
+	state.tree = nil
+	state.status = ScanStatus{Cleared: true}
+	state.Unlock()
 	tree.close()
 	freeMemory()
 	return nil
 }
-func cancelScan() error {
-	scanState.Lock()
-	defer scanState.Unlock()
-	if scanState.cancel != nil {
-		scanState.status.Cancelling = true
-		scanState.cancel()
+
+func cancelScan() error { return cancelScanFor("local") }
+
+func cancelScanFor(target string) error {
+	state := scanForTarget(target)
+	state.Lock()
+	defer state.Unlock()
+	if state.cancel != nil {
+		state.status.Cancelling = true
+		state.cancel()
 	}
 	return nil
 }
-func scanStatus() ScanStatus { scanState.Lock(); defer scanState.Unlock(); return scanState.status }
+
+func scanStatus() ScanStatus { return scanStatusFor("local") }
+
+func scanStatusFor(target string) ScanStatus {
+	state := scanForTarget(target)
+	state.Lock()
+	defer state.Unlock()
+	return state.status
+}
 
 // viewDir returns one folder and a size-limited treemap of what is beneath it.
-func viewDir(id int) (DirView, error) {
-	scanState.Lock()
-	tree := scanState.tree
-	scanState.Unlock()
+func viewDir(id int) (DirView, error) { return viewDirFor("local", id) }
+
+func viewDirFor(target string, id int) (DirView, error) {
+	state := scanForTarget(target)
+	state.Lock()
+	tree := state.tree
+	state.Unlock()
 	if tree == nil {
 		return DirView{}, errors.New("No scan results yet.")
 	}
@@ -240,36 +286,63 @@ type ViewStatus struct {
 	Error   string   `json:"error,omitempty"`
 }
 
-var viewState struct {
+type viewSession struct {
 	sync.Mutex
 	status ViewStatus
 }
 
-func startView(id int) error {
-	viewState.Lock()
-	if viewState.status.Running {
-		viewState.Unlock()
+var (
+	viewState       viewSession
+	remoteViewState viewSession
+)
+
+func viewForTarget(target string) *viewSession {
+	if target == "remote" {
+		return &remoteViewState
+	}
+	return &viewState
+}
+
+func startView(id int) error { return startViewFor("local", id) }
+
+func startViewFor(target string, id int) error {
+	state := viewForTarget(target)
+	state.Lock()
+	if state.status.Running {
+		state.Unlock()
 		return errors.New("A folder report is already loading.")
 	}
-	viewState.status = ViewStatus{Running: true}
-	viewState.Unlock()
+	state.status = ViewStatus{Running: true}
+	state.Unlock()
 	go func() {
-		v, err := viewDir(id)
+		v, err := viewDirFor(target, id)
 		s := ViewStatus{View: &v}
 		if err != nil {
 			s = ViewStatus{Error: err.Error()}
 		}
-		viewState.Lock()
-		viewState.status = s
-		viewState.Unlock()
+		state.Lock()
+		state.status = s
+		state.Unlock()
 	}()
 	return nil
 }
-func viewStatus() ViewStatus { viewState.Lock(); defer viewState.Unlock(); return viewState.status }
+
+func viewStatus() ViewStatus { return viewStatusFor("local") }
+
+func viewStatusFor(target string) ViewStatus {
+	state := viewForTarget(target)
+	state.Lock()
+	defer state.Unlock()
+	return state.status
+}
+
 func closeResults() {
-	_ = cancelScan()
-	scanState.Lock()
-	tree := scanState.tree
-	scanState.Unlock()
-	tree.close()
+	for _, target := range []string{"local", "remote"} {
+		_ = cancelScanFor(target)
+		state := scanForTarget(target)
+		state.Lock()
+		tree := state.tree
+		state.Unlock()
+		tree.close()
+	}
 }

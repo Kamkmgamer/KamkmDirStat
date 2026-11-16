@@ -18,7 +18,7 @@ type SearchStatus struct {
 	Error  string         `json:"error,omitempty"`
 }
 
-var searchState struct {
+type searchSession struct {
 	sync.Mutex
 	seq        int
 	pending    *search.Query
@@ -28,69 +28,92 @@ var searchState struct {
 	status     SearchStatus
 }
 
-func startSearch(q search.Query) (int, error) {
+var (
+	searchState       searchSession
+	remoteSearchState searchSession
+)
+
+func searchForTarget(target string) *searchSession {
+	if target == "remote" {
+		return &remoteSearchState
+	}
+	return &searchState
+}
+
+func startSearch(q search.Query) (int, error) { return startSearchFor("local", q) }
+
+func startSearchFor(target string, q search.Query) (int, error) {
 	if len(q.Text) > 1000 || len(q.Exts) > 50 {
 		return 0, errors.New("The search is too long.")
 	}
-	searchState.Lock()
-	defer searchState.Unlock()
-	searchState.seq++
-	searchState.pending, searchState.pendingSeq = &q, searchState.seq
-	if searchState.cancel != nil {
-		searchState.cancel()
+	state := searchForTarget(target)
+	state.Lock()
+	defer state.Unlock()
+	state.seq++
+	state.pending, state.pendingSeq = &q, state.seq
+	if state.cancel != nil {
+		state.cancel()
 	}
-	if !searchState.busy {
-		searchState.busy = true
-		go runSearches()
+	if !state.busy {
+		state.busy = true
+		go runSearches(target, state)
 	}
-	return searchState.seq, nil
+	return state.seq, nil
 }
 
-func searchStatus() SearchStatus {
-	searchState.Lock()
-	defer searchState.Unlock()
-	return searchState.status
+func searchStatus() SearchStatus { return searchStatusFor("local") }
+
+func searchStatusFor(target string) SearchStatus {
+	state := searchForTarget(target)
+	state.Lock()
+	defer state.Unlock()
+	return state.status
 }
 
-func runSearches() {
+func runSearches(target string, state *searchSession) {
 	for {
-		searchState.Lock()
-		if searchState.pending == nil {
-			searchState.busy = false
-			searchState.Unlock()
+		state.Lock()
+		if state.pending == nil {
+			state.busy = false
+			state.Unlock()
 			return
 		}
-		q, seq := *searchState.pending, searchState.pendingSeq
-		searchState.pending = nil
+		q, seq := *state.pending, state.pendingSeq
+		state.pending = nil
 		ctx, cancel := context.WithCancel(context.Background())
-		searchState.cancel = cancel
-		searchState.Unlock()
+		state.cancel = cancel
+		state.Unlock()
 
-		result, err := runSearch(ctx, q)
+		result, err := runSearchFor(ctx, target, q)
 		cancel()
 
-		searchState.Lock()
-		searchState.cancel = nil
-		if searchState.pending == nil || seq == searchState.seq {
+		state.Lock()
+		state.cancel = nil
+		if state.pending == nil || seq == state.seq {
 			s := SearchStatus{Seq: seq}
 			if err != nil {
 				s.Error = err.Error()
 			} else {
 				s.Result = &result
 			}
-			searchState.status = s
+			state.status = s
 		}
-		searchState.Unlock()
+		state.Unlock()
 	}
 }
 
 func runSearch(ctx context.Context, q search.Query) (search.Result, error) {
+	return runSearchFor(ctx, "local", q)
+}
+
+func runSearchFor(ctx context.Context, target string, q search.Query) (search.Result, error) {
 	if q.Scope == "drives" {
 		return searchDrives(ctx, q)
 	}
-	scanState.Lock()
-	tree, running := scanState.tree, scanState.status.Running
-	scanState.Unlock()
+	state := scanForTarget(target)
+	state.Lock()
+	tree, running := state.tree, state.status.Running
+	state.Unlock()
 	if tree == nil {
 		return search.Result{}, errors.New("No scan results yet.")
 	}

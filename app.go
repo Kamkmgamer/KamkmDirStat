@@ -36,13 +36,13 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"startFingerprint":    startFingerprint,
 		"fingerprintStatus":   fingerprintStatus,
 		"startScan":           startScan,
-		"scanStatus":          scanStatus,
-		"cancelScan":          cancelScan,
-		"clearResults":        clearResults,
-		"startView":           startView,
-		"viewStatus":          viewStatus,
-		"startSearch":         startSearch,
-		"searchStatus":        searchStatus,
+		"scanStatus":          scanStatusFor,
+		"cancelScan":          cancelScanFor,
+		"clearResults":        clearResultsFor,
+		"startView":           startViewFor,
+		"viewStatus":          viewStatusFor,
+		"startSearch":         startSearchFor,
+		"searchStatus":        searchStatusFor,
 		"startOpen":           startOpen,
 		"openStatus":          openStatus,
 		"cancelOpen":          cancelOpen,
@@ -50,9 +50,9 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"refreshDriveIndex":   refreshDriveIndex,
 		"setupIndexService":   startIndexServiceSetup,
 		"startMonitor":        startMonitor,
-		"stopMonitor":         stopMonitor,
-		"monitorStatus":       monitorStatus,
-		"monitorAction":       monitorAction,
+		"stopMonitor":         stopMonitorFor,
+		"monitorStatus":       monitorStatusFor,
+		"monitorAction":       monitorActionFor,
 		"monitorHistory":      monitorHistory,
 		"clearMonitorHistory": clearMonitorHistory,
 		"historyMachines":     historyMachines,
@@ -76,7 +76,7 @@ func bindAll(w window, extra map[string]interface{}) error {
 func runWindow(w window, settings json.RawMessage, extra map[string]interface{}) error {
 	defer stopDriveIndex()
 	defer closeResults()
-	defer stopMonitor()
+	defer stopAllMonitors()
 	defer closeMonitorHistory()
 	defer cancelOpen()
 	w.SetTitle(windowTitle)

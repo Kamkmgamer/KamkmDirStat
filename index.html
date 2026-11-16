@@ -915,9 +915,9 @@ refresh();
 <div class="layout" id="layout">
 <aside id="side"><div class="side-inner">
   <form id="connect" class="stack">
-    <div class="seg" role="radiogroup" aria-label="Computer to inspect">
-      <label><input type="radio" name="target" id="targetLocal" value="local" checked><span><svg class="i"><use href="#i-pc"/></svg><span id="localTargetName">This PC</span></span></label>
-      <label><input type="radio" name="target" id="targetRemote" value="remote"><span><svg class="i"><use href="#i-server"/></svg>SSH server</span></label>
+    <div class="seg" role="tablist" aria-label="Computer to inspect">
+      <label><input type="radio" name="target" id="targetLocal" value="local" role="tab" aria-checked="true" checked><span><svg class="i"><use href="#i-pc"/></svg><span id="localTargetName">This PC</span></span></label>
+      <label><input type="radio" name="target" id="targetRemote" value="remote" role="tab" aria-checked="false"><span><svg class="i"><use href="#i-server"/></svg>SSH server</span></label>
     </div>
     <div class="group remote-only" id="serverSection">
       <h2 class="group-label">Server</h2>
@@ -1174,6 +1174,8 @@ function conn(state,text){$('conn').dataset.state=state;$('connText').textConten
 function showTrust(on){$('trust').classList.toggle('hidden',!on);if(on)$('reject').focus()}
 $('method').onchange=()=>{let key=$('method').value==='key';$('passwordFields').classList.toggle('hidden',$('method').value!=='password');$('keyFields').classList.toggle('hidden',!key)};
 let target='local',drives=[],platform='windows';
+function newStorageSession(){return {who:'',viewId:null,lastView:null,poll:null,polling:false,refreshing:null,refreshAgain:false,leaves:[],tops:new Map(),mode:'',tick:0,scanReady:false,status:null,needsFinal:false,footer:'Ready',footerTitle:'',statusText:'Ready',statusError:false,statusBusy:false,filesMode:false,flashTarget:null,findKind:'all',findSort:'',typesLoaded:false,types:[],searchSeq:0,searchTimer:null,findScope:'',savedListing:null,searchValue:'',extValue:''}}
+const storageSessions={local:newStorageSession(),remote:newStorageSession()};
 const localName=()=>platform==='darwin'?'This Mac':platform==='linux'?'This computer':'This PC';
 // The page starts with Windows wording and adjusts once the app reports its platform.
 function applyPlatform(){
@@ -1191,10 +1193,36 @@ function connection(){
 function syncTools(){
   const local=target==='local';
   $('connect').classList.toggle('is-local',local);$('targetLocal').checked=local;$('targetRemote').checked=!local;
+  $('targetLocal').setAttribute('aria-checked',String(local));$('targetRemote').setAttribute('aria-checked',String(!local));
   $('path').required=!local;$('host').required=!local;
   $('submitLabel').textContent=local?'Scan':'Connect';
 }
-function setTarget(t){target=t;try{if(prefs)prefs.set('target',t);else localStorage.setItem('kamkm.target',t)}catch(e){}syncTools();if(t==='local'&&!drives.length)loadDrives()}
+function saveStorageTarget(t){
+  const s=storageSessions[t];if(!s)return;
+  Object.assign(s,{viewId,lastView,poll,polling,refreshing,refreshAgain,leaves,tops,mode,tick,scanReady,filesMode,flashTarget,findKind,findSort,typesLoaded,searchSeq,searchTimer,findScope,savedListing});
+  s.searchValue=$('search').value;s.extValue=$('extFilter').value;s.footer=$('footer').textContent;s.footerTitle=$('footer').title;
+  s.statusText=$('status').textContent;s.statusError=$('status').classList.contains('error');s.statusBusy=$('status').classList.contains('busy');
+}
+function restoreStorageTarget(t){
+  const s=storageSessions[t];
+  ({viewId,lastView,poll,polling,refreshing,refreshAgain,leaves,tops,mode,tick,scanReady,filesMode,flashTarget,findKind,findSort,typesLoaded,searchSeq,searchTimer,findScope,savedListing}=s);
+  $('search').value=s.searchValue;$('extFilter').value=s.extValue;$('footer').textContent=s.footer;$('footer').title=s.footerTitle;
+  fillTypes(s.types||[]);$('extFilter').value=s.extValue;
+  status(s.statusText,s.statusError,s.statusBusy);$('connText').dataset.who=s.who||(t==='local'?localName():serverWho);
+  $('filesBar').classList.toggle('hidden',!filesMode);$('cancelScanButton').classList.toggle('hidden',!poll);$('clearResults').classList.toggle('hidden',!scanReady);
+  syncFind();syncPills();syncServerScan();
+  if(lastView)render(lastView);
+  if(poll){if(!filesMode)placeholder(t==='local'?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');pollScan()}
+  else if(s.needsFinal)pollScan();
+  else if(!filesMode){if(t==='remote')serverScanPrompt();else placeholder('No scan yet. Choose a drive or folder and scan this computer.',true)}
+  if(filesMode)runSearch();
+  if(filesMode&&findScope==='drives')startDrivePoll();else stopDrivePoll();
+}
+function setTarget(t){
+  if(t!=='local'&&t!=='remote')return;
+  if(t!==target){stopDrivePoll();saveStorageTarget(target);saveMonitorTarget(target);target=t;restoreStorageTarget(t);switchMonitorTarget(t)}
+  try{if(prefs)prefs.set('target',t);else localStorage.setItem('kamkm.target',t)}catch(e){}syncTools();if(t==='local'&&!drives.length)loadDrives()
+}
 $('targetLocal').onchange=()=>setTarget('local');$('targetRemote').onchange=()=>setTarget('remote');
 function driveName(d){return d.path.replace(/\\$/,'')+(d.label?' '+d.label:'')}
 async function loadDrives(){
@@ -1252,13 +1280,13 @@ $('accept').onclick=()=>{const c=pending;pending=null;showTrust(false);begin(c,c
 // for this session and are never saved.
 let serverConn=null,serverWho='';
 function syncServerScan(){
-  const on=!!serverConn&&!poll;
+  const on=target==='remote'&&!!serverConn&&!storageSessions.remote.poll;
   $('scanServerButton').classList.toggle('hidden',!on);
   if(on)$('scanServerLabel').textContent='Scan files on '+serverWho;
 }
 // serverScanPrompt fills the Storage view while a server is monitored but not yet scanned.
 function serverScanPrompt(){
-  if(!serverConn||viewId!==null||poll)return;
+  if(target!=='remote'||!serverConn||viewId!==null||poll)return;
   lastView=null;leaves=[];tops=new Map();$('workspace').classList.add('idle');
   $('heading').replaceChildren(el('span','here','No scan yet'));$('subheading').textContent='Monitoring '+serverWho+'. Its files are scanned only when you ask.';$('up').classList.add('hidden');
   const box=el('div','empty welcome'),b=el('button','btn primary');
@@ -1268,16 +1296,21 @@ function serverScanPrompt(){
 }
 // beginScan starts a scan of c and shows its progress in the Storage view.
 async function beginScan(c,who,local){
-  await startScan(c);$('password').value='';$('passphrase').value='';$('cancelScanButton').classList.remove('hidden');
-  viewId=0;lastView=null;mode='';tick=0;$('clearResults').classList.add('hidden');resetFind();conn('busy','Scanning '+who);
-  placeholder(local?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
-  setTab('storage');poll=setInterval(pollScan,500);syncServerScan();
+  const t=local?'local':'remote',s=storageSessions[t];
+  await startScan(c);$('password').value='';$('passphrase').value='';
+  Object.assign(s,{who,viewId:0,lastView:null,mode:'',tick:0,scanReady:false,status:{running:true},needsFinal:false});
+  clearInterval(s.poll);s.poll=setInterval(()=>pollScanFor(t),500);
+  if(target===t){
+    restoreStorageTarget(t);resetFind();scanReady=false;s.scanReady=false;$('cancelScanButton').classList.remove('hidden');$('clearResults').classList.add('hidden');conn('busy','Scanning '+who);
+    placeholder(local?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
+  }
+  setTab('storage');syncServerScan();
 }
 async function scanServer(){
-  if(!serverConn||poll)return;
+  if(!serverConn||storageSessions.remote.poll)return;
   const c=serverConn,who=serverWho;
   $('submit').disabled=true;$('scanServerButton').disabled=true;status('Connecting and starting the scan…',false,true);
-  try{monitorOwnsConn=false;await beginScan(c,who,false)}
+  try{await beginScan(c,who,false)}
   catch(e){$('submit').disabled=false;status(String(e),true);conn('error','Scan failed')}
   finally{$('scanServerButton').disabled=false;syncServerScan()}
 }
@@ -1285,26 +1318,26 @@ async function scanServer(){
 // This computer is monitored and scanned; a server is only monitored until the user asks for a scan.
 async function begin(c,who){
   const local=!!c.local,scanOn=local,monOn=true;
-  serverConn=local?null:{...c};serverWho=local?'':who;syncServerScan();
+  if(!local){serverConn={...c};serverWho=who}storageSessions[local?'local':'remote'].who=who;syncServerScan();
   status(scanOn?(local?'Starting the scan…':'Connecting and starting the scan…'):(local?'Starting the monitor…':'Connecting and starting the monitor…'),false,true);
   $('connText').dataset.who=who;
   try{
-    if(monOn){if(!(local&&monitorPoll&&monitorTarget==='local')){await startMonitor(c);beginMonitor(who,local,!scanOn)}else monitorOwnsConn=!scanOn}else if(monitorPoll)await endMonitor('Monitoring stopped.');
+    if(monOn){const t=local?'local':'remote';if(!local||!monitorSessions.local.active){await startMonitor(c);beginMonitor(who,local,!scanOn)}}
     if(!scanOn){
       $('password').value='';$('passphrase').value='';$('submit').disabled=false;status('Monitoring '+who+'. Scan its files when you need them.');conn('busy',(local?'Starting monitor · ':'Connecting monitor · ')+who);
       if(!local)serverScanPrompt();
       syncServerScan();setTab('activity');return;
     }
     await beginScan(c,who,local);
-  }catch(e){$('submit').disabled=false;serverConn=null;syncServerScan();status(String(e),true);conn('error',local?'Could not start':'Connection failed')}
+  }catch(e){$('submit').disabled=false;syncServerScan();status(String(e),true);conn('error',local?'Could not start':'Connection failed')}
 }
 $('clearResults').onclick=async()=>{
-  try{await clearResults()}catch(e){status(String(e),true);return}
-  resetFind();viewId=null;placeholder('Results cleared. Their memory was released; scan again to see them.',true);
+  try{await clearResults(target)}catch(e){status(String(e),true);return}
+  resetFind();viewId=null;Object.assign(storageSessions[target],{viewId:null,lastView:null,leaves:[],tops:new Map(),status:{cleared:true},scanReady:false,needsFinal:false});placeholder('Results cleared. Their memory was released; scan again to see them.',true);
   $('clearResults').classList.add('hidden');$('footer').textContent='Ready';$('footer').title='';status('Results cleared.');
 };
 $('scanServerButton').onclick=scanServer;
-$('cancelScanButton').onclick=async()=>{try{await cancelScan();status('Cancelling scan…',false,true)}catch(e){status(String(e),true)}};
+$('cancelScanButton').onclick=async()=>{try{await cancelScan(target);status('Cancelling scan…',false,true)}catch(e){status(String(e),true)}};
 function goUp(){if(lastView&&lastView.trail.length>1)go(lastView.trail[lastView.trail.length-2].id)}
 $('up').onclick=goUp;
 function setSide(on){$('layout').classList.toggle('collapsed',!on);$('toggleSide').setAttribute('aria-pressed',String(on))}
@@ -1325,13 +1358,36 @@ document.onkeydown=e=>{
   if(typing)return;
   if(tab==='storage'&&!filesMode&&(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp'))){e.preventDefault();goUp()}
 };
-function finishScan(){clearInterval(poll);poll=null;syncServerScan();$('cancelScanButton').classList.add('hidden');$('submit').disabled=false;$('progress').classList.add('hidden')}
+function finishScan(t=target){
+  const s=storageSessions[t];clearInterval(s.poll);s.poll=null;
+  if(t===target){poll=null;syncServerScan();$('cancelScanButton').classList.add('hidden');$('submit').disabled=false;$('progress').classList.add('hidden')}
+}
+function applyBackgroundScan(t,s){
+  const state=storageSessions[t];state.status=s;state.mode=s.mode||(s.progress&&s.progress.mode)||state.mode;
+  if(s.running)return;
+  clearInterval(state.poll);state.poll=null;state.scanReady=!!(s.files||!s.error);state.needsFinal=true;
+}
+async function pollScanFor(t){
+  if(t===target)return pollScan();
+  const state=storageSessions[t];if(state.polling||!state.poll)return;state.polling=true;
+  try{applyBackgroundScan(t,await scanStatus(t))}
+  catch(e){clearInterval(state.poll);state.poll=null;state.statusText=String(e);state.statusError=true;state.statusBusy=false}
+  finally{state.polling=false}
+}
 // Remote reports publish only on completion. Streaming fallbacks can redraw partial results.
 async function pollScan(){
-  if(polling)return;polling=true;
+  const t=target,state=storageSessions[t];
+  if(state.polling){
+    // A scan can finish while its target is being restored. Reapply the final status after
+    // the in-flight poll releases the session instead of leaving the final view pending.
+    if(state.needsFinal)setTimeout(()=>{if(t===target&&state.needsFinal)pollScan()},0);
+    return;
+  }
+  state.polling=true;polling=true;
   try{
-    const s=await scanStatus(),p=s.progress||{};
-    mode=s.mode||p.mode||mode;
+    const s=await scanStatus(t),p=s.progress||{};
+    if(t!==target){applyBackgroundScan(t,s);return}
+    state.status=s;mode=s.mode||p.mode||mode;state.mode=mode;
     if(s.running){
       const pc=p.expectedBytes?Math.min(99,Math.floor(100*(p.bytes||0)/p.expectedBytes)):p.expected?Math.min(99,Math.floor(100*(p.entries||0)/p.expected)):null;
       $('progress').classList.remove('hidden');$('progress').classList.toggle('indeterminate',pc===null);$('progressFill').style.width=(pc===null?0:pc)+'%';
@@ -1342,38 +1398,41 @@ async function pollScan(){
       if(!mode.startsWith('remote')&&tick++%3===0&&(p.files||p.directories))refresh();
       return;
     }
-    finishScan();
+    finishScan(t);
     if(s.files||!s.error)await refresh();else placeholder('No results.',true);
-    $('clearResults').classList.toggle('hidden',!(s.files||!s.error));scanReady=!!(s.files||!s.error);syncFind();
-    if(!mode.startsWith('remote'))setTimeout(noteOnDisk,s.onDisk?0:1000);
-    const took=s.seconds?` in ${s.seconds<10?s.seconds.toFixed(1):Math.round(s.seconds)} s`:'',who=$('connText').dataset.who||'server';
+    if(t!==target){state.needsFinal=true;return}
+    $('clearResults').classList.toggle('hidden',!(s.files||!s.error));scanReady=!!(s.files||!s.error);state.scanReady=scanReady;state.needsFinal=false;syncFind();
+    if(!mode.startsWith('remote'))setTimeout(()=>noteOnDisk(t),s.onDisk?0:1000);
+    const took=s.seconds?` in ${s.seconds<10?s.seconds.toFixed(1):Math.round(s.seconds)} s`:'',who=state.who||$('connText').dataset.who||'server';
     if(s.cancelled){status(mode.startsWith('remote')?'Remote scan cancelled. No completed report was downloaded.':'Scan cancelled. Showing what was found before cancelling.');conn('warn','Cancelled · '+who)}
     else if(s.error){status(s.error+(s.files?'\nShowing partial results.':''),true);conn('error','Scan failed · '+who)}
     else{status((s.errorCount?`Scan finished${took}. ${count(s.errorCount)} paths could not be read.`:`Scan complete${took}.`)+((s.notes||[]).length?'\n'+s.notes.join('\n'):''));conn(s.errorCount?'warn':'ok',who)}
     if(s.files||!s.error){let foot=`${count(s.files)} files · ${size(s.size)} ${mode==='sftp'?'(file sizes, listed over SFTP)':mode==='local-ntfs'?'(file sizes) · read from the NTFS file table':mode==='local'?'(file sizes) · scanned on '+localName().toLowerCase():mode==='remote-native'?'on disk · aggregated on the server by the fast scanner':mode==='remote'?'on disk · aggregated on the server':'on disk · streamed from the server'}`;if((s.skipped||[]).length)foot+=' · Skipped '+s.skipped.join(', ');if((s.errors||[]).length)foot+=' · '+s.errors.slice(0,2).join('; ');$('footer').textContent=foot;$('footer').title=foot}else $('footer').textContent='Ready';
-  }catch(e){finishScan();status(String(e),true);conn('error','Disconnected')}
-  finally{polling=false}
+  }catch(e){if(t===target){finishScan(t);status(String(e),true);conn('error','Disconnected')}}
+  finally{state.polling=false;if(t===target)polling=false}
 }
 // A finished scan moves from memory to a cache file shortly after it ends.
-async function noteOnDisk(){
-  if(poll)return;
-  try{const s=await scanStatus();if(s.running||s.cleared)return;if(!s.onDisk){if(s.files)setTimeout(noteOnDisk,2000);return}
-  const f=$('footer');if(!f.textContent.includes('kept on disk')){f.textContent+=' · kept on disk to save memory';f.title=f.textContent}}catch(e){}
+async function noteOnDisk(t=target){
+  const state=storageSessions[t];if(state.poll)return;
+  try{const s=await scanStatus(t);if(s.running||s.cleared)return;if(!s.onDisk){if(s.files)setTimeout(()=>noteOnDisk(t),2000);return}
+  if(t===target){const f=$('footer');if(!f.textContent.includes('kept on disk')){f.textContent+=' · kept on disk to save memory';f.title=f.textContent}state.footer=f.textContent;state.footerTitle=f.title}
+  else if(!state.footer.includes('kept on disk')){state.footer+=' · kept on disk to save memory';state.footerTitle=state.footer}}catch(e){}
 }
-async function loadView(id){
-  await startView(id);
+async function loadView(id,t=target){
+  await startView(t,id);
   let state;
-  do{await new Promise(resolve=>setTimeout(resolve,50));state=await viewStatus()}while(state.running);
+  do{await new Promise(resolve=>setTimeout(resolve,50));state=await viewStatus(t)}while(state.running);
   if(state.error)throw state.error;
   return state.view;
 }
 function refresh(){
-  if(viewId===null)return Promise.resolve();
-  if(refreshing){refreshAgain=true;return refreshing}
-  refreshing=(async()=>{try{do{refreshAgain=false;const v=await loadView(viewId);lastView=v;render(v)}while(refreshAgain)}catch(e){status(String(e),true)}finally{refreshing=null}})();
-  return refreshing;
+  const t=target,state=storageSessions[t];if(state.viewId===null)return Promise.resolve();
+  if(state.refreshing){state.refreshAgain=true;return state.refreshing}
+  state.refreshing=(async()=>{try{do{state.refreshAgain=false;const v=await loadView(state.viewId,t);state.lastView=v;if(t===target){lastView=v;render(v)}}while(state.refreshAgain)}catch(e){if(t===target)status(String(e),true)}finally{state.refreshing=null;if(t===target)refreshing=null}})();
+  if(t===target)refreshing=state.refreshing;
+  return state.refreshing;
 }
-function go(id){if(id===undefined||id===null)return;viewId=id;refresh()}
+function go(id){if(id===undefined||id===null)return;viewId=id;storageSessions[target].viewId=id;refresh()}
 function placeholder(text,done=false){
   lastView=null;leaves=[];tops=new Map();$('workspace').classList.add('idle');
   $('heading').replaceChildren(el('span','here',done?'No results':'Scanning…'));$('subheading').textContent='';$('up').classList.add('hidden');
@@ -1573,9 +1632,9 @@ $('map').onmouseleave=()=>{highlight(null);$('tip').classList.add('hidden')};
 let mapClickTimer=null;
 $('map').onclick=e=>{
   if(e.detail>1)return;
-  const l=hit(...mapPoint(e));clearTimeout(mapClickTimer);
+  const t=target,l=hit(...mapPoint(e));clearTimeout(mapClickTimer);
   if(!l||l.dirId===undefined||l.dirId===null||l.dirId===viewId)return;
-  if(l.kind==='file')mapClickTimer=setTimeout(()=>go(l.dirId),260);else go(l.dirId);
+  if(l.kind==='file')mapClickTimer=setTimeout(()=>{if(target===t)go(l.dirId)},260);else go(l.dirId);
 };
 $('map').ondblclick=e=>{const l=hit(...mapPoint(e));if(l&&l.kind==='file'){clearTimeout(mapClickTimer);openEntry(l.dirId,l.name)}};
 $('map').oncontextmenu=e=>{
@@ -1613,11 +1672,13 @@ function enterFiles(){
 function exitFiles(){
   if(!filesMode)return;
   filesMode=false;searchSeq++;$('filesBar').classList.add('hidden');$('search').blur();stopDrivePoll();
+  storageSessions[target].searchSeq=searchSeq;
   if(lastView)renderList(lastView);else if(savedListing)$('listing').replaceChildren(savedListing);
 }
 function resetFind(){
   if(filesMode){filesMode=false;$('filesBar').classList.add('hidden');stopDrivePoll()}
   searchSeq++;typesLoaded=false;scanReady=false;findScope='';$('search').value='';findKind='all';findSort='';syncPills();syncFind();
+  storageSessions[target].searchSeq=searchSeq;storageSessions[target].types=[];
   $('extFilter').replaceChildren(anyExtension());$('extFilter').value='';
 }
 // syncFind shows the search box when there is something to search.
@@ -1640,25 +1701,29 @@ function syncPills(){
   for(const b of document.querySelectorAll('#sorts button'))b.setAttribute('aria-pressed',String(b.dataset.sort===findSort));
   for(const b of document.querySelectorAll('#scopes button'))b.setAttribute('aria-pressed',String(b.dataset.scope===findScope));
 }
-function scheduleSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(runSearch,45)}
-async function runSearch(){
-  if(!filesMode)return;
+function scheduleSearch(){const t=target;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(target===t)runSearch(t)},45)}
+async function runSearch(t=target){
+  if(t!==target||!filesMode)return;
+  const state=storageSessions[t];
   const text=$('search').value.trim(),ext=$('extFilter').value;
   $('sorts').classList.toggle('hidden',!text);
   const scope=findScope,q={text,kind:findKind,exts:ext?[ext]:[],sort:text?findSort:'size',limit:1000,types:!typesLoaded,scope};
-  const mine=++searchSeq,started=performance.now();
+  const mine=++searchSeq;state.searchSeq=mine;const started=performance.now();
   if(scope==='drives')driveSearchAt=started;
-  const spin=setTimeout(()=>{if(mine===searchSeq){$('found').classList.remove('error');$('found').textContent='Searching…'}},120);
+  const spin=setTimeout(()=>{if(mine===state.searchSeq&&t===target){$('found').classList.remove('error');$('found').textContent='Searching…'}},120);
   try{
-    const seq=await startSearch(q);
+    const seq=await startSearch(t,q);
     let s=null;
-    for(let wait=4;;wait=Math.min(40,wait*2)){await sleep(wait);if(mine!==searchSeq)return;s=await searchStatus();if(s.seq>=seq)break}
-    if(s.seq!==seq||mine!==searchSeq)return;
+    for(let wait=4;;wait=Math.min(40,wait*2)){await sleep(wait);if(mine!==state.searchSeq)return;s=await searchStatus(t);if(s.seq>=seq)break}
+    if(s.seq!==seq||mine!==state.searchSeq)return;
     if(s.error)throw s.error;
     const r=s.result;
-    if(r.types&&r.types.length&&!typesLoaded){typesLoaded=true;fillTypes(r.types)}
+    if(r.types&&r.types.length){state.types=r.types;state.typesLoaded=true}
+    if(t!==target)return;
+    typesLoaded=state.typesLoaded;
+    if(state.types.length)fillTypes(state.types);
     renderHits(r,text,performance.now()-started,scope);
-  }catch(e){if(mine===searchSeq){$('found').classList.add('error');$('found').textContent=String(e);$('listing').replaceChildren(el('div','empty',String(e)))}}
+  }catch(e){if(mine===state.searchSeq&&t===target){$('found').classList.add('error');$('found').textContent=String(e);$('listing').replaceChildren(el('div','empty',String(e)))}}
   finally{clearTimeout(spin)}
 }
 function anyExtension(){const o=el('option','','Any extension');o.value='';return o}
@@ -1732,7 +1797,7 @@ $('scopes').onclick=e=>{
 };
 let driveBusy=false;
 function startDrivePoll(){if(drivePoll)return;driveSeen='';pollDrives();drivePoll=setInterval(pollDrives,1500)}
-function stopDrivePoll(){clearInterval(drivePoll);drivePoll=null}
+function stopDrivePoll(){if(drivePoll)clearInterval(drivePoll);drivePoll=null}
 async function pollDrives(){
   let st;try{st=await driveIndexStatus()}catch(e){return}
   if(!filesMode||findScope!=='drives')return;
@@ -1831,7 +1896,8 @@ async function openRequest(req){
 // every drive.
 async function openEntry(dir,name,action='open',folder){
   if(folder===undefined&&(dir===undefined||dir===null))return null;
-  const base=folder!==undefined?{dir:0,name,action,path:folder}:{dir,name,action};
+  const t=folder!==undefined?'local':target;
+  const base=folder!==undefined?{target:t,dir:0,name,action,path:folder}:{target:t,dir,name,action};
   try{
     let s=await openRequest(base);
     if(s&&s.confirm){
@@ -1900,8 +1966,12 @@ if(typeof document.addEventListener==='function')document.addEventListener('scro
 // ---- Activity monitor ----
 // The server sends one sample a second. The page keeps the last minute for the sparklines and
 // draws the monitor only while it is on screen.
-let tab='activity',monitorTarget=null,monitorPoll=null,monitorPollFast=false,monitorPolling=false,monitorReconnecting=false,monitorOwnsConn=false,lastSeq=-1,hello=null,sample=null,activityStale=false,actionId=0,procSort={key:'cpu',dir:-1},procFilter='',confirmResolve=null;
-const pendingActions=new Map(),HISTORY=60,hist={cpu:[],mem:[],gpu:[],rx:[],tx:[],cores:[]},sparks={};
+let tab='activity',monitorTarget=target,monitorPoll=null,monitorPollFast=false,monitorPolling=false,monitorReconnecting=false,monitorOwnsConn=false,lastSeq=-1,hello=null,sample=null,activityStale=false,actionId=0,procSort={key:'cpu',dir:-1},procFilter='',confirmResolve=null;
+const HISTORY=60,sparks={};
+const newMonitorHistory=()=>({cpu:[],mem:[],gpu:[],rx:[],tx:[],cores:[]});
+function newMonitorSession(){return {who:'',active:false,ownsConn:false,poll:null,pollFast:false,polling:false,reconnecting:false,hello:null,sample:null,lastSeq:-1,hist:newMonitorHistory(),pendingActions:new Map(),machine:null,generation:0,stale:false,sub:'Not monitoring',noticeText:'',noticeKind:''}}
+const monitorSessions={local:newMonitorSession(),remote:newMonitorSession()};
+let pendingActions=new Map(),hist=newMonitorHistory();
 const rate=n=>size(n)+'/s';
 const pct0=n=>n===null||n===undefined||isNaN(n)?'–':Math.round(n)+'%';
 function duration(s){s=Math.floor(s||0);const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d} d ${h} h`:h?`${h} h ${m} min`:`${m} min`}
@@ -1912,15 +1982,15 @@ function privilegeOf(){return hello&&hello.privilege||'none'}
 function canEnd(p,priv){return !!p&&!p.kernel&&!p.protected&&(p.own||priv==='root'||priv==='sudo'||priv==='sudo-password'||priv==='admin')}
 function needsSudoPassword(p,priv){return priv==='sudo-password'&&(!p||!p.own)}
 function canFreeCache(priv){return priv==='root'||priv==='sudo'||priv==='sudo-password'||priv==='admin'}
-function pushHist(k,v){const a=hist[k];a.push(v);if(a.length>HISTORY)a.shift()}
+function pushHist(k,v,h=hist){const a=h[k];a.push(v);if(a.length>HISTORY)a.shift()}
 function gpuAverage(s){const u=(s.gpus||[]).map(g=>g.util).filter(v=>typeof v==='number');return u.length?u.reduce((a,b)=>a+b,0)/u.length:null}
 function netTotals(s){let rx=0,tx=0;for(const n of s.network||[]){rx+=n.rx||0;tx+=n.tx||0}return [rx,tx]}
-function record(s){
+function record(s,h=hist){
   const m=s.memory||{},[rx,tx]=netTotals(s);
-  pushHist('cpu',s.cpu?s.cpu.total:0);pushHist('mem',m.total?100*m.used/m.total:0);pushHist('gpu',gpuAverage(s));pushHist('rx',rx);pushHist('tx',tx);
+  pushHist('cpu',s.cpu?s.cpu.total:0,h);pushHist('mem',m.total?100*m.used/m.total:0,h);pushHist('gpu',gpuAverage(s),h);pushHist('rx',rx,h);pushHist('tx',tx,h);
   const cores=s.cpu&&s.cpu.cores||[];
-  if(hist.cores.length!==cores.length)hist.cores=cores.map(()=>[]);
-  cores.forEach((v,i)=>{const a=hist.cores[i];a.push(v);if(a.length>HISTORY)a.shift()});
+  if(h.cores.length!==cores.length)h.cores=cores.map(()=>[]);
+  cores.forEach((v,i)=>{const a=h.cores[i];a.push(v);if(a.length>HISTORY)a.shift()});
 }
 const activityVisible=()=>tab==='activity'&&!(typeof document.hidden==='boolean'&&document.hidden);
 function showActivity(){if(sample&&activityStale&&activityVisible()){activityStale=false;renderActivity()}}
@@ -1943,53 +2013,81 @@ for(const [name,[,button]] of Object.entries(TAB_VIEWS)){
   $(button).onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const current=tabButtons.indexOf(button),next=e.key==='Home'?0:e.key==='End'?tabButtons.length-1:(current+(e.key==='ArrowRight'?1:-1)+tabButtons.length)%tabButtons.length;$(tabButtons[next]).click();$(tabButtons[next]).focus()};
 }
 if(typeof document.addEventListener==='function')document.addEventListener('visibilitychange',showActivity);
-function notice(text,kind){const n=$('actNotice');$('actNoticeText').textContent=text;n.classList.toggle('error',kind==='error');n.classList.toggle('busy',kind==='busy');n.classList.toggle('hidden',!text)}
+function paintNotice(text,kind){const n=$('actNotice');$('actNoticeText').textContent=text;n.classList.toggle('error',kind==='error');n.classList.toggle('busy',kind==='busy');n.classList.toggle('hidden',!text)}
+function notice(text,kind){const s=monitorSessions[target];s.noticeText=text;s.noticeKind=kind||'';paintNotice(text,kind)}
+function monitorNotice(t,text,kind){const s=monitorSessions[t];s.noticeText=text;s.noticeKind=kind||'';if(t===target)paintNotice(text,kind)}
 $('actNoticeClose').onclick=()=>notice('');
-function beginMonitor(who,local=false,ownsConn=false){
-  monitorTarget=local?'local':'remote';
-  clearInterval(monitorPoll);hello=null;sample=null;lastSeq=-1;for(const k in hist)hist[k]=[];pendingActions.clear();
-  monitorOwnsConn=ownsConn;monitorReconnecting=false;
-  $('actHost').textContent=who;$('actPriv').classList.add('hidden');$('elevateButton').classList.add('hidden');$('actSub').textContent='Connecting…';notice('');
-  $('actEmpty').classList.add('hidden');$('actBody').classList.add('hidden');Dash.available(false);$('stopMonitorButton').classList.remove('hidden');$('liveDot').classList.remove('hidden');
-  // Poll often until the first figures arrive so they show as soon as they exist, then once a second.
-  monitorPoll=setInterval(pollMonitor,100);monitorPollFast=true;pollMonitor();
+function saveMonitorTarget(t){
+  const s=monitorSessions[t];if(!s||t!==target)return;
+  Object.assign(s,{poll:monitorPoll,pollFast:monitorPollFast,polling:monitorPolling,reconnecting:monitorReconnecting,ownsConn:monitorOwnsConn,lastSeq,hello,sample,hist,pendingActions,stale:activityStale});
 }
-async function endMonitor(text,error=false){
-  clearInterval(monitorPoll);monitorPoll=null;monitorTarget=null;$('stopMonitorButton').classList.add('hidden');$('liveDot').classList.add('hidden');
-  const unanswered=pendingActions.size;pendingActions.clear();
-  try{await stopMonitor()}catch(e){}
-  $('actSub').textContent=text;
-  if(error)notice(text,'error');else if(unanswered)notice('Monitoring stopped before the server confirmed the last action.','error');
-  if(!sample){$('actBody').classList.add('hidden');$('actEmpty').classList.remove('hidden');Dash.available(false)}
-  if(monitorOwnsConn)conn(error?'error':'idle',error?'Monitor disconnected':'Not connected');
+function syncMonitorGlobals(t){
+  const s=monitorSessions[t];monitorTarget=t;monitorPoll=s.poll;monitorPollFast=s.pollFast;monitorPolling=s.polling;monitorReconnecting=s.reconnecting;monitorOwnsConn=s.ownsConn;lastSeq=s.lastSeq;hello=s.hello;sample=s.sample;hist=s.hist;pendingActions=s.pendingActions;activityStale=s.stale;
+}
+function paintMonitorHello(){
+  const p=$('actPriv');p.classList.toggle('hidden',!hello);
+  if(!hello)return;
+  const [label,detail]=privilegeInfo();p.textContent=label;p.title=detail;p.dataset.level=hello.privilege;
+  $('elevateButton').classList.toggle('hidden',!(onWindows()&&hello.privilege==='none'));
+  $('cpuModel').textContent=hello.cpuModel||'';
+}
+function switchMonitorTarget(t){
+  const s=monitorSessions[t];syncMonitorGlobals(t);
+  $('actHost').textContent=s.who||(t==='local'?localName():serverWho)||'';
+  $('actSub').textContent=s.sub;
+  $('stopMonitorButton').classList.toggle('hidden',!s.active);$('liveDot').classList.toggle('hidden',!s.active);
+  $('actEmpty').classList.toggle('hidden',s.active||!!s.sample);$('actBody').classList.toggle('hidden',!s.sample);Dash.available(!!s.sample);
+  paintNotice(s.noticeText,s.noticeKind);paintMonitorHello();
+  if(s.machine&&s.machine!==monitorMachine){monitorMachine=s.machine;selectHistoryMachine(s.machine);loadHistoryMachineList()}
+  if(s.sample){if(activityVisible()){activityStale=false;s.stale=false;renderActivity()}else activityStale=true}
+}
+function beginMonitor(who,local=false,ownsConn=false){
+  const t=local?'local':'remote',s=monitorSessions[t];
+  clearInterval(s.poll);
+  Object.assign(s,{who,active:true,ownsConn,pollFast:true,polling:false,reconnecting:false,hello:null,sample:null,lastSeq:-1,hist:newMonitorHistory(),pendingActions:new Map(),machine:null,stale:false,sub:'Connecting…',noticeText:'',noticeKind:''});
+  s.generation++;
+  if(t===target)switchMonitorTarget(t);
+  // Poll often until the first figures arrive so they show as soon as they exist, then once a second.
+  s.poll=setInterval(()=>pollMonitor(t),100);if(t===target)syncMonitorGlobals(t);pollMonitor(t);
+}
+async function endMonitor(text,error=false,t=target){
+  const s=monitorSessions[t];s.generation++;clearInterval(s.poll);s.poll=null;s.active=false;s.polling=false;s.sub=text;
+  const unanswered=s.pendingActions.size;s.pendingActions.clear();
+  if(error){s.noticeText=text;s.noticeKind='error'}else if(unanswered){s.noticeText='Monitoring stopped before the server confirmed the last action.';s.noticeKind='error'}
+  try{await stopMonitor(t)}catch(e){}
+  if(t===target){syncMonitorGlobals(t);switchMonitorTarget(t);$('actSub').textContent=text}
+  if(s.ownsConn&&t===target)conn(error?'error':'idle',error?'Monitor disconnected':'Not connected');
 }
 $('stopMonitorButton').onclick=()=>endMonitor('Monitoring stopped. The last values are shown.');
 $('elevateButton').onclick=async()=>{try{notice('Waiting for Windows to grant administrator access…','busy');await restartElevated()}catch(e){notice(String(e),'error')}};
-async function pollMonitor(){
-  if(monitorPolling||!monitorPoll)return;monitorPolling=true;
+async function pollMonitor(t=target){
+  const state=monitorSessions[t];if(state.polling||!state.poll)return;state.polling=true;
+  const generation=state.generation;
   try{
-    const s=await monitorStatus();
-    if(!monitorPoll)return;
-    if(s.machine&&s.machine!==monitorMachine){monitorMachine=s.machine;selectHistoryMachine(s.machine);loadHistoryMachineList()}
-    if(s.hello&&!hello){
-      hello=s.hello;const [label,detail]=privilegeInfo(),p=$('actPriv');
-      $('elevateButton').classList.toggle('hidden',!(onWindows()&&hello.privilege==='none'));
-      p.textContent=label;p.title=detail;p.dataset.level=hello.privilege;p.classList.remove('hidden');
-      $('cpuModel').textContent=hello.cpuModel||'';
-      if(monitorOwnsConn)conn('ok',$('connText').dataset.who||hello.host);
+    const s=await monitorStatus(t);
+    if(!state.poll||!state.active||state.generation!==generation)return;
+    state.machine=s.machine||state.machine;
+    if(t===target&&state.machine&&state.machine!==monitorMachine){monitorMachine=state.machine;selectHistoryMachine(state.machine);loadHistoryMachineList()}
+    if(s.hello&&!state.hello){
+      state.hello=s.hello;
+      if(t===target){syncMonitorGlobals(t);paintMonitorHello()}
+      if(state.ownsConn&&t===target)conn('ok',$('connText').dataset.who||state.hello.host);
     }
     for(const raw of s.results||[]){
-      if(!pendingActions.has(raw.id))continue;
-      pendingActions.delete(raw.id);notice(raw.message,raw.ok?'ok':'error');
+      if(!state.pendingActions.has(raw.id))continue;
+      state.pendingActions.delete(raw.id);monitorNotice(t,raw.message,raw.ok?'ok':'error');
     }
-    if(s.reconnecting&&!monitorReconnecting){monitorReconnecting=true;notice('The connection stopped responding. Reconnecting…','busy')}
-    else if(!s.reconnecting&&monitorReconnecting){monitorReconnecting=false;notice('')}
-    if(s.sample&&s.seq!==lastSeq){lastSeq=s.seq;sample=s.sample;record(sample);if(activityVisible())renderActivity();else activityStale=true}
-    if(sample&&monitorPollFast){clearInterval(monitorPoll);monitorPollFast=false;monitorPoll=setInterval(pollMonitor,1000)}
-    if(!s.running){await endMonitor(s.error||'Monitoring stopped.',!!s.error)}
-    else if(hello&&monitorOwnsConn&&$('conn').dataset.state==='busy')conn('ok',$('connText').dataset.who||hello.host);
-  }catch(e){await endMonitor(String(e),true)}
-  finally{monitorPolling=false}
+    if(s.reconnecting&&!state.reconnecting){state.reconnecting=true;monitorNotice(t,'The connection stopped responding. Reconnecting…','busy')}
+    else if(!s.reconnecting&&state.reconnecting){state.reconnecting=false;monitorNotice(t,'','')}
+    if(s.sample&&s.seq!==state.lastSeq){
+      state.lastSeq=s.seq;state.sample=s.sample;record(state.sample,state.hist);state.stale=true;
+      if(t===target){syncMonitorGlobals(t);if(activityVisible()){activityStale=false;state.stale=false;renderActivity()}else activityStale=true}
+    }
+    if(state.sample&&state.pollFast){clearInterval(state.poll);state.pollFast=false;state.poll=setInterval(()=>pollMonitor(t),1000);if(t===target)syncMonitorGlobals(t)}
+    if(!s.running){await endMonitor(s.error||'Monitoring stopped.',!!s.error,t)}
+    else if(state.hello&&state.ownsConn&&t===target&&$('conn').dataset.state==='busy')conn('ok',$('connText').dataset.who||state.hello.host);
+  }catch(e){if(state.generation===generation&&state.active)await endMonitor(String(e),true,t)}
+  finally{state.polling=false;if(t===target)monitorPolling=false}
 }
 function kv(label,value){const d=el('div');d.append(el('span','',label),el('b','',value));return d}
 function meter(parts){const m=el('div','meter');for(const [v,cls] of parts){const i=el('i',cls||'');i.style.width=Math.max(0,Math.min(100,v)).toFixed(2)+'%';m.append(i)}return m}
@@ -2103,24 +2201,24 @@ function confirmAction({title,text,detail,password,label,detailLabel}){
 function closeConfirm(result){const r=confirmResolve;confirmResolve=null;$('confirm').classList.add('hidden');$('sudoPassword').value='';if(r)r(result)}
 $('confirmCancel').onclick=()=>closeConfirm(null);
 $('confirmForm').onsubmit=e=>{e.preventDefault();closeConfirm({password:$('sudoPassword').value})};
-async function sendAction(action,label){
-  const id=++actionId;pendingActions.set(id,label);notice(label,'busy');
-  try{await monitorAction({...action,id})}catch(e){pendingActions.delete(id);notice(String(e),'error')}
+async function sendAction(action,label,t=target){
+  const state=monitorSessions[t],id=++actionId;state.pendingActions.set(id,label);monitorNotice(t,label,'busy');
+  try{await monitorAction(t,{...action,id})}catch(e){state.pendingActions.delete(id);monitorNotice(t,String(e),'error')}
 }
 async function endProcess(p,force){
-  const priv=privilegeOf(),password=needsSudoPassword(p,priv);
+  const t=target,priv=privilegeOf(),password=needsSudoPassword(p,priv);
   const r=await confirmAction({title:(force?'Force end ':'End ')+p.name+'?',label:force?'Force end':'End process',password,
     text:(force?'The process is stopped immediately and any unsaved work is lost.':onWindows()?'Its windows are asked to close, so it can save its work first. Programs without a window have to be force-ended.':'The process is asked to exit, so it can save its work first. Some programs ignore this; use Force end if it keeps running.')+(p.own?'':' It belongs to '+(p.user||'another account')+(onWindows()?'.':', so sudo is used.')),
     detail:`PID ${p.pid} · ${p.user} · ${size(p.rss)}\n${p.cmd||p.name}`});
   if(!r)return;
-  await sendAction({type:'kill',pid:p.pid,start:p.start,signal:force?'KILL':'TERM',password:password?r.password:''},`${force?'Force-ending':'Ending'} ${p.name} (PID ${p.pid})…`);
+  await sendAction({type:'kill',pid:p.pid,start:p.start,signal:force?'KILL':'TERM',password:password?r.password:''},`${force?'Force-ending':'Ending'} ${p.name} (PID ${p.pid})…`,t);
 }
 $('freeCacheButton').onclick=async()=>{
-  const priv=privilegeOf(),password=needsSudoPassword(null,priv);
+  const t=target,priv=privilegeOf(),password=needsSudoPassword(null,priv);
   const r=await confirmAction({title:'Free the memory cache?',label:'Free cache',password,
     text:hello&&hello.platform==='darwin'?'Runs purge, which writes pending data to disk and clears the file cache. Programs keep their memory. The cache refills as files are read again, so the Mac may be slower for a while. macOS frees cached memory by itself whenever programs need it, so this is rarely necessary.':onWindows()?'Modified pages are written to disk, then the standby list (file data Windows keeps in spare memory) is cleared. Programs keep their memory. The cache refills as files are read again, so the PC may be slower for a while. Windows frees standby memory by itself whenever programs need it, so this is rarely necessary.':'Pending writes are saved to disk, then the file cache is cleared (drop_caches). Programs keep their memory. The cache refills as files are read again, so the server may be slower for a while. Linux frees cache by itself when programs need memory, so this is rarely necessary.'});
   if(!r)return;
-  await sendAction({type:'dropcaches',password:password?r.password:''},'Freeing the memory cache…');
+  await sendAction({type:'dropcaches',password:password?r.password:''},'Freeing the memory cache…',t);
 };
 // Sparklines: one value axis per chart, newest sample on the right, with a hover readout.
 function drawSparks(){
@@ -3414,20 +3512,22 @@ $('fileCopy').onclick=async()=>{
 $('fileSave').onclick=async()=>{try{const where=await window.exportTheme((fileTheme&&fileTheme.id)||'theme',$('fileText').value);fileMessage('Saved to '+where)}catch(e){fileMessage(String(e),true)}};
 if(TH)TH.onChange(()=>{drawSparks();drawResourceHistory();if(!$('appearance').classList.contains('hidden')&&!editing)renderThemes()});
 
-syncTools();if(target==='local')loadDrives();
+setTarget(target);
 if(prefs){if(prefs.get('sidebar')===false)setSide(false);const f=prefs.get('split');if(typeof f==='number')setSplit(f,false)}
 // Monitoring starts locally even when the last selected connection was an SSH server.
 async function startLocalMonitoring(){
   if(typeof startMonitor!=='function')return;
-  $('submit').disabled=true;
+  storageSessions.local.who=localName();if(target==='local')$('submit').disabled=true;
   try{
     await startMonitor({local:true});
-    $('connText').dataset.who=localName();conn('busy','Starting monitor: '+localName());
+    if(target==='local'){$('connText').dataset.who=localName();conn('busy','Starting monitor: '+localName())}
     beginMonitor(localName(),true,true);
-  }catch(e){$('actSub').textContent='Could not start monitoring.';notice(String(e),'error');conn('error','Monitor failed to start')}
-  finally{$('submit').disabled=false}
+  }catch(e){
+    monitorSessions.local.sub='Could not start monitoring.';monitorNotice('local',String(e),'error');
+    if(target==='local'){$('actSub').textContent=monitorSessions.local.sub;conn('error','Monitor failed to start')}
+  }finally{if(target==='local')$('submit').disabled=false}
 }
 startLocalMonitoring();
 startHistoryUpdates();
-if(typeof appPlatform==='function')appPlatform().then(p=>{platform=p;applyPlatform();if(monitorTarget==='local'){$('actHost').textContent=localName();$('connText').dataset.who=localName()}}).catch(()=>{});
+if(typeof appPlatform==='function')appPlatform().then(p=>{platform=p;applyPlatform();storageSessions.local.who=localName();monitorSessions.local.who=localName();if(monitorTarget==='local'){$('actHost').textContent=localName();$('connText').dataset.who=localName()}}).catch(()=>{});
 </script></body></html>

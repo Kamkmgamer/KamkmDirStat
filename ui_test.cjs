@@ -12,11 +12,12 @@ const html = fs.readFileSync('index.html', 'utf8');
 }
 const elements = new Map();
 function element(id) {
-  if (!elements.has(id)) elements.set(id, {value:'', textContent:'', dataset:{}, setAttribute(){}, classList:{values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name)},add(name){this.values.add(name)},remove(name){this.values.delete(name)}}});
+  if (!elements.has(id)) elements.set(id, {value:'', textContent:'', dataset:{}, style:{}, setAttribute(){}, replaceChildren(){}, classList:{values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name)},add(name){this.values.add(name)},remove(name){this.values.delete(name)},contains(name){return this.values.has(name)}}});
   return elements.get(id);
 }
-const context = vm.createContext({document:{getElementById:element}, window:{addEventListener(){}}, setTimeout, clearTimeout, console});
+const context = vm.createContext({document:{getElementById:element,createElement:tag=>({tag,value:'',textContent:'',setAttribute(){}})}, window:{addEventListener(){}}, setTimeout, clearTimeout, setInterval:()=>1, clearInterval(){}, console});
 vm.runInContext(html.split('<script>')[1].split('</script>')[0], context);
+vm.runInContext('placeholder=()=>{};serverScanPrompt=()=>{};redraw=()=>{}',context);
 assert.equal(vm.runInContext('target',context),'local','This PC is the default');
 vm.runInContext("setTarget('remote')",context);assert.equal(element('connect').classList.values.has('is-local'),false);assert.equal(element('host').required,true);
 element('method').value='auto'; element('host').value='buildbox'; element('password').value='should-not-be-sent'; element('path').value='/';
@@ -53,10 +54,10 @@ console.log('UI treemap layout passed');
 
 (async()=>{
  let requested=null;
- context.startView=async id=>{requested=id};
+ context.startView=async(t,id)=>{requested={target:t,id}};
  context.viewStatus=async()=>({running:false,view:{id:7,entries:[]}});
  const v=await vm.runInContext('loadView(7)',context);
- assert.equal(requested,7);assert.equal(v.id,7);
+ assert.deepEqual(requested,{target:'remote',id:7});assert.equal(v.id,7);
  context.viewStatus=async()=>({running:false,error:'Remote report connection closed.'});
  await assert.rejects(()=>vm.runInContext('loadView(8)',context),/Remote report connection closed/);
  console.log('UI remote folder loading passed');
@@ -95,7 +96,7 @@ console.log('UI treemap layout passed');
 // Opening the app starts local monitoring without requiring a disk scan.
 (async()=>{
  const calls=[];
- const startup=vm.createContext({document:{getElementById:element},window:{addEventListener(){}},setTimeout,clearTimeout,setInterval:()=>1,clearInterval(){},console,
+ const startup=vm.createContext({document:{getElementById:element,createElement:tag=>({tag,value:'',textContent:'',setAttribute(){}})},window:{addEventListener(){}},setTimeout,clearTimeout,setInterval:()=>1,clearInterval(){},console,
    startMonitor:async c=>calls.push(c),monitorStatus:async()=>({running:true}),appPlatform:async()=> 'windows'});
  vm.runInContext(html.split('<script>')[1].split('</script>')[0],startup);
  await new Promise(resolve=>setTimeout(resolve,0));
@@ -107,8 +108,11 @@ console.log('UI treemap layout passed');
  // Connecting to a server monitors it without scanning; the scan starts from its button.
  const scans=[];
  startup.startScan=async c=>scans.push(c);
+ startup.scanStatus=async()=>({running:true,progress:{}});
  vm.runInContext('var prompts=0;serverScanPrompt=()=>{prompts++};placeholder=()=>{};redraw=()=>{};resetFind=()=>{}',startup);
  const server={host:'buildbox',port:'22',user:'root',method:'auto',path:'/srv',fingerprint:'SHA256:x'};
+ vm.runInContext(`setTarget('remote')`,startup);
+ vm.runInContext('prompts=0',startup);
  await vm.runInContext('begin',startup)(server,'root@buildbox');
  assert.equal(calls.at(-1).host,'buildbox','the server is monitored');assert.equal(scans.length,0,'connecting does not scan the server');
  assert.equal(vm.runInContext('prompts',startup),1,'the storage view offers a scan');assert.equal(vm.runInContext('tab',startup),'activity');
@@ -118,9 +122,95 @@ console.log('UI treemap layout passed');
  assert.equal(scans.length,1);assert.equal(scans[0].host,'buildbox');assert.equal(scans[0].path,'/srv');assert.equal(scans[0].fingerprint,'SHA256:x');
  assert.equal(vm.runInContext('tab',startup),'storage');assert.equal(element('scanServerButton').classList.values.has('hidden'),true,'no second scan while one runs');
  vm.runInContext('finishScan()',startup);assert.equal(element('scanServerButton').classList.values.has('hidden'),false,'the server can be scanned again');
+ vm.runInContext(`setTarget('local')`,startup);
  await vm.runInContext('begin',startup)({local:true,paths:['C:\\']},'This PC');
  assert.equal(scans.length,2,'this computer is still scanned on start');assert.equal(element('scanServerButton').classList.values.has('hidden'),true,'the server button goes away');
  console.log('UI server monitoring without a scan passed');
+})().catch(err=>{console.error(err);process.exitCode=1});
+
+// Computer tabs own their monitor and scan sessions. Background work keeps its target and
+// switching tabs never stops a monitor or discards the other computer's scan.
+(async()=>{
+ const script=html.split('<script>')[1].split('</script>')[0];
+ const settle=(ms=10)=>new Promise(resolve=>setTimeout(resolve,ms));
+ function sessionContext(extra={}){
+  let nextTimer=0;const timers=new Map();
+  const ctx=vm.createContext({document:{getElementById:element,createElement:tag=>({tag,value:'',textContent:'',dataset:{},style:{},setAttribute(){},replaceChildren(){}})},window:{addEventListener(){}},setTimeout,clearTimeout,performance,
+   setInterval:(fn,ms)=>{const id=++nextTimer;timers.set(id,{fn,ms});return id},clearInterval:id=>{timers.delete(id)},console,...extra});
+  vm.runInContext(script,ctx);
+  vm.runInContext('placeholder=()=>{};serverScanPrompt=()=>{};redraw=()=>{};render=()=>{};renderActivity=()=>{};drawSparks=()=>{}',ctx);
+  return {ctx,timers};
+ }
+ const stopped=[],cleared=[],samples={
+  local:{seq:1,cpu:{total:11,cores:[10]},memory:{total:100,used:25},network:[]},
+  remote:{seq:1,cpu:{total:72,cores:[70]},memory:{total:200,used:100},network:[]}
+ };
+ const monitors=sessionContext({
+  monitorStatus:async t=>({running:true,seq:samples[t].seq,sample:samples[t],results:[]}),
+  stopMonitor:async t=>stopped.push(t),clearResults:async t=>cleared.push(t)
+ });
+ const mc=monitors.ctx;
+ await vm.runInContext('beginMonitor',mc)('This PC',true,true);await settle();
+ await vm.runInContext('beginMonitor',mc)('root@buildbox',false,true);await settle();
+ assert.equal(vm.runInContext('monitorSessions.local.hist.cpu.length',mc),1);
+ assert.equal(vm.runInContext('monitorSessions.remote.hist.cpu.length',mc),1,'the hidden SSH monitor records samples too');
+ assert.ok(monitors.timers.has(vm.runInContext('monitorSessions.local.poll',mc)));
+ assert.ok(monitors.timers.has(vm.runInContext('monitorSessions.remote.poll',mc)),'both monitor timers stay active');
+ vm.runInContext("setTarget('remote')",mc);
+ assert.equal(vm.runInContext('sample.cpu.total',mc),72);
+ assert.equal(vm.runInContext('hist===monitorSessions.remote.hist',mc),true);
+ samples.local={seq:2,cpu:{total:33,cores:[30]},memory:{total:100,used:50},network:[]};
+ await vm.runInContext("pollMonitor('local')",mc);
+ assert.equal(vm.runInContext('monitorSessions.local.hist.cpu.length',mc),2,'the hidden local monitor keeps its history');
+ assert.equal(vm.runInContext('sample.cpu.total',mc),72,'a hidden sample cannot overwrite the SSH view');
+ vm.runInContext("setTarget('local');setTarget('remote');setTarget('local')",mc);
+ assert.equal(vm.runInContext('hist.cpu.length',mc),2);
+ assert.deepEqual(Array.from(vm.runInContext('hist.cpu',mc)),[11,33]);
+ assert.deepEqual(stopped,[],'tab switches do not stop either monitor');
+ assert.deepEqual(cleared,[],'tab switches do not clear either scan');
+ console.log('UI independent monitor sessions passed');
+
+ const scans=[],statuses={local:{running:true,progress:{mode:'local'}},remote:{running:true,progress:{mode:'remote'}}};
+ const views={local:{id:101,entries:[]},remote:{id:202,entries:[]}};
+ const storage=sessionContext({
+  startScan:async c=>scans.push(c),scanStatus:async t=>statuses[t],
+  startView:async()=>{},viewStatus:async t=>({running:false,view:views[t]}),
+  stopMonitor:async t=>stopped.push(t),clearResults:async t=>cleared.push(t)
+ });
+ const sc=storage.ctx;
+ await vm.runInContext('beginScan',sc)({local:true,paths:['C:\\']},'This PC',true);
+ await vm.runInContext('beginScan',sc)({host:'buildbox',path:'/srv'},'root@buildbox',false);
+ await settle();
+ assert.equal(scans.length,2);
+ assert.ok(storage.timers.has(vm.runInContext('storageSessions.local.poll',sc)),'the local scan timer keeps running');
+ assert.ok(storage.timers.has(vm.runInContext('storageSessions.remote.poll',sc)),'the SSH scan timer runs at the same time');
+ vm.runInContext('storageSessions.local.lastView={id:101,entries:[]};lastView=storageSessions.local.lastView',sc);
+ statuses.remote={running:false,files:1,size:20,mode:'remote'};
+ await vm.runInContext("pollScanFor('remote')",sc);
+ assert.equal(vm.runInContext('storageSessions.remote.needsFinal',sc),true);
+ assert.equal(vm.runInContext('storageSessions.remote.poll',sc),null);
+ assert.equal(vm.runInContext('storageSessions.local.lastView.id',sc),101,'an SSH scan completion leaves local results intact');
+ assert.notEqual(vm.runInContext('storageSessions.local.poll',sc),null,'an SSH scan completion leaves the local scan running');
+ vm.runInContext("setTarget('remote');restoreStorageTarget('remote')",sc);
+ await settle(120);
+ assert.equal(vm.runInContext('storageSessions.remote.needsFinal',sc),false,'restoring during a poll still applies the final scan');
+ assert.equal(vm.runInContext('storageSessions.remote.lastView.id',sc),202);
+ assert.equal(vm.runInContext('storageSessions.local.lastView.id',sc),101,'the local scan result remains retained after browsing SSH');
+ assert.deepEqual(stopped,[]);assert.deepEqual(cleared,[]);
+ console.log('UI independent scan sessions passed');
+
+ // A delayed search response belongs to the computer that started it, even after a switch.
+ let releaseSearch;const searchGate=new Promise(resolve=>{releaseSearch=resolve}),searchCalls=[];
+ const searching=sessionContext({
+  startSearch:async(t,q)=>{searchCalls.push({target:t,...q});return 9},
+  searchStatus:async()=>{await searchGate;return {seq:9,result:{hits:[],total:0,totalSize:0}}}
+ });
+ const qc=searching.ctx;
+ vm.runInContext("setTarget('remote');filesMode=true;scanReady=true;renderHits=()=>{throw new Error('cross-target search render')}",qc);
+ const searchDone=vm.runInContext("runSearch('remote')",qc);await settle();
+ vm.runInContext("setTarget('local')",qc);releaseSearch();await searchDone;
+ assert.equal(searchCalls[0].target,'remote');assert.equal(searchCalls[0].text,'');
+ console.log('UI target-safe delayed search passed');
 })().catch(err=>{console.error(err);process.exitCode=1});
 
 // Themes: every built-in theme keeps text readable, the CSS defaults match what the engine
@@ -207,19 +297,21 @@ console.log('UI treemap layout passed');
  const reqs=[],statuses=[];let seq=0,confirmed=0;
  const ctx=vm.createContext({document:{getElementById:element},window:{addEventListener(){}},setTimeout,clearTimeout,setInterval:()=>1,clearInterval(){},console,performance,
    startOpen:async r=>{reqs.push(r);return ++seq},openStatus:async()=>statuses.shift(),
-   startSearch:async q=>{reqs.push(q);return 7},searchStatus:async()=>({seq:7,result:{hits:[],total:0,totalSize:0}})});
+   startSearch:async(t,q)=>{reqs.push({target:t,...q});return 7},searchStatus:async()=>({seq:7,result:{hits:[],total:0,totalSize:0}})});
  vm.runInContext(html.split('<script>')[1].split('</script>')[0],ctx);
+ vm.runInContext('placeholder=()=>{};serverScanPrompt=()=>{};redraw=()=>{};fillTypes=()=>{}',ctx);
  const fit=vm.runInContext('fitLabel',ctx),m={measureText:s=>({width:[...s].length*6})};
  assert.equal(fit(m,'Users/',' (120.8 GiB)',200),'Users/ (120.8 GiB)');
  assert.equal(fit(m,'Administrator/',' (120.8 GiB)',120),'Adminis… (120.8 GiB)','the name shortens before the size goes');
  assert.equal(fit(m,'Administrator/',' (120.8 GiB)',60),'Administr…','the size goes when the name would not fit');
  assert.equal(fit(m,'Administrator/',' (120.8 GiB)',12),'','nothing when not even two letters fit');
 
- ctx.confirmAction=async a=>{confirmed++;assert.match(a.title,/^Run setup\.exe\?/);return {}};
+ ctx.confirmAction=async a=>{confirmed++;assert.match(a.title,/^Run setup\.exe\?/);vm.runInContext("setTarget('remote')",ctx);return {}};
  statuses.push({seq:1,running:false,confirm:'run',name:'setup.exe',path:'C:/x/setup.exe'},{seq:2,running:false,name:'setup.exe'});
  const done=await vm.runInContext("openEntry(4,'setup.exe')",ctx);
  assert.equal(confirmed,1);assert.equal(done.name,'setup.exe');
- assert.deepEqual(reqs.map(r=>({...r})),[{dir:4,name:'setup.exe',action:'open'},{dir:4,name:'setup.exe',action:'open',confirmed:true}]);
+ assert.deepEqual(reqs.map(r=>({...r})),[{target:'local',dir:4,name:'setup.exe',action:'open'},{target:'local',dir:4,name:'setup.exe',action:'open',confirmed:true}]);
+ vm.runInContext("setTarget('local')",ctx);
  ctx.confirmAction=async()=>null;reqs.length=0;
  statuses.push({seq:3,running:false,confirm:'download',name:'clip.mp4',size:5});
  assert.equal(await vm.runInContext("openEntry(2,'clip.mp4')",ctx),null,'declining stops');
@@ -232,13 +324,13 @@ console.log('UI treemap layout passed');
  reqs.length=0;element('search').value='  ';element('extFilter').value='mkv';
  vm.runInContext("filesMode=true;findKind='videos';renderHits=()=>{};runSearch()",ctx);
  await new Promise(r=>setTimeout(r,30));
- assert.deepEqual({...reqs[0],exts:[...reqs[0].exts]},{text:'',kind:'videos',exts:['mkv'],sort:'size',limit:1000,types:true,scope:''});
+ assert.deepEqual({...reqs[0],exts:[...reqs[0].exts]},{target:'local',text:'',kind:'videos',exts:['mkv'],sort:'size',limit:1000,types:true,scope:''});
 
  // A result of a search of every drive opens by its folder's path, and so does its retry.
  reqs.length=0;ctx.confirmAction=async()=>({});
  statuses.push({seq:5,running:false,confirm:'run',name:'tool.exe'},{seq:6,running:false,name:'tool.exe'});
  await vm.runInContext("openEntry(null,'tool.exe','open','D:\\\\Apps')",ctx);
- assert.deepEqual(reqs.map(r=>({...r})),[{dir:0,name:'tool.exe',action:'open',path:'D:\\Apps'},{dir:0,name:'tool.exe',action:'open',path:'D:\\Apps',confirmed:true}]);
+ assert.deepEqual(reqs.map(r=>({...r})),[{target:'local',dir:0,name:'tool.exe',action:'open',path:'D:\\Apps'},{target:'local',dir:0,name:'tool.exe',action:'open',path:'D:\\Apps',confirmed:true}]);
 
  // The drive bar offers what would make the index current, and hides what does not apply.
  const made=[];

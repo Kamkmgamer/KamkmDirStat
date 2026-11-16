@@ -12,9 +12,11 @@ Download the package for your system from the [releases page](https://github.com
 
 On Linux and macOS the local choice is called **This computer** and **This Mac**; the steps below apply the same way.
 
+**This PC** and **SSH server** are two tabs rather than a choice between two machines. This PC is monitored from the moment the app starts, and connecting to a server adds a second monitor beside it. Switching tabs only changes what is shown: the machine you are not looking at keeps monitoring, keeps recording its history and keeps its scan, and is as you left it when you switch back.
+
 ### This PC
 
-Choose **This PC**, then under **Open** choose the disk usage scan, the live activity monitor, or both. Tick one, some or all drives, or enter one folder to scan instead. Fixed drives are ticked at first; removable, network and optical drives are not. Nothing leaves the computer.
+Choose **This PC**, then under **Open** choose the disk usage scan, the live activity monitor, or both. Tick one, some or all drives, or enter one folder to scan instead. Fixed drives are ticked at first; removable, network and optical drives are not. Nothing leaves the computer. Scanning or monitoring this PC happens beside anything already running on a server.
 
 Local sizes are file sizes, as in Explorer. Junctions, symbolic links and volumes mounted in a folder are not followed, so nothing is counted twice through them.
 
@@ -26,13 +28,17 @@ Without administrator rights, for folders rather than whole drives, and for othe
 
 Choose **SSH server**. Enter an SSH config alias or hostname and an absolute remote path. Leave the username and port blank to use the values from your SSH config. The default authentication mode uses keys loaded in the SSH agent and unencrypted `IdentityFile` keys from your config. You can also choose password or a specific private key with its passphrase.
 
+Connecting does not stop this PC's monitor and does not discard its scan. Each machine keeps its own monitor, its own history, its own scan and its own folder; switching tabs brings the other one back as it was.
+
 Under **Open**, choose the disk usage scan, the live activity monitor, or both. Select **Connect**, then compare the resolved server and displayed SHA-256 host-key fingerprint with a trusted fingerprint for that server before choosing **Trust for this scan**. Credentials are not saved and an agent never signs an authentication request until after the host key is checked.
 
-The report appears when the remote scan is complete. Click a folder in the list or the map to open it, use the path at the top to go back up, and hover over the map to see what each block is.
+The report appears when the remote scan is complete. Click a folder in the list or the map to open it, use the path at the top to go back up, and hover over the map to see what each block is. Switch back to **This PC** at any time: the server scan, and the server monitor, carry on in the background.
 
 ### Map, search and opening files
 
 The storage map labels each folder with a band across its top, such as `Users\ (120.8 GB)`, and puts its contents below; large files show their names too. **Names** in the map's title bar turns the labels off. Click a block to open its folder.
+
+The folder list, the map, the search results and opening files all belong to the tab selected in the panel on the left, so browsing the server's folders leaves this PC's scan untouched, and the other way round.
 
 Double-click a file in the list or the map to open it with its usual program, or right-click for **Show in Explorer** (Finder, or the file manager) and **Copy path**. Programs and scripts, such as `.exe`, `.bat` or `.sh` files, are run only after you confirm. On an SSH server, pictures, videos and music can be opened too: after you confirm, the file is copied over SFTP to a temporary folder on this computer and opened there. Other server files stay on the server.
 
@@ -53,13 +59,13 @@ The app's own indexes are kept in `%LOCALAPPDATA%\KamkmDirStat\drives` and leave
 
 ## Activity monitor
 
-The **Activity** tab (Ctrl+2) shows CPU, memory, GPU and network use, updated every second, with the last minute drawn as a line. Below are per-core CPU use, a memory breakdown (used, cache and free, plus swap), each GPU, each network interface, and the busiest processes by CPU and memory. Filter the process list or sort it by any column.
+The **Activity** tab (Ctrl+2) shows CPU, memory, GPU and network use, updated every second, with the last minute drawn as a line. Below are per-core CPU use, a memory breakdown (used, cache and free, plus swap), each GPU, each network interface, and the busiest processes by CPU and memory. Filter the process list or sort it by any column. One machine is shown at a time, chosen by the tab in the panel on the left; the other one keeps being monitored out of sight.
 
 On this PC the monitor uses the same system information as Task Manager. Memory is split into in use, standby (cached file data) and free, with the commit charge below. GPU use comes from the Windows GPU performance counters, which cover NVIDIA, AMD and Intel graphics; `nvidia-smi` adds temperature and power when installed. Process memory is the private working set, as in Task Manager.
 
 On an SSH server, the monitor runs Python 3 over its own SSH connection and reads `/proc`, so it needs a Linux server. GPUs are read with `nvidia-smi` for NVIDIA cards and from sysfs for AMD cards. Nothing is installed or written to disk.
 
-The monitor stops when you select **Stop monitoring**, start again, or close the app.
+The monitor stops when you select **Stop monitoring**, start again, or close the app. Switching between **This PC** and **SSH server** does not stop either monitor: both keep sampling, both keep their own history and their own process list, and the numbers are waiting when you switch back.
 
 Select **Customize** to change the layout. Drag a section by its handle to move it, or drag any edge or corner to resize it on a grid of 12 columns. The other sections adjust so no gaps are left: those in the same row shrink or widen, sections that no longer fit move to a row of their own, and a section taller than its neighbours has the next sections stack up beside it. Dragging an edge past the opposite one grows the section the other way. Hold Shift while resizing to change only that section. From the keyboard, the arrow keys move the focused section's handle and Shift with the arrow keys resizes it. Hidden sections are listed in the bar at the top, and **Reset layout** restores the default. The layout is saved with the other settings.
 
@@ -93,7 +99,7 @@ The app runs the scan and calculates folder totals on the remote machine.
 
 The standard scan uses GNU `find` and Python 3 through the SSH session; nothing is installed and no scan files are written to disk. Progress counts are sent during the scan. When it finishes, the server sends a compressed overview rather than downloading the complete file list. Clicking a folder retrieves that folder's finished report from the same scan, without rescanning it.
 
-A test scan of roughly 560,000 files completed in about 6 seconds and downloaded about 38 KB for the overview. Performance depends on the server and network. The detailed tree remains in memory on the server until the app closes or a new scan replaces it. Keep the SSH connection open to browse folders that have not been loaded yet. Recently loaded views remain cached locally if the connection closes.
+A test scan of roughly 560,000 files completed in about 6 seconds and downloaded about 38 KB for the overview. Performance depends on the server and network. The detailed tree remains in memory on the server until the app closes or the server is scanned again; scanning this PC does not replace it. Keep the SSH connection open to browse folders that have not been loaded yet. Recently loaded views remain cached locally if the connection closes.
 
 Sizes are disk usage, as reported by `du`. Hard-linked files are counted once and symbolic links are not followed or counted.
 
