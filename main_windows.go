@@ -53,6 +53,16 @@ func main() {
 	minWidth, minHeight := outerSize(scaled(760, dpi), scaled(520, dpi))
 	w.SetSize(minWidth, minHeight, webview.HintMin)
 
+	// The page's own bar replaces the native caption. It must be installed before background
+	// mode, whose handler then runs first and is removed first.
+	var frame *customFrame
+	if f, err := useCustomFrame(hwnd); err != nil {
+		log.Printf("Using the native title bar: %v", err)
+	} else {
+		frame = f
+		defer frame.close()
+	}
+
 	// Closing the window hides it so monitoring and history keep running; the tray icon's
 	// Exit ends the app. Without the icon, closing the window exits as before.
 	if background, err := keepWindowInBackground(hwnd); err != nil {
@@ -61,7 +71,7 @@ func main() {
 		defer background.close()
 	}
 
-	err := runWindow(w, settings, map[string]interface{}{
+	extra := map[string]interface{}{
 		"restartElevated": func() error {
 			if err := launchElevated(); err != nil {
 				return err
@@ -77,7 +87,12 @@ func main() {
 				applyWindowLook(hwnd, windowLook{Dark: dark, Caption: caption, Text: text})
 			})
 		},
-	})
+	}
+	// Only a window without its native caption offers the page's window buttons.
+	if frame != nil {
+		extra["windowControl"] = frame.control
+	}
+	err := runWindow(w, settings, extra)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -18,7 +18,7 @@ Items of a finished scan of this PC can be moved to the Recycle Bin (Trash) or d
 
 ## Connections
 
-Support SSH config aliases, agent authentication, passwords, and private keys. Verify the server host-key fingerprint before sending credentials. Credentials are not saved.
+Support SSH config aliases, agent authentication, passwords, and private keys. Verify the server host key before sending credentials: keys in ~/.ssh/known_hosts or ones the user chose to always trust are accepted without asking, and a changed key is warned about. Credentials are not saved.
 
 ## Remote reports
 

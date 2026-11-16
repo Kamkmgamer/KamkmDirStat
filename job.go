@@ -216,12 +216,15 @@ func viewDirFor(target string, id int) (DirView, error) {
 type FingerprintStatus struct {
 	Running     bool   `json:"running"`
 	Fingerprint string `json:"fingerprint,omitempty"`
-	Error       string `json:"error,omitempty"`
+	// Trust is hostKnown, hostNew or hostChanged; a known server needs no confirmation.
+	Trust string `json:"trust,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 var fingerprintState struct {
 	sync.Mutex
 	status FingerprintStatus
+	key    hostKey
 }
 
 func startFingerprint(c Connection) error {
@@ -231,12 +234,14 @@ func startFingerprint(c Connection) error {
 		return errors.New("A connection is already in progress.")
 	}
 	fingerprintState.status = FingerprintStatus{Running: true}
+	fingerprintState.key = hostKey{}
 	fingerprintState.Unlock()
 	go func() {
-		value, err := fingerprint(c)
+		key, err := fingerprint(c)
 		fingerprintState.Lock()
 		defer fingerprintState.Unlock()
-		fingerprintState.status = FingerprintStatus{Fingerprint: value}
+		fingerprintState.key = key
+		fingerprintState.status = FingerprintStatus{Fingerprint: key.Fingerprint, Trust: key.Trust}
 		if err != nil {
 			fingerprintState.status.Error = err.Error()
 		}
@@ -247,6 +252,18 @@ func fingerprintStatus() FingerprintStatus {
 	fingerprintState.Lock()
 	defer fingerprintState.Unlock()
 	return fingerprintState.status
+}
+
+// trustHostKey always trusts the key the last check found, so later connections to that
+// server do not ask. The fingerprint must be the one the user was shown.
+func trustHostKey(fingerprint string) error {
+	fingerprintState.Lock()
+	key := fingerprintState.key
+	fingerprintState.Unlock()
+	if key.Key == nil || fingerprint == "" || key.Fingerprint != fingerprint {
+		return errors.New("Connect again to trust this server.")
+	}
+	return rememberHostKey(key.Hostname, key.Key)
 }
 
 type ResolveStatus struct {

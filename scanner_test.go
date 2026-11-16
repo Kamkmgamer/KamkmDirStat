@@ -49,12 +49,12 @@ func TestFingerprintAndHostKeyMismatch(t *testing.T) {
 	}()
 	port := strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
 	c := Connection{Host: "127.0.0.1", Port: port, User: "tester", Password: "secret", Path: "/"}
-	fingerprint, err := fingerprint(c)
+	found, err := fingerprint(c)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fingerprint != ssh.FingerprintSHA256(signer.PublicKey()) {
-		t.Fatalf("unexpected fingerprint: %s", fingerprint)
+	if found.Fingerprint != ssh.FingerprintSHA256(signer.PublicKey()) {
+		t.Fatalf("unexpected fingerprint: %s", found.Fingerprint)
 	}
 	if authCalls.Load() != 0 {
 		t.Fatal("authentication attempted during fingerprint discovery")

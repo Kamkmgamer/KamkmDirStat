@@ -35,6 +35,7 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"resolveStatus":       resolveStatus,
 		"startFingerprint":    startFingerprint,
 		"fingerprintStatus":   fingerprintStatus,
+		"trustHostKey":        trustHostKey,
 		"startScan":           startScan,
 		"scanStatus":          scanStatusFor,
 		"cancelScan":          cancelScanFor,
