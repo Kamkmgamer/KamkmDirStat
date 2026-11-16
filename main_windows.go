@@ -17,6 +17,11 @@ func main() {
 	if handleServiceCommand(os.Args[1:]) {
 		return
 	}
+	release, ok := claimSingleInstance(len(os.Args) > 1 && os.Args[1] == restartedArg)
+	if !ok {
+		return
+	}
+	defer release()
 	settings := loadSettings()
 	look, hasLook := savedWindowLook(settings)
 	stopColouring := func() {}
@@ -47,6 +52,14 @@ func main() {
 	dpi := windowDPI(hwnd)
 	minWidth, minHeight := outerSize(scaled(760, dpi), scaled(520, dpi))
 	w.SetSize(minWidth, minHeight, webview.HintMin)
+
+	// Closing the window hides it so monitoring and history keep running; the tray icon's
+	// Exit ends the app. Without the icon, closing the window exits as before.
+	if background, err := keepWindowInBackground(hwnd); err != nil {
+		log.Printf("Background mode is unavailable: %v", err)
+	} else {
+		defer background.close()
+	}
 
 	err := runWindow(w, settings, map[string]interface{}{
 		"restartElevated": func() error {

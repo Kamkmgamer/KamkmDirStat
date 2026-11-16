@@ -930,7 +930,8 @@ func launchElevated() error {
 	verb, _ := windows.UTF16PtrFromString("runas")
 	file, _ := windows.UTF16PtrFromString(exe)
 	dir, _ := windows.UTF16PtrFromString(filepath.Dir(exe))
-	if err := windows.ShellExecute(0, verb, file, nil, dir, windows.SW_SHOWNORMAL); err != nil {
+	args, _ := windows.UTF16PtrFromString(restartedArg)
+	if err := windows.ShellExecute(0, verb, file, args, dir, windows.SW_SHOWNORMAL); err != nil {
 		if errors.Is(err, windows.ERROR_CANCELLED) {
 			return errors.New("Administrator access was not granted.")
 		}
