@@ -128,6 +128,11 @@ func startScan(c Connection) error {
 				s.Error = "Scan cancelled."
 			}
 		}
+		// Clean up works from the finished tree, so find what it can offer while the
+		// nodes are still in memory, before the scan reports that it is done.
+		if c.Local && err == nil {
+			tree.planClutter()
+		}
 		state.Lock()
 		if state.tree != tree {
 			state.Unlock()

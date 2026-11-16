@@ -20,7 +20,7 @@ Choose **This PC**, then under **Open** choose the disk usage scan, the live act
 
 Local sizes are file sizes, as in Explorer. Junctions, symbolic links and volumes mounted in a folder are not followed, so nothing is counted twice through them.
 
-**Run as administrator for fast scans of whole NTFS drives.** The app then reads the drive's master file table (MFT) directly in large sequential reads instead of opening every folder. On a test system drive with 3.5 million files this took about 10 seconds, against about 75 seconds listing folders. Reading the table also sees folders that are closed even to administrators, such as `System Volume Information`, and counts each hard-linked file once, at its first name, so totals are close to the drive's used space. The footer says "read from the NTFS file table" when this was used.
+**Run as administrator for fast scans of whole NTFS drives.** **Restart as administrator**, under **Scan**, opens the app again with administrator rights after Windows asks for approval; results in the current window are closed. The app then reads the drive's master file table (MFT) directly in large sequential reads instead of opening every folder. On a test system drive with 3.5 million files this took about 10 seconds, against about 75 seconds listing folders. Reading the table also sees folders that are closed even to administrators, such as `System Volume Information`, and counts each hard-linked file once, at its first name, so totals are close to the drive's used space. The footer says "read from the NTFS file table" when this was used.
 
 Without administrator rights, for folders rather than whole drives, and for other file systems, the app lists folders instead and says how to get the faster scan. Listing counts hard-linked files at each of their names, so a whole system drive can total more than its used space, mostly because of `C:\Windows\WinSxS`, and folders Windows does not let you read are marked incomplete.
 
@@ -40,11 +40,24 @@ The storage map labels each folder with a band across its top, such as `Users\ (
 
 The folder list, the map, the search results and opening files all belong to the tab selected in the panel on the left, so browsing the server's folders leaves this PC's scan untouched, and the other way round.
 
-Double-click a file in the list or the map to open it with its usual program, or right-click for **Show in Explorer** (Finder, or the file manager) and **Copy path**. Programs and scripts, such as `.exe`, `.bat` or `.sh` files, are run only after you confirm. On an SSH server, pictures, videos and music can be opened too: after you confirm, the file is copied over SFTP to a temporary folder on this computer and opened there. Other server files stay on the server.
+Double-click a file in the list or the map to open it with its usual program, or right-click for **Open with…** (Windows), **Show in Explorer** (Finder, or the file manager) and **Copy path**. Programs and scripts, such as `.exe`, `.bat` or `.sh` files, are run only after you confirm. On an SSH server, pictures, videos and music can be opened too: after you confirm, the file is copied over SFTP to a temporary folder on this computer and opened there. Other server files stay on the server.
 
 Type in the search box, or press Ctrl+F, to search every file and folder in the scan. Matching is fuzzy: the letters you type must appear in order, so `pkgjsn` finds `pnpmPkgJson.ts`, and whole words and word starts rank first. Several words must all match. **All**, **Folders**, **Images**, **Videos**, **Audio**, **Documents** and **Archives** narrow the list, as does the list of extensions, largest first. With nothing typed, the largest files are listed. Double-click a result to open it, or use the arrow at its end to show it in its folder. Esc returns to the folder list.
 
 Searching a scan of a million files takes well under a tenth of a second. The search index is kept on disk with the scan and leaves memory when you stop searching. On SSH servers the scan itself is searched on the server, so only the results cross the network.
+
+### Deleting files and cleaning up
+
+In a finished scan of this PC, right-click a file or folder for **Move to Recycle Bin** (Trash on macOS and Linux) or **Delete permanently**, or select its row and press Delete (Shift+Delete for permanently). The app asks first. What is deleted leaves the list, the map and search results straight away, and the folders above it shrink, without scanning again. A scanned drive or folder itself, anything reached through a junction or link, and files on SSH servers are never deleted.
+
+**Clean up**, beside the search box, lists what the scan holds that programs download or build again, sized and grouped, in place of the folder list:
+
+- `node_modules`, Rust `target` folders, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.parcel-cache` and `.angular` folders, and Python virtual environments, in projects anywhere in the scan except programs' and the system's own folders
+- Worktrees of T3 Code, Codex, Cursor, Conductor, Claude Code and other coding agents that have no changes, are on a branch and were not used for 3 days (their branches stay), and worktrees whose repository no longer lists them
+- Package caches (npm, pnpm, Yarn, bun, Go, Cargo, uv, pip, Gradle, Maven, NuGet, Deno, Composer, pub, Homebrew, CocoaPods, Electron), build and editor caches (Go, Bazel, ccache, sccache, JetBrains, VS Code, TypeScript), Xcode data and Android emulators that are not running, browser caches and browsers downloaded for tests, and downloaded AI models (Hugging Face, Ollama, LM Studio, PyTorch)
+- Temporary files, crash dumps, installers in Downloads unchanged for 30 days, Docker's build cache and unused images (never volumes or containers), and the Recycle Bin
+
+Caches are looked for in your user folder, so scan the drive or folder that holds it to see them. Choose items, or **Recommended** for everything without a warning, then **Clear**. Cleared items are deleted permanently rather than moved to the Recycle Bin, since that would free nothing. Expand an item to see each folder and show it in Explorer.
 
 ### Searching every drive (Windows)
 

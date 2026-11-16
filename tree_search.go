@@ -189,5 +189,9 @@ func (t *Tree) search(ctx context.Context, q search.Query) (search.Result, error
 	if err != nil {
 		return search.Result{}, err
 	}
-	return idx.Search(ctx, q, t.joinPath)
+	res, err := idx.Search(ctx, q, t.joinPath)
+	if err == nil {
+		t.filterHits(&res)
+	}
+	return res, err
 }

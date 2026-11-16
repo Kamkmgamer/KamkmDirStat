@@ -542,3 +542,82 @@ console.log('UI treemap layout passed');
  assert.equal(queries.at(-1).eventType,'alerts','the chart only fetches alerts');
  console.log('UI busy event streams passed');
 })().catch(err=>{console.error(err);process.exitCode=1});
+
+// Storage: Clean up lists what the scan of this computer holds that can be cleared, in place of
+// the folder list, and the context menu and the Delete key delete items after asking.
+(async()=>{
+ const els=new Map();
+ function classes(){const values=new Set();return {values,add(...n){n.forEach(x=>values.add(x))},remove(...n){n.forEach(x=>values.delete(x))},toggle(n,on){if(on===undefined)on=!values.has(n);if(on)values.add(n);else values.delete(n);return on},contains(n){return values.has(n)}}}
+ function node(tag='div'){
+  return {tag,children:[],dataset:{},style:{setProperty(k,v){this[k]=v}},classList:classes(),attrs:{},value:'',checked:false,textContent:'',disabled:false,clientWidth:0,clientHeight:0,
+   setAttribute(k,v){this.attrs[k]=String(v)},getAttribute(k){return this.attrs[k]},append(...c){this.children.push(...c)},replaceChildren(...c){this.children=c;this.textContent=''},
+   remove(){},addEventListener(){},removeEventListener(){},contains(){return false},focus(){},select(){},click(){if(this.onclick)return this.onclick()},querySelectorAll(){return []},querySelector(){return {focus(){}}},getBoundingClientRect(){return {left:0,top:0,width:100,height:100}}};
+ }
+ function get(id){if(!els.has(id))els.set(id,node());return els.get(id)}
+ const document={getElementById:get,createElement:tag=>node(tag),createElementNS:(ns,tag)=>node(tag),documentElement:node('html'),body:node('body'),addEventListener(){},hidden:false};
+ const ctx=vm.createContext({document,window:{addEventListener(){},devicePixelRatio:1},setTimeout,clearTimeout,setInterval:()=>1,clearInterval(){},console,performance,innerWidth:1200,innerHeight:800,
+  getComputedStyle:()=>({fontFamily:'Segoe UI',getPropertyValue:()=>''})});
+ let status={seq:1,finding:true,cleaning:false,items:[]},found=0,cleared=null,deletes=[],asked=[];
+ ctx.cleanupStatus=async()=>JSON.parse(JSON.stringify(status));
+ ctx.startCleanupFind=async()=>{found++};
+ ctx.startCleanup=async ids=>{cleared=ids;status={...status,cleaning:false,cleared:true,freed:300,items:status.items.slice(1)}};
+ ctx.startDelete=async req=>{deletes.push(req);return deletes.length};
+ ctx.deleteStatus=async()=>({seq:deletes.length,running:false,name:deletes.at(-1).name,freed:5});
+ ctx.isElevated=async()=>false;let restarted=0;ctx.restartElevated=async()=>{restarted++};
+ ctx.startView=async()=>{};ctx.viewStatus=async()=>({running:false,view:{id:3,trail:[{id:0,name:'C:'},{id:3,name:'me'}],entries:[],size:0}});
+ vm.runInContext(html.split('<script>')[1].split('</script>')[0],ctx);
+ ctx.confirmAction=async o=>{asked.push(o);return {password:''}};
+ const tick=(ms=0)=>new Promise(r=>setTimeout(r,ms));
+ await tick(5);
+ assert.equal(get('adminTip').classList.contains('hidden'),false,'a window without administrator rights offers to restart with them');
+ await get('adminRestart').onclick();assert.equal(restarted,1);assert.match(asked.at(-1).title,/Restart as administrator/);
+ vm.runInContext("target='local';scanReady=true;platform='windows';syncFind()",ctx);
+ assert.equal(get('cleanButton').classList.contains('hidden'),false,'Clean up is offered for a finished scan of this computer');
+ vm.runInContext("target='remote';syncFind()",ctx);
+ assert.equal(get('cleanButton').classList.contains('hidden'),true,'and not for a server');
+ vm.runInContext("target='local';syncFind()",ctx);
+ await get('cleanButton').onclick();await tick(5);
+ assert.equal(found,1);assert.equal(get('cleanBar').classList.contains('hidden'),false);
+ assert.equal(vm.runInContext('cleanOn()',ctx),true);
+ status={seq:1,finding:false,found:true,homeIn:true,items:[
+  {id:'projects:node_modules folders',group:'projects',name:'node_modules folders',detail:'2 folders',size:300,count:2,paths:[{path:'C:/Users/me/a/node_modules',size:300}]},
+  {id:'models:Ollama models',group:'models',name:'Ollama models',detail:'Models',note:'Pulled again',size:250,count:1,paths:[]},
+  {id:'system:Docker build cache',group:'system',name:'Docker build cache',detail:'Layers',size:50,count:1,paths:[{path:'docker builder prune -af',size:50}]}]};
+ await vm.runInContext('Clean.status()',ctx);
+ const list=()=>get('listing').children[0].children,rows=()=>list().filter(r=>r.dataset&&r.dataset.id);
+ assert.equal(list().length,6,'a heading for each group and a row for each item');
+ assert.equal(get('cleanGo').disabled,true,'nothing is chosen at first');
+ get('cleanAll').onclick();
+ assert.equal(get('cleanGoLabel').textContent,'Clear 350 B','Recommended leaves out items with a warning');
+ get('cleanNone').onclick();rows()[0].onclick();
+ assert.equal(get('cleanGoLabel').textContent,'Clear 300 B');
+ const more=rows()[2].children.find(c=>c.attrs&&c.attrs['aria-expanded']==='false');more.onclick({stopPropagation(){}});
+ const paths=rows()[2].children.find(c=>c.className==='clean-paths');
+ assert.equal(paths.children[0].children.length,2,'no Show button for a docker command');
+ await get('cleanGo').onclick();await tick(5);
+ assert.deepEqual(Array.from(cleared),['projects:node_modules folders']);assert.match(asked.at(-1).text,/do not go to the Recycle Bin/);
+ // A search, or the close button, brings the folder list back.
+ get('closeClean').onclick();
+ assert.equal(get('cleanBar').classList.contains('hidden'),true);assert.equal(vm.runInContext('cleanOn()',ctx),false);
+ // The context menu offers Open with and both ways to delete; deleting asks first.
+ vm.runInContext("mode='local'",ctx);
+ vm.runInContext("itemMenu({preventDefault(){},stopPropagation(){},clientX:5,clientY:5},{parent:3,name:'big.iso',dir:false,size:5})",ctx);
+ const labels=get('menu').children.filter(b=>b.tag==='button').map(b=>b.children.at(-1));
+ assert.deepEqual(Array.from(labels),['Open','Open with…','Show in Explorer','Copy path','Move to Recycle Bin','Delete permanently']);
+ const perm=get('menu').children.filter(b=>b.tag==='button').at(-1);perm.onclick();await tick(20);
+ assert.deepEqual({...deletes[0]},{target:'local',dir:3,name:'big.iso',permanent:true});
+ assert.match(asked.at(-1).title,/Delete big.iso for good/);
+ // The Delete key moves to the Recycle Bin; Shift+Delete deletes for good.
+ let prevented=false;
+ assert.equal(vm.runInContext('deleteKey',ctx)({key:'Delete',shiftKey:false,preventDefault(){prevented=true}},{parent:3,name:'old',dir:true,size:9}),true);await tick(20);
+ assert.equal(prevented,true);assert.deepEqual({...deletes[1]},{target:'local',dir:3,name:'old',permanent:false});
+ assert.match(asked.at(-1).title,/Move old to the Recycle Bin/);
+ // Declining deletes nothing.
+ ctx.confirmAction=async()=>null;await vm.runInContext("deleteEntry({parent:3,name:'x',size:1},true)",ctx);
+ assert.equal(deletes.length,2);
+ // Servers get neither.
+ vm.runInContext("target='remote';mode='remote'",ctx);
+ vm.runInContext("itemMenu({preventDefault(){},stopPropagation(){},clientX:5,clientY:5},{parent:3,name:'big.iso',dir:false,size:5})",ctx);
+ assert.equal(get('menu').children.some(b=>b.tag==='button'&&/Delete|Recycle/.test(b.children.at(-1))),false);
+ console.log('UI storage clean up and delete passed');
+})().catch(err=>{console.error(err);process.exitCode=1});

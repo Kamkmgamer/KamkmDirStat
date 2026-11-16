@@ -237,6 +237,35 @@ main{min-width:0;min-height:0;background:var(--canvas)}
 .segmented button:hover{color:var(--text)}
 .segmented button[aria-pressed=true]{background:var(--surface-overlay);color:var(--text);box-shadow:0 0 0 1px var(--border-strong),0 1px 2px rgba(0,0,0,.12)}
 .segmented button:focus-visible{outline-offset:-1px}
+.clean-title{display:inline-flex;align-items:center;gap:7px;font-weight:600}
+.clean-title svg.i{color:var(--text-faint)}
+.clean-list{display:flex;flex-direction:column}
+.clean-list .empty{height:auto;padding:36px 28px}
+.clean-list .empty h2{margin:0;color:var(--text);font-size:14px}
+.clean-list .empty p{max-width:480px;margin:0;line-height:1.55}
+.clean-group{position:sticky;top:0;z-index:1;display:flex;justify-content:space-between;gap:10px;padding:7px 14px 5px;border-bottom:1px solid var(--border);background:var(--surface-raised);color:var(--text-muted);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.clean-group b{font-variant-numeric:tabular-nums;letter-spacing:0}
+.clean-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:start;gap:3px 10px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--border);cursor:pointer}
+.clean-row:hover{background:var(--hover)}
+.clean-row.on{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
+.clean-row input{margin:2px 0 0;cursor:pointer}
+.clean-row .nm{display:flex;align-items:center;gap:7px;min-width:0;color:var(--text);font-weight:600}
+.clean-row .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clean-row .sz{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.clean-row .more{width:22px;height:22px;margin-top:-2px}
+.clean-row .more svg{transition:transform .12s}
+.clean-row .more[aria-expanded=true] svg{transform:rotate(90deg)}
+.clean-row .dt,.clean-row .note,.clean-row .kept{grid-column:2/4;font-size:12px;line-height:1.45}
+.clean-row .dt{color:var(--text-muted)}
+.clean-row .note{color:var(--warning-foreground)}
+.clean-row .kept{color:var(--text-faint)}
+.clean-row .err{grid-column:2/-1;color:var(--error-foreground);font-size:12px;overflow-wrap:anywhere}
+.clean-row .freed{grid-column:2/-1;color:var(--success);font-size:12px}
+.clean-paths{grid-column:2/-1;display:flex;flex-direction:column;max-height:240px;margin-top:5px;overflow:auto;border:1px solid var(--border);border-radius:var(--r);background:var(--input-background);cursor:default}
+.clean-paths div{display:flex;align-items:center;gap:10px;min-height:26px;padding:2px 8px;color:var(--text-muted);font-family:var(--mono);font-size:11.5px}
+.clean-paths div+div{border-top:1px solid var(--border)}
+.clean-paths .p{flex:1;min-width:0;overflow:hidden;direction:rtl;text-align:left;text-overflow:ellipsis;white-space:nowrap}
+.clean-paths .s{color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
 .files-bar select{width:auto;max-width:230px;height:26px;font-size:12px}
 .drive-bar{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding-top:2px;color:var(--text-muted);font-size:12px}
 .drive-bar .chips{display:flex;flex-wrap:wrap;gap:4px}
@@ -894,6 +923,7 @@ refresh();
   <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13.25 9.5A5.75 5.75 0 0 1 6.5 2.75a5.75 5.75 0 1 0 6.75 6.75z"/></symbol>
   <symbol id="i-history" viewBox="0 0 16 16"><path d="M2.25 5.25V1.75m0 3.5h3.5M2.4 5.1A6.25 6.25 0 1 1 1.75 9"/><path d="M8 4.75V8l2.25 1.5"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13.25 3.25v3h-3M13 6.25A5.25 5.25 0 1 0 13.25 9"/></symbol>
+  <symbol id="i-broom" viewBox="0 0 16 16"><path d="M13.75 2.25 8.5 7.5"/><path d="M7.25 6.75 9.25 8.75 8.5 9.5c-.4 1.9-1.7 3.4-3.6 4.25H1.75c.1-2.4 1.1-4.3 3.1-5.35z"/><path d="M4.25 11.5 6 9.75"/></symbol>
   <symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 1.75 14.25 13H1.75z"/><path d="M8 6v3.25M8 11.5h.01"/></symbol>
 </svg>
 
@@ -954,6 +984,10 @@ refresh();
       <button class="btn danger block hidden" id="cancelScanButton" type="button">Cancel scan</button>
       <button class="btn block hidden" id="scanServerButton" type="button"><svg class="i"><use href="#i-scan"/></svg><span id="scanServerLabel">Scan files</span></button>
     </div>
+    <div class="group local-only hidden" id="adminTip" style="gap:8px">
+      <p class="hint">Whole NTFS drives scan several times faster as administrator: the app reads each drive's file table instead of opening every folder.</p>
+      <button class="btn block" id="adminRestart" type="button" title="Opens a new window with administrator rights and closes this one"><svg class="i"><use href="#i-shield"/></svg>Restart as administrator</button>
+    </div>
   </form>
   <div class="statusbox"><div id="status" class="status" role="status" aria-live="polite"></div><div id="progress" class="progress hidden" aria-hidden="true"><i id="progressFill"></i></div></div>
   <p class="privacy"><svg class="i"><use href="#i-lock"/></svg><span>Files are never uploaded and credentials are never saved.</span></p>
@@ -967,9 +1001,17 @@ refresh();
     </div>
     <div class="input find hidden" id="find"><svg class="i"><use href="#i-search"/></svg><input id="search" type="search" placeholder="Search files and folders" aria-label="Search files and folders in this scan" spellcheck="false" autocomplete="off"><kbd id="findKey">Ctrl F</kbd></div>
     <button class="btn sm hidden" id="up" type="button" title="Up one folder (Backspace)"><svg class="i"><use href="#i-up"/></svg>Up</button>
+    <button class="btn sm hidden" id="cleanButton" type="button" title="Find dependency folders, build output, caches and other files programs make again, and clear them"><svg class="i"><use href="#i-broom"/></svg>Clean up</button>
     <button class="btn sm hidden" id="clearResults" type="button" title="Forget these results and give their memory back to the system">Clear results</button>
   </div>
-  <section class="panel list"><div class="files-bar hidden" id="filesBar">
+  <section class="panel list"><div class="files-bar clean-bar hidden" id="cleanBar">
+    <span class="clean-title"><svg class="i"><use href="#i-broom"/></svg>Can be cleared</span>
+    <span class="links"><button class="linkbtn" id="cleanAll" type="button" title="Choose everything that has no warning">Recommended</button><button class="linkbtn" id="cleanNone" type="button">None</button></span>
+    <span class="found" id="cleanChosen" aria-live="polite"></span>
+    <button class="btn sm hidden" id="cleanStop" type="button">Stop</button>
+    <button class="btn sm primary danger" id="cleanGo" type="button" disabled><svg class="i"><use href="#i-trash"/></svg><span id="cleanGoLabel">Clear</span></button>
+    <button class="icon-btn sm" id="closeClean" type="button" title="Back to folders (Esc)" aria-label="Back to folders"><svg class="i"><use href="#i-x"/></svg></button>
+  </div><div class="files-bar hidden" id="filesBar">
     <div class="segmented hidden" id="scopes" role="group" aria-label="Search in"><button type="button" data-scope="" aria-pressed="true">This scan</button><button type="button" data-scope="drives" aria-pressed="false">All drives</button></div>
     <div class="pills" id="kinds" role="group" aria-label="Type"><button type="button" data-kind="all" aria-pressed="true">All</button><button type="button" data-kind="folders" aria-pressed="false">Folders</button><button type="button" data-kind="images" aria-pressed="false">Images</button><button type="button" data-kind="videos" aria-pressed="false">Videos</button><button type="button" data-kind="audio" aria-pressed="false">Audio</button><button type="button" data-kind="documents" aria-pressed="false">Documents</button><button type="button" data-kind="archives" aria-pressed="false">Archives</button></div>
     <select id="extFilter" aria-label="File extension"><option value="">Any extension</option></select>
@@ -1204,6 +1246,7 @@ function saveStorageTarget(t){
   s.statusText=$('status').textContent;s.statusError=$('status').classList.contains('error');s.statusBusy=$('status').classList.contains('busy');
 }
 function restoreStorageTarget(t){
+  cleanExit(false);
   const s=storageSessions[t];
   ({viewId,lastView,poll,polling,refreshing,refreshAgain,leaves,tops,mode,tick,scanReady,filesMode,flashTarget,findKind,findSort,typesLoaded,searchSeq,searchTimer,findScope,savedListing}=s);
   $('search').value=s.searchValue;$('extFilter').value=s.extValue;$('footer').textContent=s.footer;$('footer').title=s.footerTitle;
@@ -1333,6 +1376,7 @@ async function begin(c,who){
 }
 $('clearResults').onclick=async()=>{
   try{await clearResults(target)}catch(e){status(String(e),true);return}
+  cleanExit(false);$('cleanButton').classList.add('hidden');
   resetFind();viewId=null;Object.assign(storageSessions[target],{viewId:null,lastView:null,leaves:[],tops:new Map(),status:{cleared:true},scanReady:false,needsFinal:false});placeholder('Results cleared. Their memory was released; scan again to see them.',true);
   $('clearResults').classList.add('hidden');$('footer').textContent='Ready';$('footer').title='';status('Results cleared.');
 };
@@ -1351,6 +1395,7 @@ document.onkeydown=e=>{
   if(!$('menu').classList.contains('hidden')){if(e.key==='Escape'){e.preventDefault();hideMenu()}return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();if(!$('find').classList.contains('hidden')){setTab('storage');$('search').focus();$('search').select()}return}
   if(e.key==='Escape'&&filesMode&&tab==='storage'){e.preventDefault();exitFiles();return}
+  if(e.key==='Escape'&&cleanOn()&&tab==='storage'){e.preventDefault();cleanExit(true);return}
   if(e.key==='Escape'&&Dash.escape()){e.preventDefault();return}
   if((e.ctrlKey||e.metaKey)&&e.key===','){e.preventDefault();openAppearance();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();$('toggleSide').click();return}
@@ -1456,7 +1501,7 @@ function render(v){
   if(v.incomplete)sub.append(el('span','badge','Incomplete'));
   $('up').classList.toggle('hidden',v.trail.length<2);
   computeColors(v);
-  if(!filesMode)renderList(v);
+  if(!filesMode&&!cleanOn())renderList(v);
   drawMap(v);
 }
 function renderList(v){
@@ -1473,8 +1518,8 @@ function renderList(v){
   for(const n of entries){
     const tr=el('tr'),target={parent:v.id,name:n.name,dir:!!n.dir,id:n.id,size:n.size};
     tr.dataset.click='1';tr.tabIndex=0;tr.dataset.name=n.name;
-    if(n.dir){tr.onclick=()=>go(n.id);tr.onkeydown=e=>{if(e.key==='Enter')go(n.id);else rowKeys(e)}}
-    else{tr.ondblclick=()=>openEntry(v.id,n.name);tr.onkeydown=e=>{if(e.key==='Enter')openEntry(v.id,n.name);else rowKeys(e)}}
+    if(n.dir){tr.onclick=()=>go(n.id);tr.onkeydown=e=>{if(e.key==='Enter')go(n.id);else if(!deleteKey(e,target))rowKeys(e)}}
+    else{tr.ondblclick=()=>openEntry(v.id,n.name);tr.onkeydown=e=>{if(e.key==='Enter')openEntry(v.id,n.name);else if(!deleteKey(e,target))rowKeys(e)}}
     tr.oncontextmenu=e=>itemMenu(e,target);
     const color=n.dir?null:typeColor.get(ext(n.name))||OTHER_TYPE,share=el('td'),wrap=el('div','share'),bar=el('span','bar'),fill=el('i');
     fill.style.width=Math.min(100,v.size?100*n.size/v.size:0).toFixed(1)+'%';if(color)fill.style.background=color;
@@ -1665,6 +1710,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const drivesOK=()=>platform==='windows';
 function enterFiles(){
   if(filesMode||$('find').classList.contains('hidden'))return;
+  cleanExit(false);
   if(!scanReady)findScope='drives';
   savedListing=lastView?null:$('listing').firstElementChild||null;
   filesMode=true;hideMenu();$('filesBar').classList.remove('hidden');syncScope();runSearch();
@@ -1684,6 +1730,7 @@ function resetFind(){
 // syncFind shows the search box when there is something to search.
 function syncFind(){
   $('find').classList.toggle('hidden',!(scanReady||drivesOK()));
+  $('cleanButton').classList.toggle('hidden',!(scanReady&&target==='local'));
   $('search').placeholder=scanReady?'Search files and folders':'Search every drive';
   $('search').setAttribute('aria-label',scanReady?'Search files and folders in this scan':'Search files and folders on every drive');
   if(filesMode)syncScope();
@@ -1770,8 +1817,9 @@ function renderHits(r,text,ms,scope=''){
     tr.append(nameTd,where,cell(drives&&h.dir?'':size(h.size)),act);
     const open=()=>drives?openEntry(null,h.name,'open',h.path):openHit(h);
     tr.ondblclick=open;
-    tr.onkeydown=e=>{if(e.key==='Enter')open();else rowKeys(e)};
-    tr.oncontextmenu=e=>drives?driveMenu(e,h):itemMenu(e,{parent:h.parent,name:h.name,dir:!!h.dir,id:h.id,size:h.size,nav:true});
+    const item={parent:h.parent,name:h.name,dir:!!h.dir,id:h.id,size:h.size,nav:true};
+    tr.onkeydown=e=>{if(e.key==='Enter')open();else if(drives||!deleteKey(e,item))rowKeys(e)};
+    tr.oncontextmenu=e=>drives?driveMenu(e,h):itemMenu(e,item);
     if(!drives){tr.onmouseenter=()=>{const l=hitLeaf(h);highlight(l||null)};tr.onmouseleave=()=>highlight(null)}
     body.append(tr);
   }
@@ -1844,6 +1892,14 @@ function renderDriveBar(st){
   if(st.setupError&&st.setupError!==lastSetupError)toast(st.setupError,{error:true});
   lastSetupError=st.setupError||'';
 }
+// Only the Windows app has isElevated, and only a window without administrator rights offers
+// to restart with them.
+if(typeof isElevated==='function')isElevated().then(admin=>$('adminTip').classList.toggle('hidden',!!admin)).catch(()=>{});
+$('adminRestart').onclick=async()=>{
+  const ok=await confirmAction({title:'Restart as administrator?',text:'The app starts again with administrator rights, so scans of whole NTFS drives read the file table of the drive directly, which takes seconds instead of minutes. It also counts folders closed to your account.'+(scanReady?' The scan results in this window are closed.':''),label:'Restart'});
+  if(!ok)return;
+  try{await restartElevated()}catch(e){toast(String(e),{error:true})}
+};
 $('driveRefresh').onclick=async()=>{try{await refreshDriveIndex('');toast('Reading the drives\' folders again…');pollDrives()}catch(e){toast(String(e),{error:true})}};
 $('driveAdmin').onclick=async()=>{
   const ok=await confirmAction({title:'Restart as administrator?',text:'The app starts again with administrator rights, so it can read each drive\'s file table directly and keep the index current from the drive\'s change journal.'+(scanReady?' The scan results in this window are closed.':''),label:'Restart'});
@@ -1932,10 +1988,157 @@ function itemMenu(e,t){
     if(local)items.push(['Open in '+fileManager(),'up',()=>openEntry(t.id,'')]);
   }else items.push([local?'Open':'Copy to '+localName().toLowerCase()+' and open','scan',()=>openEntry(t.parent,t.name),true]);
   if(t.nav)items.push(['Show in its folder','list',()=>showInFolder(t)]);
+  if(local&&!t.dir&&platform==='windows')items.push(['Open with…','layout',()=>openEntry(t.parent,t.name,'openwith')]);
   if(local)items.push(['Show in '+fileManager(),'search',()=>openEntry(t.parent,t.name,'reveal')]);
   items.push('-',['Copy path','copy',()=>t.dir?copyPath(t.id,''):copyPath(t.parent,t.name)]);
+  if(local&&target==='local'&&scanReady&&t.name)items.push('-',['Move to '+binName(),'trash',()=>deleteEntry(t,false)],['Delete permanently','x',()=>deleteEntry(t,true)]);
   showMenu(e,items);
 }
+// Deleting from a scan of this computer, to the Recycle Bin (Trash) or for good.
+const binName=()=>platform==='windows'?'Recycle Bin':'Trash';
+const errorText=e=>String(e&&e.message||e);
+let deleting=false;
+function deleteKey(e,t){
+  if(e.key!=='Delete'||target!=='local'||!scanReady||!isLocalScan()||!t.name)return false;
+  e.preventDefault();deleteEntry(t,e.shiftKey);return true;
+}
+async function deleteEntry(t,permanent){
+  if(deleting){toast('Still deleting the previous item.');return}
+  const what=t.dir?'folder':'file',bin=binName(),amount=t.size?' ('+size(t.size)+')':'';
+  const ok=await confirmAction(permanent
+    ?{title:'Delete '+t.name+' for good?',text:'This '+what+amount+' is deleted permanently. It does not go to the '+bin+' and cannot be restored.'+(t.dir?' Everything inside it is deleted too.':''),detail:t.name,detailLabel:t.dir?'Folder':'File',label:'Delete permanently'}
+    :{title:'Move '+t.name+' to the '+bin+'?',text:'This '+what+amount+' can be restored from the '+bin+'. It still takes space until the '+bin+' is emptied.',detail:t.name,detailLabel:t.dir?'Folder':'File',label:'Move to '+bin});
+  if(!ok)return;
+  deleting=true;
+  try{
+    const seq=await startDelete({target:'local',dir:t.parent,name:t.name,permanent});
+    toast((permanent?'Deleting ':'Moving ')+t.name+'…',{stay:true,progress:null});
+    let s;
+    for(;;){s=await deleteStatus();if(s.seq===seq&&!s.running)break;await new Promise(r=>setTimeout(r,150))}
+    if(s.error)toast(s.error,{error:true});
+    else toast(permanent?'Deleted '+s.name+'. '+size(s.freed)+' freed.':'Moved '+s.name+' to the '+bin+'.');
+    scanChanged();
+  }catch(e){toast(errorText(e),{error:true})}
+  finally{deleting=false}
+}
+// scanChanged shows the scan of this computer again after files were removed from it.
+function scanChanged(){if(target!=='local'||!lastView)return;if(filesMode)runSearch();refresh()}
+function cleanOn(){return typeof Clean==='object'&&!!Clean&&Clean.on()}
+function cleanExit(restore){if(typeof Clean==='object'&&Clean)Clean.exit(restore)}
+
+// Clean up: what the scan of this computer holds that programs download or build again,
+// listed in place of the folder list. Only what the user chooses and confirms is removed.
+var Clean=(()=>{
+  const GROUPS={projects:'Projects',worktrees:'Agent worktrees',packages:'Package caches',build:'Build and editor caches',devices:'Xcode and Android',browsers:'Browsers',models:'AI models',system:'System'};
+  let on=false,st=null,poll=null,wasBusy=false,listKey='';
+  const chosen=new Set(),opened=new Set();
+  const busy=()=>!!st&&(st.finding||st.cleaning);
+  async function enter(){
+    if(target!=='local'||!scanReady||busy())return;
+    exitFiles();hideMenu();on=true;st=null;listKey='';$('cleanBar').classList.remove('hidden');render();
+    try{await startCleanupFind();wasBusy=true}catch(e){toast(errorText(e),{error:true});exit();return}
+    status();
+  }
+  function exit(restore=true){
+    if(!on)return;
+    on=false;listKey='';$('cleanBar').classList.add('hidden');
+    if(restore&&lastView)renderList(lastView);
+  }
+  async function status(){
+    clearTimeout(poll);poll=null;
+    try{st=await cleanupStatus()}catch(e){return}
+    const b=busy();
+    if(st.cleaning)toast('Clearing… '+size(st.done)+' of '+size(st.total),{stay:true,progress:st.total?st.done/st.total:0,sub:st.current||''});
+    else if(wasBusy){
+      if(st.error)toast(st.error,{error:true});
+      else if(st.cleared){
+        const failed=(st.items||[]).filter(i=>i.failed&&i.failed.length).length;
+        toast('Freed '+size(st.freed)+'.'+(failed?' '+(failed===1?'One item was':count(failed)+' items were')+' not cleared completely; the list says why.':''),{error:!!failed});
+        scanChanged();
+      }
+    }
+    wasBusy=b;
+    const ids=new Set((st.items||[]).map(i=>i.id));for(const id of [...chosen])if(!ids.has(id))chosen.delete(id);
+    if(on)render();
+    if(b)poll=setTimeout(status,300);
+  }
+  function emptyBox(spin,title,text){
+    const e=el('div','empty');if(spin)e.append(el('div','spinner'));
+    if(title)e.append(el('h2','',title));e.append(el('p','',text));return e;
+  }
+  function render(){
+    renderBar();
+    const box=$('listing'),items=st&&st.items||[],key=JSON.stringify([st&&st.seq,st&&st.finding,items,[...chosen],[...opened],busy()]);
+    if(key===listKey)return;
+    listKey=key;
+    const list=el('div','clean-list');
+    if(!st||st.finding)list.append(emptyBox(true,'','Looking through this scan for dependency folders, build output, caches and finished agent worktrees…'));
+    else if(!items.length)list.append(emptyBox(false,'Nothing to clear','This scan has no dependency folders, build output, caches or finished agent worktrees.'+(st.homeIn?'':' Your user folder is not part of it; scan it to look for caches as well.')));
+    else{
+      if(!st.homeIn){const n=el('p','hint','Your user folder is not part of this scan, so caches in it were not looked for.');n.style.padding='8px 14px';list.append(n)}
+      let group=null;
+      for(const it of items){
+        if(it.group!==group){
+          group=it.group;const h=el('div','clean-group'),total=items.filter(x=>x.group===group).reduce((a,x)=>a+x.size,0);
+          h.append(el('span','',GROUPS[group]||group),el('b','',size(total)));list.append(h);
+        }
+        list.append(row(it));
+      }
+    }
+    const scroll=box.scrollTop;box.replaceChildren(list);box.scrollTop=scroll;
+  }
+  function row(it){
+    const on=chosen.has(it.id),b=busy(),r=el('div','clean-row'+(on?' on':''));r.dataset.id=it.id;
+    const cb=el('input');cb.type='checkbox';cb.checked=on;cb.disabled=b;cb.setAttribute('aria-label','Choose '+it.name);
+    cb.onclick=e=>{e.stopPropagation();toggle(it.id,cb.checked)};
+    const nm=el('div','nm');nm.append(el('span','',it.name));nm.title=it.name;
+    const expanded=opened.has(it.id),more=el('button','icon-btn sm more');more.type='button';more.setAttribute('aria-expanded',String(expanded));
+    more.title=expanded?'Hide where it is':'Show where it is';more.setAttribute('aria-label',more.title+': '+it.name);more.append(icon('chev'));
+    more.onclick=e=>{e.stopPropagation();if(expanded)opened.delete(it.id);else opened.add(it.id);render()};
+    r.append(cb,nm,el('span','sz',size(it.size)),more,el('div','dt',it.detail));
+    if(it.note)r.append(el('div','note',it.note));
+    if(it.kept)r.append(el('div','kept',it.kept));
+    if(it.freed)r.append(el('div','freed','Freed '+size(it.freed)+(it.size?'; '+size(it.size)+' is left.':'.')));
+    for(const f of it.failed||[])r.append(el('div','err',f));
+    if(expanded){
+      const list=el('div','clean-paths');list.onclick=e=>e.stopPropagation();
+      (it.paths||[]).forEach((p,i)=>{
+        const d=el('div'),path=el('span','p','‎'+p.path);path.title=p.path;d.append(path,el('span','s',size(p.size)));
+        if(/^([A-Za-z]:[\\/]|\/)/.test(p.path)){const s=el('button','linkbtn','Show');s.type='button';s.title='Show in '+fileManager();s.onclick=async()=>{try{await revealCleanupPath(it.id,i)}catch(e){toast(errorText(e),{error:true})}};d.append(s)}
+        list.append(d);
+      });
+      if(it.more)list.append(el('div','','and '+count(it.more)+' smaller'));
+      r.append(list);
+    }
+    r.onclick=()=>{if(!busy())toggle(it.id,!chosen.has(it.id))};
+    return r;
+  }
+  function toggle(id,yes){if(yes)chosen.add(id);else chosen.delete(id);render()}
+  function renderBar(){
+    const items=(st&&st.items||[]).filter(i=>chosen.has(i.id)),total=items.reduce((a,i)=>a+i.size,0),all=(st&&st.items||[]).reduce((a,i)=>a+i.size,0),b=busy(),c=$('cleanChosen');
+    if(items.length)c.replaceChildren(el('b','',size(total)),' chosen of '+size(all));
+    else c.textContent=st&&st.found&&all?size(all)+' can be cleared':'';
+    $('cleanGo').disabled=!items.length||b;$('cleanGoLabel').textContent=items.length?'Clear '+size(total):'Clear';
+    $('cleanStop').classList.toggle('hidden',!b);$('cleanStop').disabled=!!(st&&st.cancelling);
+    $('cleanAll').disabled=b;$('cleanNone').disabled=b;
+  }
+  async function clear(){
+    const items=(st&&st.items||[]).filter(i=>chosen.has(i.id));if(!items.length||busy())return;
+    const total=items.reduce((a,i)=>a+i.size,0),notes=items.filter(i=>i.note).map(i=>i.name+': '+i.note);
+    const ok=await confirmAction({title:'Clear '+size(total)+'?',label:'Clear',detailLabel:items.length===1?'Item':items.length+' items',
+      detail:items.map(i=>i.name+' · '+size(i.size)).join('\n'),
+      text:'These are deleted for good and do not go to the '+binName()+'. Programs download or build them again when they need them.'+(notes.length?' '+notes.join(' '):'')});
+    if(!ok)return;
+    try{await startCleanup(items.map(i=>i.id));wasBusy=true;status()}catch(e){toast(errorText(e),{error:true})}
+  }
+  $('cleanButton').onclick=enter;
+  $('closeClean').onclick=()=>exit();
+  $('cleanStop').onclick=async()=>{try{await cancelCleanup()}catch(e){}status()};
+  $('cleanAll').onclick=()=>{if(!st||busy())return;chosen.clear();for(const i of st.items||[])if(!i.note)chosen.add(i.id);render()};
+  $('cleanNone').onclick=()=>{if(busy())return;chosen.clear();render()};
+  $('cleanGo').onclick=clear;
+  return {on:()=>on,enter,exit,status};
+})();
 // Context menu for a result of a search of every drive, which is opened by its path.
 function driveMenu(e,h){
   showMenu(e,[[h.dir?'Open in '+fileManager():'Open',h.dir?'folder':'scan',()=>openEntry(null,h.name,'open',h.path),true],

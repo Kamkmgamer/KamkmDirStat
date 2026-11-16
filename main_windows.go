@@ -7,6 +7,7 @@ import (
 	"os"
 
 	webview "github.com/jchv/go-webview2"
+	"golang.org/x/sys/windows"
 )
 
 // The window icon is resource 1 in the .syso files go-winres makes from winres/winres.json.
@@ -55,6 +56,9 @@ func main() {
 			w.Dispatch(w.Terminate)
 			return nil
 		},
+		// isElevated tells the page whether the app already has administrator rights, which
+		// let scans read NTFS drives' file tables directly.
+		"isElevated": func() bool { return windows.GetCurrentProcessToken().IsElevated() },
 		"setWindowLook": func(dark bool, caption, text string) {
 			w.Dispatch(func() {
 				applyWindowLook(hwnd, windowLook{Dark: dark, Caption: caption, Text: text})

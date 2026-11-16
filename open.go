@@ -61,7 +61,7 @@ var openState struct {
 
 func startOpen(req OpenRequest) (int, error) {
 	switch req.Action {
-	case "open", "reveal", "path":
+	case "open", "reveal", "path", "openwith":
 	default:
 		return 0, errors.New("Unknown action.")
 	}
@@ -149,6 +149,9 @@ func runOpen(ctx context.Context, tree *Tree, req OpenRequest) OpenStatus {
 		if req.Action == "reveal" {
 			return fail(errors.New("Only files on this computer can be shown in a folder window."))
 		}
+		if req.Action == "openwith" {
+			return fail(errors.New("Only files on this computer can be opened with another program."))
+		}
 		if it.dir {
 			return fail(errors.New("Folders on a server cannot be opened here. Click the folder to browse it."))
 		}
@@ -182,6 +185,12 @@ func runOpen(ctx context.Context, tree *Tree, req OpenRequest) OpenStatus {
 		}
 		return fail(err)
 	}
+	if req.Action == "openwith" {
+		if err := launchWith(it.path); err != nil {
+			return fail(err)
+		}
+		return s
+	}
 	if req.Action == "open" && !req.Confirmed && isProgram(it.path, info) {
 		s.Confirm = "run"
 		return s
@@ -195,6 +204,9 @@ func runOpen(ctx context.Context, tree *Tree, req OpenRequest) OpenStatus {
 // programTypes are opened by running them, so the app asks first.
 // launch is launchPath; tests replace it so nothing is opened.
 var launch = launchPath
+
+// launchWith is openWith; tests replace it.
+var launchWith = openWith
 
 var programTypes = map[string]bool{}
 
@@ -221,6 +233,7 @@ type treeItem struct {
 	path   string
 	dir    bool
 	size   int64
+	files  int
 	remote *remoteReport
 }
 
@@ -283,7 +296,7 @@ func (t *Tree) item(dir int, name string) (treeItem, error) {
 			if i < 0 {
 				return treeItem{}, errItemGone
 			}
-			it.dir, it.size = dd.kids[i].directory, dd.kids[i].size
+			it.dir, it.size, it.files = dd.kids[i].directory, dd.kids[i].size, max(1, dd.kids[i].files)
 		}
 	} else {
 		if dir < 0 || dir >= len(t.dirs) {
@@ -301,7 +314,7 @@ func (t *Tree) item(dir int, name string) (treeItem, error) {
 			if i < 0 {
 				return treeItem{}, errItemGone
 			}
-			it.dir, it.size = n.Children[i].Directory, n.Children[i].Size
+			it.dir, it.size, it.files = n.Children[i].Directory, n.Children[i].Size, max(1, n.Children[i].Files)
 		}
 	}
 	if name != "" {
