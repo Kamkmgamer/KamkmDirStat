@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -216,8 +217,11 @@ func TestHistorySnapshotsAndPersistence(t *testing.T) {
 		s.Processes = append(s.Processes, HistoryProcess{PID: j + 1, Start: 1, Name: fmt.Sprintf("p%d", j), CPU: float64(j), RSS: int64(j)})
 	}
 	h.record(mustHistoryJSON(t, s))
-	if len(h.snapshots) != 1 || len(h.snapshots[0].Processes) != 30 || h.snapshots[0].Processes[0].PID != 35 {
-		t.Fatalf("snapshot was not capped and sorted: %+v", h.snapshots)
+	if len(h.snapshots) != 1 {
+		t.Fatalf("snapshot was not recorded: %+v", h.snapshots)
+	}
+	if snap, err := h.readSnapshot(h.snapshots[0]); err != nil || len(snap.Processes) != 30 || snap.Processes[0].PID != 35 {
+		t.Fatalf("snapshot was not capped and sorted: %+v %v", snap, err)
 	}
 	h.addEvent(MonitorEvent{Time: base, Type: "process_start"})
 	h.close()
@@ -339,5 +343,84 @@ func TestHistoryPerMachine(t *testing.T) {
 	closeMonitorHistory()
 	if machines, _ = historyMachines(); len(machines) != 2 {
 		t.Fatalf("a cleared server should stay listed: %+v", machines)
+	}
+}
+
+func TestHistoryCoarsensOldSamples(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	h := historyTestStore(t)
+	start := math.Floor(epoch(now.Add(-8*time.Hour))/historyCoarseStep) * historyCoarseStep
+	for i := 0; i < 8*3600; i++ {
+		s := historySample(start + float64(i))
+		s.CPU.Total = float64(i % 10)
+		h.record(mustHistoryJSON(t, s))
+	}
+	h.coarsen(epoch(now))
+	cutoff := epoch(now) - historyDetailWindow.Seconds()
+	old, recent := 0, 0
+	for _, p := range h.points {
+		if p.Time < cutoff-historyCoarseStep {
+			old++
+			if p.CPU < 4 || p.CPU > 5 {
+				t.Fatalf("old samples were not averaged: %+v", p)
+			}
+		} else {
+			recent++
+		}
+	}
+	if old > 2*3600/10+1 || recent < 6*3600-20 {
+		t.Fatalf("coarsening kept %d old and %d recent points", old, recent)
+	}
+	before := len(h.points)
+	h.coarsen(epoch(now))
+	if len(h.points) != before {
+		t.Fatalf("coarsening again merged buckets twice: %d -> %d", before, len(h.points))
+	}
+}
+
+func TestHistoryCompactionKeepsSnapshots(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.jsonl")
+	now := time.Now().Truncate(time.Second)
+	h, err := openHistoryStore(path, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.close()
+	base := epoch(now.Add(-time.Hour))
+	for i := 0; i < 3; i++ {
+		s := historySample(base + float64(i*20))
+		s.Processes = []HistoryProcess{{PID: 100 + i, Start: 1, Name: fmt.Sprintf("p%d", i), Cmd: `C:\p.exe`}}
+		h.record(mustHistoryJSON(t, s))
+	}
+	h.mu.Lock()
+	err = h.compactLocked(base + 60)
+	h.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := historySample(base + 80)
+	s.Processes = []HistoryProcess{{PID: 200, Start: 1, Name: "after"}}
+	h.record(mustHistoryJSON(t, s))
+	for i, want := range []int{100, 101, 102, 200} {
+		at := base + []float64{0, 20, 40, 80}[i]
+		out := h.query(HistoryQuery{From: base - 1, To: base + 100, ProcessTime: at})
+		if out.ProcessTime != at || len(out.Processes) != 1 || out.Processes[0].PID != want {
+			t.Fatalf("snapshot %d after compaction: %+v", i, out.Processes)
+		}
+	}
+}
+
+func TestHistoryEventsStayBounded(t *testing.T) {
+	h := historyTestStore(t)
+	at := epoch(time.Now())
+	for i := 0; i < maxHistoryEvents+historyEventSlack+10; i++ {
+		h.addEvent(MonitorEvent{Time: at, Type: "process_start"})
+	}
+	if len(h.events) > maxHistoryEvents+historyEventSlack {
+		t.Fatalf("event list was not trimmed: %d", len(h.events))
+	}
+	out := h.query(HistoryQuery{From: at - 1, To: at + 1, EventLimit: maxHistoryEvents * 2})
+	if len(out.Events) != maxHistoryEvents {
+		t.Fatalf("query returned %d events", len(out.Events))
 	}
 }
