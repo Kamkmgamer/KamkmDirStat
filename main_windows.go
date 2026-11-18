@@ -92,6 +92,14 @@ func main() {
 	if frame != nil {
 		extra["windowControl"] = frame.control
 	}
+	// The page stops drawing while the window is minimised, hidden or covered. This handler
+	// goes in after the others, so it runs first and is removed first.
+	if visibility, err := trackWindowVisibility(w); err != nil {
+		log.Printf("The page keeps drawing while the window is hidden: %v", err)
+	} else {
+		defer visibility.close()
+		extra["isWindowCovered"] = visibility.isCovered
+	}
 	err := runWindow(w, settings, extra)
 	if err != nil {
 		log.Fatal(err)

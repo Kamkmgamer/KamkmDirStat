@@ -2261,8 +2261,16 @@ function record(s,h=hist){
   if(h.cores.length!==cores.length)h.cores=cores.map(()=>[]);
   cores.forEach((v,i)=>{const a=h.cores[i];a.push(v);if(a.length>HISTORY)a.shift()});
 }
-const activityVisible=()=>tab==='activity'&&!(typeof document.hidden==='boolean'&&document.hidden);
+// The app tells the page when other windows cover its window completely, which the browser
+// cannot see; a minimised or hidden window makes document.hidden true instead.
+let windowCovered=false;
+const pageShown=()=>!windowCovered&&!(typeof document.hidden==='boolean'&&document.hidden);
+const activityVisible=()=>tab==='activity'&&pageShown();
 function showActivity(){if(sample&&activityStale&&activityVisible()){activityStale=false;renderActivity()}}
+// Brings the open tab up to date when the window can be seen again.
+function pageShownAgain(){if(!pageShown())return;showActivity();if(tab==='history'&&typeof loadResourceHistory==='function')loadResourceHistory(true)}
+window.__setWindowCovered=c=>{const was=windowCovered;windowCovered=!!c;if(was&&!windowCovered)pageShownAgain()};
+if(typeof isWindowCovered==='function')Promise.resolve(isWindowCovered()).then(c=>window.__setWindowCovered(c),()=>{});
 const TAB_VIEWS={storage:['workspace','tabStorage'],activity:['activity','tabActivity'],history:['history','tabHistory'],events:['events','tabEvents']};
 function setTab(t){
   if(!TAB_VIEWS[t])return;
@@ -2281,7 +2289,7 @@ for(const [name,[,button]] of Object.entries(TAB_VIEWS)){
   $(button).onclick=()=>setTab(name);
   $(button).onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const current=tabButtons.indexOf(button),next=e.key==='Home'?0:e.key==='End'?tabButtons.length-1:(current+(e.key==='ArrowRight'?1:-1)+tabButtons.length)%tabButtons.length;$(tabButtons[next]).click();$(tabButtons[next]).focus()};
 }
-if(typeof document.addEventListener==='function')document.addEventListener('visibilitychange',showActivity);
+if(typeof document.addEventListener==='function')document.addEventListener('visibilitychange',pageShownAgain);
 function paintNotice(text,kind){const n=$('actNotice');$('actNoticeText').textContent=text;n.classList.toggle('error',kind==='error');n.classList.toggle('busy',kind==='busy');n.classList.toggle('hidden',!text)}
 function notice(text,kind){const s=monitorSessions[target];s.noticeText=text;s.noticeKind=kind||'';paintNotice(text,kind)}
 function monitorNotice(t,text,kind){const s=monitorSessions[t];s.noticeText=text;s.noticeKind=kind||'';if(t===target)paintNotice(text,kind)}
@@ -3115,7 +3123,7 @@ $('eventsRefresh').onclick=()=>loadMonitorEvents();
 function startHistoryUpdates(){
   if(historyUpdateTimer!==null||typeof setInterval!=='function'||typeof monitorHistory!=='function')return;
   loadHistoryMachineList();loadMonitorEvents(true);
-  historyUpdateTimer=setInterval(()=>{loadMonitorEvents(true);if(tab==='history')loadResourceHistory(true)},5000);
+  historyUpdateTimer=setInterval(()=>{loadMonitorEvents(true);if(tab==='history'&&pageShown())loadResourceHistory(true)},5000);
 }
 syncHistoryRanges();
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{redraw();drawSparks();drawResourceHistory()},150)});
