@@ -1,0 +1,140 @@
+{
+  "docs": {
+    "id": 1,
+    "trail": [
+      {
+        "id": 0,
+        "name": "/data"
+      },
+      {
+        "id": 1,
+        "name": "docs"
+      }
+    ],
+    "size": 4500,
+    "files": 3,
+    "items": 3,
+    "incomplete": true,
+    "entries": [
+      {
+        "name": "photos",
+        "size": 4000,
+        "dir": true,
+        "id": 2,
+        "files": 2
+      },
+      {
+        "name": "notes.txt",
+        "size": 500,
+        "files": 1
+      },
+      {
+        "name": "empty",
+        "size": 0,
+        "dir": true,
+        "id": 3
+      }
+    ],
+    "map": {
+      "n": "docs",
+      "s": 4500,
+      "d": true,
+      "i": 1,
+      "c": [
+        {
+          "n": "photos",
+          "s": 4000,
+          "d": true,
+          "i": 2,
+          "c": [
+            {
+              "n": "a.jpg",
+              "s": 3000
+            },
+            {
+              "n": "b.jpg",
+              "s": 1000
+            }
+          ]
+        },
+        {
+          "n": "notes.txt",
+          "s": 500
+        }
+      ]
+    }
+  },
+  "root": {
+    "id": 0,
+    "trail": [
+      {
+        "id": 0,
+        "name": "/data"
+      }
+    ],
+    "size": 13501,
+    "files": 5,
+    "items": 3,
+    "incomplete": true,
+    "entries": [
+      {
+        "name": "big.iso",
+        "size": 9000,
+        "files": 1
+      },
+      {
+        "name": "docs",
+        "size": 4500,
+        "dir": true,
+        "id": 1,
+        "files": 3,
+        "incomplete": true
+      },
+      {
+        "name": "tiny",
+        "size": 1,
+        "files": 1
+      }
+    ],
+    "map": {
+      "n": "/data",
+      "s": 13501,
+      "d": true,
+      "c": [
+        {
+          "n": "big.iso",
+          "s": 9000
+        },
+        {
+          "n": "docs",
+          "s": 4500,
+          "d": true,
+          "i": 1,
+          "c": [
+            {
+              "n": "photos",
+              "s": 4000,
+              "d": true,
+              "i": 2,
+              "c": [
+                {
+                  "n": "a.jpg",
+                  "s": 3000
+                },
+                {
+                  "n": "b.jpg",
+                  "s": 1000
+                }
+              ]
+            },
+            {
+              "n": "notes.txt",
+              "s": 500
+            }
+          ]
+        }
+      ],
+      "o": 1
+    }
+  }
+}

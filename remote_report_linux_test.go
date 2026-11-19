@@ -51,7 +51,7 @@ func TestRemoteReportMatchesLocalAggregation(t *testing.T) {
 			t.Fatalf("view %d differs\nremote: %+v\nlocal: %+v", id, got, expected)
 		}
 	}
-	remote.remote.close() // the SSH connection drops; the results are kept
+	remote.remoteStore().close() // the SSH connection drops; the results are kept
 	if _, err := remote.view(0); err != nil {
 		t.Fatalf("cached overview unavailable after connection closes: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestRemoteReportCancellationBeforeCompletion(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("remote scan did not cancel")
 	}
-	if len(tree.Root.Children) > 0 || tree.remote != nil {
+	if len(tree.Root.Children) > 0 || tree.remoteStore() != nil {
 		t.Fatal("unfinished remote report was published")
 	}
 }

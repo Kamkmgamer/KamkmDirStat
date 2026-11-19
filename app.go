@@ -1,13 +1,9 @@
 package main
 
 import (
-	_ "embed"
 	"encoding/json"
 	"runtime"
 )
-
-//go:embed index.html
-var page string
 
 // window is the part of a webview the app uses. WebView2 on Windows and the webview
 // library on Linux and macOS both provide it.

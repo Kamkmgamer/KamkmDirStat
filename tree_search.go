@@ -180,10 +180,10 @@ func (t *Tree) joinPath(names []string) string {
 
 func (t *Tree) search(ctx context.Context, q search.Query) (search.Result, error) {
 	t.mu.RLock()
-	r := t.remote
+	s := t.store
 	t.mu.RUnlock()
-	if r != nil {
-		return r.search(q)
+	if s, ok := s.(searcher); ok {
+		return s.search(q)
 	}
 	idx, err := t.searchIndex()
 	if err != nil {

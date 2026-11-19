@@ -1,7 +1,8 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const html = fs.readFileSync('index.html', 'utf8');
+// The app shows ui/index.html with each {{name}} line replaced by that file (see ui.go).
+const html = fs.readFileSync('ui/index.html', 'utf8').replace(/^\{\{([\w.]+)\}\}\n/gm, (line, name) => fs.readFileSync('ui/' + name, 'utf8'));
 // The mocks below create any element on demand, so check separately that every element the
 // script looks up by id exists in the page; a missing one stops the real script while loading.
 {

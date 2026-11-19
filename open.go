@@ -9,7 +9,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -65,10 +64,7 @@ func startOpen(req OpenRequest) (int, error) {
 	default:
 		return 0, errors.New("Unknown action.")
 	}
-	state := scanForTarget(req.Target)
-	state.Lock()
-	tree := state.tree
-	state.Unlock()
+	tree, _ := machineFor(req.Target).scanTree()
 	if tree == nil && req.Path == "" {
 		return 0, errors.New("No scan results yet.")
 	}
@@ -231,83 +227,14 @@ func (t *Tree) item(dir int, name string) (treeItem, error) {
 	if name == "." || name == ".." || strings.ContainsAny(name, "/\x00") || (t.local && runtime.GOOS == "windows" && strings.Contains(name, `\`)) {
 		return treeItem{}, errItemGone
 	}
-	t.mu.RLock()
-	r, d := t.remote, t.disk
-	if r != nil {
-		t.mu.RUnlock()
-		v, err := r.view(dir)
-		if err != nil {
-			return treeItem{}, err
-		}
-		var trail []string
-		for _, c := range v.Trail {
-			trail = append(trail, c.Name)
-		}
-		it := treeItem{name: name, dir: name == "", size: v.Size, remote: r}
-		if name == "" {
-			it.name = trail[len(trail)-1]
-		} else {
-			it.size = 0
-			trail = append(trail, name)
-			// Folders with more than 500 entries list only the largest, so a missing one
-			// is taken to be a file.
-			if i := slices.IndexFunc(v.Entries, func(e DirEntry) bool { return e.Name == name }); i >= 0 {
-				it.dir, it.size = v.Entries[i].Directory, v.Entries[i].Size
-			}
-		}
-		it.path = t.joinPath(trail)
-		return it, nil
+	s, unlock := t.current()
+	defer unlock()
+	found, err := s.item(dir, name)
+	if err != nil {
+		return treeItem{}, err
 	}
-	defer t.mu.RUnlock()
-	var trail []string
-	it := treeItem{name: name}
-	if d != nil {
-		dd, err := d.read(dir, name != "")
-		if err != nil {
-			return treeItem{}, err
-		}
-		trail = append(trail, dd.name)
-		for p := dd.parent; p >= 0; {
-			pd, err := d.read(p, false)
-			if err != nil {
-				return treeItem{}, err
-			}
-			trail = append(trail, pd.name)
-			p = pd.parent
-		}
-		slices.Reverse(trail)
-		if name == "" {
-			it.name, it.dir, it.size = dd.name, true, dd.size
-		} else {
-			i := slices.IndexFunc(dd.kids, func(e diskEntry) bool { return e.name == name })
-			if i < 0 {
-				return treeItem{}, errItemGone
-			}
-			it.dir, it.size = dd.kids[i].directory, dd.kids[i].size
-		}
-	} else {
-		if dir < 0 || dir >= len(t.dirs) {
-			return treeItem{}, errItemGone
-		}
-		n := t.dirs[dir]
-		for p := n; p != nil; p = p.Parent {
-			trail = append(trail, p.Name)
-		}
-		slices.Reverse(trail)
-		if name == "" {
-			it.name, it.dir, it.size = n.Name, true, n.Size
-		} else {
-			i := slices.IndexFunc(n.Children, func(c *Node) bool { return c.Name == name })
-			if i < 0 {
-				return treeItem{}, errItemGone
-			}
-			it.dir, it.size = n.Children[i].Directory, n.Children[i].Size
-		}
-	}
-	if name != "" {
-		trail = append(trail, name)
-	}
-	it.path = t.joinPath(trail)
+	it := treeItem{name: found.trail[len(found.trail)-1], path: t.joinPath(found.trail), dir: found.dir, size: found.size}
+	it.remote, _ = s.(*remoteReport)
 	return it, nil
 }
 

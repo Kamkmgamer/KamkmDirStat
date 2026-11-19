@@ -19,6 +19,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/ntfs"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 	"golang.org/x/sys/windows"
 )
@@ -505,19 +506,19 @@ func (s *driveStore) runLive(ctx context.Context) error {
 		next := jd.NextUsn
 		s.read.Store(0)
 		s.set(func() { s.state, s.err = "building", "" })
-		vol, err := openNTFS(r)
+		vol, err := ntfs.Open(r)
 		if err != nil {
 			closeVolume()
 			return fmt.Errorf("%w: %v", errUseSnapshot, err)
 		}
-		m, err := vol.read(ctx, func(records, files, bytes int64) { s.read.Store(records) })
+		m, err := vol.Read(ctx, func(records, files, bytes int64) { s.read.Store(records) })
 		if err != nil {
 			closeVolume()
 			return err
 		}
 		idx := mftToIndex(m, s.root)
 		s.set(func() {
-			s.idx, s.rootSlot, s.mode, s.journal, s.next = idx, ntfsRootRecord, "live", jd.ID, next
+			s.idx, s.rootSlot, s.mode, s.journal, s.next = idx, ntfs.RootRecord, "live", jd.ID, next
 			s.built, s.dirty, s.partial = time.Now(), true, false
 		})
 	}
@@ -556,7 +557,7 @@ func (s *driveStore) runLive(ctx context.Context) error {
 // openJournal opens a drive for reading its file table and change journal, turning the
 // journal on if it is off.
 func openJournal(root string) (io.ReaderAt, windows.Handle, func(), error) {
-	r, closeVolume, err := openNTFSVolume(root)
+	r, closeVolume, err := ntfs.OpenVolume(root)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("%w: %v", errUseSnapshot, err)
 	}
@@ -801,16 +802,16 @@ func applyUsnRecords(idx *search.Index, records []usnRecord, need map[int]bool) 
 
 // mftToIndex makes a live index of a drive from its master file table, with each entry in
 // the slot of its record number.
-func mftToIndex(m *mftIndex, root string) *search.Index {
+func mftToIndex(m *ntfs.Index, root string) *search.Index {
 	const (
 		unknown uint8 = iota
 		inside
 		outside
 	)
-	entries := m.entries
+	entries := m.Entries
 	state := make([]uint8, len(entries))
-	if ntfsRootRecord < len(state) {
-		state[ntfsRootRecord] = inside
+	if ntfs.RootRecord < len(state) {
+		state[ntfs.RootRecord] = inside
 	}
 	var chain []uint32
 	// within reports whether directory record r is in a folder that leads to the root.
@@ -818,12 +819,12 @@ func mftToIndex(m *mftIndex, root string) *search.Index {
 		chain = chain[:0]
 		for int(r) < len(state) && state[r] == unknown {
 			e := &entries[r]
-			if r < 16 || e.flags&(mftUsed|mftDir|mftNamed) != mftUsed|mftDir|mftNamed || e.flags&mftLink != 0 || len(chain) > 4096 {
+			if r < 16 || e.Flags&(ntfs.Used|ntfs.Dir|ntfs.Named) != ntfs.Used|ntfs.Dir|ntfs.Named || e.Flags&ntfs.Link != 0 || len(chain) > 4096 {
 				break
 			}
 			chain = append(chain, r)
-			p := e.parent
-			if int(p) >= len(entries) || entries[p].seq != e.pseq || p == r {
+			p := e.Parent
+			if int(p) >= len(entries) || entries[p].Seq != e.ParentSeq || p == r {
 				r = uint32(len(state))
 				break
 			}
@@ -842,21 +843,21 @@ func mftToIndex(m *mftIndex, root string) *search.Index {
 	x := search.NewLive()
 	x.Update(func(u search.Updater) {
 		u.Grow(len(entries))
-		u.Set(ntfsRootRecord, root, -1, 0, true)
+		u.Set(ntfs.RootRecord, root, -1, 0, true)
 		for r := range entries {
 			e := &entries[r]
-			if r < 16 || e.flags&(mftUsed|mftNamed) != mftUsed|mftNamed || e.flags&mftLink != 0 {
+			if r < 16 || e.Flags&(ntfs.Used|ntfs.Named) != ntfs.Used|ntfs.Named || e.Flags&ntfs.Link != 0 {
 				continue
 			}
-			p := e.parent
-			if int(p) >= len(entries) || entries[p].seq != e.pseq {
+			p := e.Parent
+			if int(p) >= len(entries) || entries[p].Seq != e.ParentSeq {
 				continue
 			}
-			dir := e.flags&mftDir != 0
+			dir := e.Flags&ntfs.Dir != 0
 			if dir && !within(uint32(r)) || !dir && !within(p) {
 				continue
 			}
-			u.Set(r, e.name, int(p), e.size, dir)
+			u.Set(r, e.Name, int(p), e.Size, dir)
 		}
 	})
 	return x

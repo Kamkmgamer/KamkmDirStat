@@ -1,4 +1,4 @@
-package main
+package ntfs
 
 import (
 	"errors"
@@ -10,14 +10,14 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// errNeedsAdmin means the volume is NTFS but Windows only lets administrators read it
+// ErrNeedsAdmin means the volume is NTFS but Windows only lets administrators read it
 // directly.
-var errNeedsAdmin = errors.New("reading an NTFS drive directly needs administrator rights")
+var ErrNeedsAdmin = errors.New("reading an NTFS drive directly needs administrator rights")
 
-// openNTFSVolume opens the NTFS volume whose root folder is root, such as C:\, for direct
+// OpenVolume opens the NTFS volume whose root folder is root, such as C:\, for direct
 // reading. Folders inside a drive are listed normally instead: reading the whole table to
 // scan one folder would be slower.
-func openNTFSVolume(root string) (io.ReaderAt, func(), error) {
+func OpenVolume(root string) (io.ReaderAt, func(), error) {
 	root = filepath.Clean(root)
 	if !strings.HasSuffix(root, `\`) {
 		root += `\`
@@ -31,14 +31,14 @@ func openNTFSVolume(root string) (io.ReaderAt, func(), error) {
 		return nil, nil, err
 	}
 	if !strings.EqualFold(windows.UTF16ToString(buf), root) {
-		return nil, nil, errNotNTFS // a folder, not the top of a drive
+		return nil, nil, ErrNotNTFS // a folder, not the top of a drive
 	}
 	fsName := make([]uint16, windows.MAX_PATH+1)
 	if err := windows.GetVolumeInformation(p, nil, 0, nil, nil, nil, &fsName[0], uint32(len(fsName))); err != nil {
 		return nil, nil, err
 	}
 	if windows.UTF16ToString(fsName) != "NTFS" {
-		return nil, nil, errNotNTFS
+		return nil, nil, ErrNotNTFS
 	}
 	// \\?\Volume{...}\ also works for drives mounted in folders; drop the final backslash
 	// to open the volume rather than its root folder.
@@ -58,7 +58,7 @@ func openNTFSVolume(root string) (io.ReaderAt, func(), error) {
 		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_SEQUENTIAL_SCAN, 0)
 	if err != nil {
 		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
-			return nil, nil, errNeedsAdmin
+			return nil, nil, ErrNeedsAdmin
 		}
 		return nil, nil, err
 	}

@@ -95,7 +95,7 @@ func TestPageWithSettings(t *testing.T) {
 
 func TestPageHasSettingsPlaceholder(t *testing.T) {
 	if !strings.Contains(page, `<script id="boot">`+settingsPlaceholder+`</script>`) {
-		t.Fatal("index.html no longer has the boot script the settings go into")
+		t.Fatal("ui/index.html no longer has the boot script the settings go into")
 	}
 }
 

@@ -2,9 +2,10 @@ package main
 
 import (
 	"cmp"
-	"errors"
 	"slices"
 	"sync"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/dirview"
 )
 
 // Node is one scanned entry. A directory's Size and Files cover everything beneath it.
@@ -27,8 +28,7 @@ type Tree struct {
 	RootPath string
 	Root     *Node
 	dirs     []*Node
-	remote   *remoteReport
-	disk     *diskTree // set once a finished scan has moved out of memory
+	store    treeStore // nil while the results are the nodes above
 	local    bool      // a scan of this computer, whose files can be opened
 	index    treeIndex // for searching a finished scan
 	closed   bool
@@ -125,126 +125,19 @@ func sortedChildren(n *Node) []*Node {
 	return kids
 }
 
-type Crumb struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-type DirEntry struct {
-	Name       string `json:"name"`
-	Size       int64  `json:"size"`
-	Directory  bool   `json:"dir,omitempty"`
-	ID         int    `json:"id,omitempty"`
-	Files      int    `json:"files,omitempty"`
-	Incomplete bool   `json:"incomplete,omitempty"`
-}
-
-// MapNode is the treemap data. Short keys keep the payload small; O is the combined size of
-// children too small to draw.
-type MapNode struct {
-	N string     `json:"n"`
-	S int64      `json:"s"`
-	D bool       `json:"d,omitempty"`
-	I int        `json:"i,omitempty"`
-	C []*MapNode `json:"c,omitempty"`
-	O int64      `json:"o,omitempty"`
-}
-
-type DirView struct {
-	ID         int        `json:"id"`
-	Trail      []Crumb    `json:"trail"`
-	Size       int64      `json:"size"`
-	Files      int        `json:"files"`
-	Items      int        `json:"items"`
-	Incomplete bool       `json:"incomplete,omitempty"`
-	Entries    []DirEntry `json:"entries"`
-	MoreCount  int        `json:"moreCount,omitempty"`
-	MoreSize   int64      `json:"moreSize,omitempty"`
-	Map        *MapNode   `json:"map"`
-}
-
-const (
-	viewEntryLimit = 500
-	mapNodeLimit   = 12000
-	mapDetail      = 4000 // entries smaller than 1/mapDetail of the folder are merged
+// The folder report types are shared with the native server scanner.
+type (
+	Crumb    = dirview.Crumb
+	DirEntry = dirview.Entry
+	MapNode  = dirview.MapNode
+	DirView  = dirview.View
 )
 
-func (t *Tree) view(id int) (DirView, error) {
-	t.mu.RLock()
-	if t.remote != nil {
-		r := t.remote
-		t.mu.RUnlock()
-		return r.view(id)
-	}
-	if t.disk != nil {
-		d := t.disk
-		defer t.mu.RUnlock()
-		return d.view(id)
-	}
-	defer t.mu.RUnlock()
-	if id < 0 || id >= len(t.dirs) {
-		return DirView{}, errors.New("That folder is not in the scan results.")
-	}
-	n := t.dirs[id]
-	v := DirView{ID: id, Size: n.Size, Files: n.Files, Items: len(n.Children), Incomplete: n.Incomplete, Entries: []DirEntry{}}
-	for p := n; p != nil; p = p.Parent {
-		v.Trail = append(v.Trail, Crumb{ID: p.id, Name: p.Name})
-	}
-	slices.Reverse(v.Trail)
-	kids := sortedChildren(n)
-	for i, c := range kids {
-		if i >= viewEntryLimit {
-			v.MoreCount++
-			v.MoreSize += c.Size
-			continue
-		}
-		e := DirEntry{Name: c.Name, Size: c.Size, Directory: c.Directory, Files: c.Files, Incomplete: c.Incomplete}
-		if c.Directory {
-			e.ID = c.id
-		}
-		v.Entries = append(v.Entries, e)
-	}
-	v.Map = buildMap(n, kids)
-	return v, nil
-}
-
-// buildMap walks breadth first so shallow levels get detail before deep ones when the node
-// budget runs out.
-func buildMap(n *Node, kids []*Node) *MapNode {
-	root := &MapNode{N: n.Name, S: n.Size, D: true, I: n.id}
-	threshold := max(n.Size/mapDetail, 1)
-	type item struct {
-		node *Node
-		m    *MapNode
-		kids []*Node
-	}
-	queue := []item{{n, root, kids}}
-	budget := mapNodeLimit
-	for len(queue) > 0 {
-		it := queue[0]
-		queue = queue[1:]
-		ks := it.kids
-		if ks == nil {
-			ks = sortedChildren(it.node)
-		}
-		for _, c := range ks {
-			if c.Size < threshold || budget <= 0 {
-				it.m.O += c.Size
-				continue
-			}
-			budget--
-			cm := &MapNode{N: c.Name, S: c.Size, D: c.Directory}
-			if c.Directory {
-				cm.I = c.id
-				if len(c.Children) > 0 {
-					queue = append(queue, item{node: c, m: cm})
-				}
-			}
-			it.m.C = append(it.m.C, cm)
-		}
-	}
-	return root
-}
+const (
+	viewEntryLimit = dirview.EntryLimit
+	mapNodeLimit   = dirview.MapNodeLimit
+	mapDetail      = dirview.MapDetail
+)
 
 // close releases the remote report, the cache file and the nodes when the results are
 // replaced, cleared or the window closes.
@@ -253,13 +146,12 @@ func (t *Tree) close() {
 		return
 	}
 	t.mu.Lock()
-	r, d := t.remote, t.disk
-	t.remote, t.disk, t.Root, t.dirs = nil, nil, nil, nil
+	s := t.store
+	t.store, t.Root, t.dirs = nil, nil, nil
 	t.closed = true
 	t.mu.Unlock()
-	if r != nil {
-		r.close()
+	if s != nil {
+		s.close()
 	}
-	d.close()
 	t.closeIndex()
 }

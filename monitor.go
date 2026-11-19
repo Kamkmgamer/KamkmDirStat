@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/wire"
 )
 
 //go:embed remote_monitor.py
@@ -53,19 +55,6 @@ type monitorSession struct {
 
 // Each computer has its own monitor. Selecting another computer in the page never stops
 // the first one, and samples continue into each computer's own status and history.
-var (
-	monitorState       monitorSession // this computer
-	remoteMonitorState monitorSession // the SSH server
-)
-
-func monitorFor(local bool) *monitorSession {
-	if local {
-		return &monitorState
-	}
-	return &remoteMonitorState
-}
-
-func monitorForTarget(target string) *monitorSession { return monitorFor(target != "remote") }
 
 var (
 	localMonitorRun  = runLocalMonitor
@@ -79,7 +68,7 @@ const maxMonitorResults = 20
 const firstMonitorSample = 250 * time.Millisecond
 
 func startMonitor(c Connection) error {
-	state := monitorFor(c.Local)
+	state := &machineOf(c).monitor
 	state.Lock()
 	if state.cancel != nil {
 		state.cancel()
@@ -214,10 +203,12 @@ func superviseMonitor(ctx context.Context, run func(context.Context, func(func(*
 	}
 }
 
-func stopMonitor() error { return stopMonitorFor("local") }
+func stopMonitor() error { return localMachine.stopMonitor() }
 
-func stopMonitorFor(target string) error {
-	state := monitorForTarget(target)
+func stopMonitorFor(target string) error { return machineFor(target).stopMonitor() }
+
+func (m *machine) stopMonitor() error {
+	state := &m.monitor
 	state.Lock()
 	defer state.Unlock()
 	if state.cancel != nil {
@@ -233,8 +224,9 @@ func stopMonitorFor(target string) error {
 }
 
 func stopAllMonitors() {
-	_ = stopMonitorFor("local")
-	_ = stopMonitorFor("remote")
+	for _, m := range machines {
+		_ = m.stopMonitor()
+	}
 }
 
 // recordSample records a sample in its machine's history, then publishes it, so the
@@ -244,10 +236,12 @@ func recordSample(machine string, raw json.RawMessage) func(*MonitorStatus) {
 	return func(s *MonitorStatus) { s.Sample = raw; s.Seq++ }
 }
 
-func monitorStatus() MonitorStatus { return monitorStatusFor("local") }
+func monitorStatus() MonitorStatus { return localMachine.monitorStatus() }
 
-func monitorStatusFor(target string) MonitorStatus {
-	state := monitorForTarget(target)
+func monitorStatusFor(target string) MonitorStatus { return machineFor(target).monitorStatus() }
+
+func (m *machine) monitorStatus() MonitorStatus {
+	state := &m.monitor
 	state.Lock()
 	defer state.Unlock()
 	s := state.status
@@ -283,9 +277,13 @@ func validateMonitorAction(a MonitorAction) error {
 
 // monitorAction queues a request for the server. Its outcome arrives later as a result with
 // the same ID in monitorStatus.
-func monitorAction(a MonitorAction) error { return monitorActionFor("local", a) }
+func monitorAction(a MonitorAction) error { return localMachine.monitorAction(a) }
 
 func monitorActionFor(target string, a MonitorAction) error {
+	return machineFor(target).monitorAction(a)
+}
+
+func (m *machine) monitorAction(a MonitorAction) error {
 	if err := validateMonitorAction(a); err != nil {
 		return err
 	}
@@ -293,7 +291,7 @@ func monitorActionFor(target string, a MonitorAction) error {
 	if err != nil {
 		return err
 	}
-	state := monitorForTarget(target)
+	state := &m.monitor
 	state.Lock()
 	defer state.Unlock()
 	if state.writes == nil || state.status.Connecting {
@@ -348,7 +346,7 @@ func monitorProtocolMode(ctx context.Context, input io.Writer, stdout io.Reader,
 	writes <-chan []byte, update func(func(*MonitorStatus)) bool, machine string) error {
 	output := bufio.NewReaderSize(stdout, 64<<10)
 	header := make(chan string, 1)
-	go func() { header <- readScriptHeader(output, "SSM1 ") }()
+	go func() { header <- wire.Header(output, "SSM1 ") }()
 	timer := time.NewTimer(shellHeaderTimeout)
 	defer timer.Stop()
 	select {
@@ -381,7 +379,7 @@ func monitorProtocolMode(ctx context.Context, input io.Writer, stdout io.Reader,
 	}()
 
 	for {
-		data, _, err := readFrame(output)
+		data, _, err := wire.Read(output)
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()

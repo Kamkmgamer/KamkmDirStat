@@ -1,4 +1,5 @@
-package main
+// Package ntfs reads the master file table of an NTFS volume.
+package ntfs
 
 import (
 	"context"
@@ -17,7 +18,7 @@ import (
 // for any io.ReaderAt holding an NTFS volume, which lets the tests use image files.
 
 const (
-	ntfsRootRecord = 5 // the root folder's record number
+	RootRecord = 5 // the root folder's record number
 
 	ntfsAttrStandardInfo = 0x10
 	ntfsAttrFileName     = 0x30
@@ -37,14 +38,14 @@ const (
 	ntfsChunkSize = 4 << 20
 )
 
-var errNotNTFS = errors.New("not an NTFS volume")
+var ErrNotNTFS = errors.New("not an NTFS volume")
 
 type ntfsRun struct {
 	lcn      int64 // -1 for a sparse run
 	clusters int64
 }
 
-type ntfsVolume struct {
+type Volume struct {
 	r           io.ReaderAt
 	clusterSize int64
 	recordSize  int
@@ -52,24 +53,24 @@ type ntfsVolume struct {
 	mftSize     int64
 }
 
-// mftEntry is what the scan keeps per record. Records are numbered by their position in
+// Entry is what the scan keeps per record. Records are numbered by their position in
 // the table.
-type mftEntry struct {
-	name   string
-	size   int64
-	parent uint32
-	pseq   uint16 // the parent's expected sequence number
-	seq    uint16
-	flags  uint8
-	links  uint8 // further names (hard links) not counted again, up to 255
+type Entry struct {
+	Name      string
+	Size      int64
+	Parent    uint32
+	ParentSeq uint16 // the parent's expected sequence number
+	Seq       uint16
+	Flags     uint8
+	Links     uint8 // further names (hard links) not counted again, up to 255
 }
 
 const (
-	mftUsed uint8 = 1 << iota
-	mftDir
-	mftLink // junction, mount point or symbolic link: not listed, as in the other scans
-	mftNamed
-	mftShortName // the name so far is only the 8.3 short name
+	Used uint8 = 1 << iota
+	Dir
+	Link // junction, mount point or symbolic link: not listed, as in the other scans
+	Named
+	ShortName // the name so far is only the 8.3 short name
 )
 
 // mftExtra is information found in an extension record, which belongs to its base record.
@@ -84,26 +85,26 @@ type mftExtra struct {
 	link   bool
 }
 
-type mftIndex struct {
-	entries []mftEntry
-	damaged int
+type Index struct {
+	Entries []Entry
+	Damaged int
 }
 
-// openNTFS reads the boot sector and the MFT's own record to find where the table lies.
-func openNTFS(r io.ReaderAt) (*ntfsVolume, error) {
+// Open reads the boot sector and the MFT's own record to find where the table lies.
+func Open(r io.ReaderAt) (*Volume, error) {
 	boot := make([]byte, 4096)
 	if _, err := r.ReadAt(boot, 0); err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 	if string(boot[3:11]) != "NTFS    " {
-		return nil, errNotNTFS
+		return nil, ErrNotNTFS
 	}
 	sector := int64(binary.LittleEndian.Uint16(boot[0x0B:]))
 	perCluster := int64(boot[0x0D])
 	if perCluster > 0x80 { // stored as a negative power of two on large-cluster volumes
 		perCluster = 1 << (256 - perCluster)
 	}
-	v := &ntfsVolume{r: r, clusterSize: sector * perCluster}
+	v := &Volume{r: r, clusterSize: sector * perCluster}
 	if sector < 256 || sector > 4096 || v.clusterSize < 512 || v.clusterSize > 2<<20 {
 		return nil, fmt.Errorf("unsupported NTFS geometry: %d-byte sectors, %d-byte clusters", sector, v.clusterSize)
 	}
@@ -247,11 +248,11 @@ type mftChunk struct {
 	data  []byte
 }
 
-// read parses the whole MFT. progress is called with the number of records parsed and the
+// Read parses the whole MFT. progress is called with the number of records parsed and the
 // running totals of files and bytes.
-func (v *ntfsVolume) read(ctx context.Context, progress func(records, files, bytes int64)) (*mftIndex, error) {
+func (v *Volume) Read(ctx context.Context, progress func(records, files, bytes int64)) (*Index, error) {
 	total := int(v.mftSize / int64(v.recordSize))
-	idx := &mftIndex{entries: make([]mftEntry, total)}
+	idx := &Index{Entries: make([]Entry, total)}
 	chunkRecords := ntfsChunkSize / v.recordSize
 	chunks := make(chan mftChunk, 4)
 	// Raw volume reads must cover whole sectors, so each read is rounded up to a cluster.
@@ -301,7 +302,7 @@ func (v *ntfsVolume) read(ctx context.Context, progress func(records, files, byt
 				var f, b, d int64
 				for i := 0; i*v.recordSize < len(c.data); i++ {
 					number := c.first + i
-					extra, kind := parseRecord(c.data[i*v.recordSize:(i+1)*v.recordSize], &idx.entries[number])
+					extra, kind := parseRecord(c.data[i*v.recordSize:(i+1)*v.recordSize], &idx.Entries[number])
 					switch kind {
 					case recordDamaged:
 						d++
@@ -309,7 +310,7 @@ func (v *ntfsVolume) read(ctx context.Context, progress func(records, files, byt
 						local = append(local, extra)
 					case recordFile:
 						f++
-						b += idx.entries[number].size
+						b += idx.Entries[number].Size
 					}
 				}
 				buffers.Put(c.data[:cap(c.data)])
@@ -330,31 +331,31 @@ func (v *ntfsVolume) read(ctx context.Context, progress func(records, files, byt
 		return nil, readErr
 	}
 	idx.applyExtras(extras)
-	idx.damaged = int(damaged.Load())
+	idx.Damaged = int(damaged.Load())
 	return idx, nil
 }
 
 // applyExtras merges what extension records hold into their base records. Large or heavily
 // fragmented files and big folders keep some attributes in extension records.
-func (idx *mftIndex) applyExtras(extras []mftExtra) {
+func (idx *Index) applyExtras(extras []mftExtra) {
 	for _, x := range extras {
-		if int(x.base) >= len(idx.entries) {
+		if int(x.base) >= len(idx.Entries) {
 			continue
 		}
-		e := &idx.entries[x.base]
-		if x.hasDat && e.flags&mftDir == 0 {
-			e.size = x.size
+		e := &idx.Entries[x.base]
+		if x.hasDat && e.Flags&Dir == 0 {
+			e.Size = x.size
 		}
 		// A long name in an extension record replaces a short name from the base record.
-		if x.name != "" && (e.flags&mftNamed == 0 || e.flags&mftShortName != 0 && !x.short) {
-			e.name, e.parent, e.pseq = x.name, x.parent, x.pseq
-			e.flags = e.flags&^mftShortName | mftNamed
+		if x.name != "" && (e.Flags&Named == 0 || e.Flags&ShortName != 0 && !x.short) {
+			e.Name, e.Parent, e.ParentSeq = x.name, x.parent, x.pseq
+			e.Flags = e.Flags&^ShortName | Named
 			if x.short {
-				e.flags |= mftShortName
+				e.Flags |= ShortName
 			}
 		}
 		if x.link {
-			e.flags |= mftLink
+			e.Flags |= Link
 		}
 	}
 }
@@ -371,7 +372,7 @@ const (
 
 // parseRecord fills e from one MFT record, or returns what an extension record adds to
 // its base record.
-func parseRecord(record []byte, e *mftEntry) (mftExtra, recordKind) {
+func parseRecord(record []byte, e *Entry) (mftExtra, recordKind) {
 	if string(record[0:4]) != "FILE" {
 		return mftExtra{}, recordUnused // never used, or cleared
 	}
@@ -449,96 +450,23 @@ func parseRecord(record []byte, e *mftEntry) (mftExtra, recordKind) {
 		}
 		return x, recordExtension
 	}
-	*e = mftEntry{size: size, seq: binary.LittleEndian.Uint16(record[0x10:]), flags: mftUsed, links: uint8(min(255, max(0, longNames-1)))}
+	*e = Entry{Size: size, Seq: binary.LittleEndian.Uint16(record[0x10:]), Flags: Used, Links: uint8(min(255, max(0, longNames-1)))}
 	if nameSpace >= 0 {
-		e.name, e.parent, e.pseq = name, uint32(parent&0xFFFFFFFFFFFF), uint16(parent>>48)
-		e.flags |= mftNamed
+		e.Name, e.Parent, e.ParentSeq = name, uint32(parent&0xFFFFFFFFFFFF), uint16(parent>>48)
+		e.Flags |= Named
 		if nameSpace == ntfsNamespaceDOS {
-			e.flags |= mftShortName
+			e.Flags |= ShortName
 		}
 	}
 	if link {
-		e.flags |= mftLink
+		e.Flags |= Link
 	}
 	if flags&ntfsRecordDirectory != 0 {
-		e.flags |= mftDir
-		e.size = 0
+		e.Flags |= Dir
+		e.Size = 0
 		return x, recordDirectory
 	}
 	return x, recordFile
 }
 
 func isLinkTag(tag uint32) bool { return tag == ntfsTagMountPoint || tag == ntfsTagSymlink }
-
-// addToTree adds everything beneath the record root to the tree under top and returns how
-// many files it added. The NTFS system files, records 0 to 15 other than the root folder,
-// are left out because folder listings do not show them either.
-func (idx *mftIndex) addToTree(t *Tree, top *Node, root uint32) (files int) {
-	const (
-		unknown uint8 = iota
-		inside
-		outside
-	)
-	state := make([]uint8, len(idx.entries))
-	nodes := make(map[uint32]*Node)
-	state[root], nodes[root] = inside, top
-	var chain []uint32
-	// resolve returns the tree node for directory record r, creating it and any missing
-	// parents, or nil if r is not beneath root.
-	resolve := func(r uint32) *Node {
-		chain = chain[:0]
-		for {
-			if int(r) >= len(state) {
-				break
-			}
-			if state[r] == inside {
-				break
-			}
-			e := &idx.entries[r]
-			if state[r] == outside || r < 16 || e.flags&(mftUsed|mftDir|mftNamed) != mftUsed|mftDir|mftNamed ||
-				e.flags&mftLink != 0 || len(chain) > 4096 {
-				break
-			}
-			chain = append(chain, r)
-			parent := e.parent
-			if int(parent) >= len(idx.entries) || idx.entries[parent].seq != e.pseq || parent == r {
-				r = uint32(len(state)) // the parent was deleted and its record reused
-				continue
-			}
-			r = parent
-		}
-		var node *Node
-		if int(r) < len(state) && state[r] == inside {
-			node = nodes[r]
-		}
-		for i := len(chain) - 1; i >= 0; i-- {
-			c := chain[i]
-			if node == nil {
-				state[c] = outside
-				continue
-			}
-			node = t.addChild(node, idx.entries[c].name, true, 0)
-			state[c], nodes[c] = inside, node
-		}
-		return node
-	}
-	for r := range idx.entries {
-		e := &idx.entries[r]
-		if r < 16 || e.flags&(mftUsed|mftNamed) != mftUsed|mftNamed || e.flags&mftLink != 0 {
-			continue
-		}
-		if e.flags&mftDir != 0 {
-			resolve(uint32(r))
-			continue
-		}
-		parent := e.parent
-		if int(parent) >= len(idx.entries) || idx.entries[parent].seq != e.pseq {
-			continue
-		}
-		if node := resolve(parent); node != nil {
-			t.addChild(node, e.name, false, e.size)
-			files++
-		}
-	}
-	return files
-}

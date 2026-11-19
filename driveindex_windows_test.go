@@ -10,6 +10,7 @@ import (
 	"testing"
 	"unicode/utf16"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/ntfs"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 	"golang.org/x/sys/windows"
 )
@@ -35,19 +36,19 @@ func hitPaths(r search.Result) []string {
 // The table's entries become slots by record number; system files, links, orphans and
 // anything not beneath the root are left out.
 func TestMFTToIndex(t *testing.T) {
-	m := &mftIndex{entries: make([]mftEntry, 32)}
+	m := &ntfs.Index{Entries: make([]ntfs.Entry, 32)}
 	set := func(r int, name string, parent uint32, pseq uint16, flags uint8, size int64) {
-		m.entries[r] = mftEntry{name: name, parent: parent, pseq: pseq, seq: uint16(r), flags: mftUsed | mftNamed | flags, size: size}
+		m.Entries[r] = ntfs.Entry{Name: name, Parent: parent, ParentSeq: pseq, Seq: uint16(r), Flags: ntfs.Used | ntfs.Named | flags, Size: size}
 	}
-	set(5, ".", 5, 5, mftDir, 0)
-	set(11, "$Extend", 5, 5, mftDir, 0)
-	set(16, "Users", 5, 5, mftDir, 0)
+	set(5, ".", 5, 5, ntfs.Dir, 0)
+	set(11, "$Extend", 5, 5, ntfs.Dir, 0)
+	set(16, "Users", 5, 5, ntfs.Dir, 0)
 	set(17, "a.txt", 16, 16, 0, 10)
 	set(18, "orphan.txt", 16, 99, 0, 10) // its folder's record was reused
-	set(19, "Junction", 16, 16, mftDir|mftLink, 0)
+	set(19, "Junction", 16, 16, ntfs.Dir|ntfs.Link, 0)
 	set(20, "inside-link.txt", 19, 19, 0, 10)
 	set(21, "$UsnJrnl", 11, 11, 0, 10)
-	set(22, "Deep", 16, 16, mftDir, 0)
+	set(22, "Deep", 16, 16, ntfs.Dir, 0)
 	set(23, "movie.mp4", 22, 22, 0, 500)
 	idx := mftToIndex(m, `C:\`)
 	r := driveSearch(t, idx, search.Query{})

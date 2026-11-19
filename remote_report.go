@@ -2,22 +2,19 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"compress/gzip"
 	"context"
 	_ "embed"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
+	"github.com/Kamkmgamer/KamkmDirStat/internal/wire"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -53,38 +50,9 @@ func (r *remoteReport) close() {
 	r.once.Do(func() { r.closed.Store(true); _ = r.client.Close(); _ = r.session.Close() })
 }
 
-// readFrame reads one message from the remote scripts: a 4-byte big-endian length, then
-// gzip-compressed JSON. It returns the JSON and the number of bytes read from src.
-func readFrame(src io.Reader) ([]byte, int64, error) {
-	var length uint32
-	if err := binary.Read(src, binary.BigEndian, &length); err != nil {
-		return nil, 0, err
-	}
-	if length == 0 || length > 8<<20 {
-		return nil, 0, errors.New("The remote report frame is too large.")
-	}
-	payload := make([]byte, length)
-	if _, err := io.ReadFull(src, payload); err != nil {
-		return nil, 0, err
-	}
-	z, err := gzip.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		return nil, 0, err
-	}
-	defer z.Close()
-	data, err := io.ReadAll(io.LimitReader(z, (32<<20)+1))
-	if err != nil {
-		return nil, 0, err
-	}
-	if len(data) > 32<<20 {
-		return nil, 0, errors.New("The remote report is too large.")
-	}
-	return data, int64(length) + 4, nil
-}
-
 func readReportMessage(src io.Reader) (reportMessage, error) {
 	var message reportMessage
-	data, wire, err := readFrame(src)
+	data, wire, err := wire.Read(src)
 	if err != nil {
 		return message, err
 	}
@@ -141,6 +109,27 @@ func (r *remoteReport) view(id int) (DirView, error) {
 	return message.View, nil
 }
 
+func (r *remoteReport) item(id int, name string) (storeItem, error) {
+	v, err := r.view(id)
+	if err != nil {
+		return storeItem{}, err
+	}
+	it := storeItem{dir: true, size: v.Size}
+	for _, c := range v.Trail {
+		it.trail = append(it.trail, c.Name)
+	}
+	if name != "" {
+		it.trail = append(it.trail, name)
+		// Folders with more than 500 entries list only the largest, so a missing one
+		// is taken to be a file.
+		it.dir, it.size = false, 0
+		if i := slices.IndexFunc(v.Entries, func(e DirEntry) bool { return e.Name == name }); i >= 0 {
+			it.dir, it.size = v.Entries[i].Directory, v.Entries[i].Size
+		}
+	}
+	return it, nil
+}
+
 // search asks the server to search its scan. The server indexes the scan the first time,
 // which takes a few seconds for millions of files with the Python report.
 func (r *remoteReport) search(q search.Query) (search.Result, error) {
@@ -188,23 +177,6 @@ func (r *remoteReport) search(q search.Query) (search.Result, error) {
 	return message.Search, nil
 }
 
-// readScriptHeader skips any login banner and returns the rest of the first line that
-// starts with prefix.
-func readScriptHeader(r *bufio.Reader, prefix string) string {
-	size := 0
-	for size < 64<<10 {
-		line, err := r.ReadString('\n')
-		size += len(line)
-		if rest, ok := strings.CutPrefix(line, prefix); ok {
-			return strings.TrimSpace(rest)
-		}
-		if err != nil {
-			return ""
-		}
-	}
-	return ""
-}
-
 // remoteReportScan keeps the detailed tree on the server. Only progress, the completed
 // root report, and subsequent requested folder views cross the network.
 func remoteReportScan(ctx context.Context, client *ssh.Client, c Connection, t *Tree, result *ScanResult, report func(ScanProgress)) (bool, error) {
@@ -245,7 +217,7 @@ func runRemoteReport(ctx context.Context, client *ssh.Client, command string, t 
 	}
 	output := bufio.NewReaderSize(stdout, 64<<10)
 	header := make(chan string, 1)
-	go func() { header <- readScriptHeader(output, "SSE2 ") }()
+	go func() { header <- wire.Header(output, "SSE2 ") }()
 	timer := time.NewTimer(shellHeaderTimeout)
 	defer timer.Stop()
 	var line string
@@ -293,7 +265,7 @@ func runRemoteReport(ctx context.Context, client *ssh.Client, command string, t 
 			t.Root.Size = message.View.Size
 			t.Root.Files = message.View.Files
 			t.Root.Incomplete = message.View.Incomplete
-			t.remote = remote
+			t.store = remote
 			t.mu.Unlock()
 			if report != nil {
 				report(message.Progress)

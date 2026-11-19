@@ -28,25 +28,17 @@ type searchSession struct {
 	status     SearchStatus
 }
 
-var (
-	searchState       searchSession
-	remoteSearchState searchSession
-)
-
-func searchForTarget(target string) *searchSession {
-	if target == "remote" {
-		return &remoteSearchState
-	}
-	return &searchState
-}
-
-func startSearch(q search.Query) (int, error) { return startSearchFor("local", q) }
+func startSearch(q search.Query) (int, error) { return localMachine.startSearch(q) }
 
 func startSearchFor(target string, q search.Query) (int, error) {
+	return machineFor(target).startSearch(q)
+}
+
+func (m *machine) startSearch(q search.Query) (int, error) {
 	if len(q.Text) > 1000 || len(q.Exts) > 50 {
 		return 0, errors.New("The search is too long.")
 	}
-	state := searchForTarget(target)
+	state := &m.search
 	state.Lock()
 	defer state.Unlock()
 	state.seq++
@@ -56,21 +48,23 @@ func startSearchFor(target string, q search.Query) (int, error) {
 	}
 	if !state.busy {
 		state.busy = true
-		go runSearches(target, state)
+		go m.runSearches()
 	}
 	return state.seq, nil
 }
 
-func searchStatus() SearchStatus { return searchStatusFor("local") }
+func searchStatus() SearchStatus { return localMachine.searchStatus() }
 
-func searchStatusFor(target string) SearchStatus {
-	state := searchForTarget(target)
-	state.Lock()
-	defer state.Unlock()
-	return state.status
+func searchStatusFor(target string) SearchStatus { return machineFor(target).searchStatus() }
+
+func (m *machine) searchStatus() SearchStatus {
+	m.search.Lock()
+	defer m.search.Unlock()
+	return m.search.status
 }
 
-func runSearches(target string, state *searchSession) {
+func (m *machine) runSearches() {
+	state := &m.search
 	for {
 		state.Lock()
 		if state.pending == nil {
@@ -84,7 +78,7 @@ func runSearches(target string, state *searchSession) {
 		state.cancel = cancel
 		state.Unlock()
 
-		result, err := runSearchFor(ctx, target, q)
+		result, err := m.runSearch(ctx, q)
 		cancel()
 
 		state.Lock()
@@ -102,18 +96,11 @@ func runSearches(target string, state *searchSession) {
 	}
 }
 
-func runSearch(ctx context.Context, q search.Query) (search.Result, error) {
-	return runSearchFor(ctx, "local", q)
-}
-
-func runSearchFor(ctx context.Context, target string, q search.Query) (search.Result, error) {
+func (m *machine) runSearch(ctx context.Context, q search.Query) (search.Result, error) {
 	if q.Scope == "drives" {
 		return searchDrives(ctx, q)
 	}
-	state := scanForTarget(target)
-	state.Lock()
-	tree, running := state.tree, state.status.Running
-	state.Unlock()
+	tree, running := m.scanTree()
 	if tree == nil {
 		return search.Result{}, errors.New("No scan results yet.")
 	}
