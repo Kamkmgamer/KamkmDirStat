@@ -54,7 +54,7 @@ func TestReleaseMemoryKeepsViews(t *testing.T) {
 	if _, err := tree.view(len(want)); err == nil {
 		t.Fatal("expected an error for an unknown folder")
 	}
-	path := tree.disk.path
+	path := tree.diskStore().path
 	tree.close()
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("cache file not removed: %v", err)

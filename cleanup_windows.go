@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/fslist"
 	"golang.org/x/sys/windows"
 )
 
@@ -28,7 +29,7 @@ func isLink(p string, info fs.FileInfo) bool {
 	if info.Mode()&fs.ModeSymlink != 0 {
 		return true
 	}
-	name, err := windows.UTF16PtrFromString(longPath(p))
+	name, err := windows.UTF16PtrFromString(fslist.LongPath(p))
 	if err != nil {
 		return true
 	}

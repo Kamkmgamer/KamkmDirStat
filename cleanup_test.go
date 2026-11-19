@@ -60,9 +60,8 @@ func scanLocal(t *testing.T, paths ...string) *Tree {
 	for time.Now().Before(deadline) {
 		st := scanStatusFor("local")
 		if !st.Running && st.OnDisk {
-			scanState.Lock()
-			defer scanState.Unlock()
-			return scanState.tree
+			tree, _ := localMachine.scanTree()
+			return tree
 		}
 		if !st.Running && st.Error != "" {
 			t.Fatal(st.Error)

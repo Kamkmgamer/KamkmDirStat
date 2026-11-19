@@ -10,9 +10,25 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/monitor"
 )
 
-func waitMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus {
+func monitorResult(s monitor.Status, id int) (ok bool, message string, found bool) {
+	for _, raw := range s.Results {
+		var r struct {
+			ID      int    `json:"id"`
+			OK      bool   `json:"ok"`
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(raw, &r) == nil && r.ID == id {
+			return r.OK, r.Message, true
+		}
+	}
+	return false, "", false
+}
+
+func waitMonitor(t *testing.T, done func(monitor.Status) bool) monitor.Status {
 	t.Helper()
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
@@ -26,7 +42,7 @@ func waitMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("timed out: %+v", monitorStatusFor("remote"))
-	return MonitorStatus{}
+	return monitor.Status{}
 }
 
 func TestMonitorSamplesAndEndsProcess(t *testing.T) {
@@ -35,7 +51,7 @@ func TestMonitorSamplesAndEndsProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer stopMonitorFor("remote")
-	s := waitMonitor(t, func(s MonitorStatus) bool { return s.Seq >= 2 })
+	s := waitMonitor(t, func(s monitor.Status) bool { return s.Seq >= 2 })
 	var hello struct {
 		Privilege string `json:"privilege"`
 		User      string `json:"user"`
@@ -98,17 +114,17 @@ func TestMonitorSamplesAndEndsProcess(t *testing.T) {
 	start, _ := strconv.ParseInt(fields[19], 10, 64)
 
 	// A stale start time means the PID now belongs to a different process: leave it alone.
-	if err := monitorActionFor("remote", MonitorAction{ID: 1, Type: "kill", PID: victim.Process.Pid, Start: start + 1, Signal: "TERM"}); err != nil {
+	if err := monitorActionFor("remote", monitor.Action{ID: 1, Type: "kill", PID: victim.Process.Pid, Start: start + 1, Signal: "TERM"}); err != nil {
 		t.Fatal(err)
 	}
-	s = waitMonitor(t, func(s MonitorStatus) bool { _, _, found := monitorResult(s, 1); return found })
+	s = waitMonitor(t, func(s monitor.Status) bool { _, _, found := monitorResult(s, 1); return found })
 	if _, message, _ := monitorResult(s, 1); !strings.Contains(message, "already exited") {
 		t.Fatalf("stale PID was not refused: %q", message)
 	}
-	if err := monitorActionFor("remote", MonitorAction{ID: 2, Type: "kill", PID: victim.Process.Pid, Start: start, Signal: "TERM"}); err != nil {
+	if err := monitorActionFor("remote", monitor.Action{ID: 2, Type: "kill", PID: victim.Process.Pid, Start: start, Signal: "TERM"}); err != nil {
 		t.Fatal(err)
 	}
-	s = waitMonitor(t, func(s MonitorStatus) bool { _, _, found := monitorResult(s, 2); return found })
+	s = waitMonitor(t, func(s monitor.Status) bool { _, _, found := monitorResult(s, 2); return found })
 	if ok, message, _ := monitorResult(s, 2); !ok {
 		t.Fatalf("ending own process failed: %s", message)
 	}
@@ -117,10 +133,10 @@ func TestMonitorSamplesAndEndsProcess(t *testing.T) {
 	}
 
 	if os.Geteuid() != 0 {
-		if err := monitorActionFor("remote", MonitorAction{ID: 3, Type: "dropcaches"}); err != nil {
+		if err := monitorActionFor("remote", monitor.Action{ID: 3, Type: "dropcaches"}); err != nil {
 			t.Fatal(err)
 		}
-		s = waitMonitor(t, func(s MonitorStatus) bool { _, _, found := monitorResult(s, 3); return found })
+		s = waitMonitor(t, func(s monitor.Status) bool { _, _, found := monitorResult(s, 3); return found })
 		if ok, message, _ := monitorResult(s, 3); ok || !strings.Contains(message, "root or sudo") {
 			t.Fatalf("unprivileged cache drop was not refused: %v %q", ok, message)
 		}

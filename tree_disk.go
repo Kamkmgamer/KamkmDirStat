@@ -11,9 +11,11 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/dirview"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 )
 
@@ -28,6 +30,8 @@ import (
 //	child count, then for each child (already sorted by size):
 //	flags (1 = folder, 2 = incomplete), size, files, folder id if a folder, name.
 type diskTree struct {
+	mu      sync.RWMutex // held for reading while a folder is read, for writing to close
+	closed  bool
 	file    *os.File
 	path    string
 	offsets []int64 // offsets[id] .. offsets[id+1] is folder id's record
@@ -145,6 +149,9 @@ func (d *diskTree) close() {
 	if d == nil {
 		return
 	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.closed = true
 	_ = d.file.Close()
 	_ = os.Remove(d.path)
 }
@@ -198,7 +205,7 @@ func (r *recordReader) entry() diskEntry {
 }
 
 func (d *diskTree) read(id int, withKids bool) (diskDir, error) {
-	if id < 0 || id+1 >= len(d.offsets) {
+	if d.closed || id < 0 || id+1 >= len(d.offsets) {
 		return diskDir{}, errors.New("That folder is not in the scan results.")
 	}
 	b := make([]byte, d.offsets[id+1]-d.offsets[id])
@@ -220,76 +227,87 @@ func (d *diskTree) read(id int, withKids bool) (diskDir, error) {
 	return dd, r.err
 }
 
+// trail returns folder id, whose record is n, and its ancestors, from the scan root down.
+// The caller holds d.mu.
+func (d *diskTree) trail(id int, n diskDir) ([]Crumb, error) {
+	trail := []Crumb{{ID: id, Name: n.name}}
+	for p := n.parent; p >= 0; {
+		pd, err := d.read(p, false)
+		if err != nil {
+			return nil, err
+		}
+		trail = append(trail, Crumb{ID: p, Name: pd.name})
+		p = pd.parent
+	}
+	slices.Reverse(trail)
+	return trail, nil
+}
+
+func (d *diskTree) item(id int, name string) (storeItem, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	n, err := d.read(id, name != "")
+	if err != nil {
+		return storeItem{}, err
+	}
+	trail, err := d.trail(id, n)
+	if err != nil {
+		return storeItem{}, err
+	}
+	it := storeItem{dir: true, size: n.size}
+	for _, c := range trail {
+		it.trail = append(it.trail, c.Name)
+	}
+	if name != "" {
+		i := slices.IndexFunc(n.kids, func(e diskEntry) bool { return e.name == name })
+		if i < 0 {
+			return storeItem{}, errItemGone
+		}
+		it.dir, it.size, it.files = n.kids[i].directory, n.kids[i].size, max(1, n.kids[i].files)
+		it.trail = append(it.trail, name)
+	}
+	return it, nil
+}
+
+func (d *diskTree) ancestors(id int) []int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var ids []int
+	for id >= 0 {
+		ids = append(ids, id)
+		n, err := d.read(id, false)
+		if err != nil {
+			break
+		}
+		id = n.parent
+	}
+	return ids
+}
+
 func (d *diskTree) view(id int) (DirView, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	n, err := d.read(id, true)
 	if err != nil {
 		return DirView{}, err
 	}
-	v := DirView{ID: id, Size: n.size, Files: n.files, Items: len(n.kids), Incomplete: n.incomplete, Entries: []DirEntry{}}
-	v.Trail = append(v.Trail, Crumb{ID: id, Name: n.name})
-	for p := n.parent; p >= 0; {
-		pd, err := d.read(p, false)
-		if err != nil {
-			return DirView{}, err
-		}
-		v.Trail = append(v.Trail, Crumb{ID: p, Name: pd.name})
-		p = pd.parent
+	trail, err := d.trail(id, n)
+	if err != nil {
+		return DirView{}, err
 	}
-	slices.Reverse(v.Trail)
-	for i, c := range n.kids {
-		if i >= viewEntryLimit {
-			v.MoreCount++
-			v.MoreSize += c.size
-			continue
-		}
-		e := DirEntry{Name: c.name, Size: c.size, Directory: c.directory, Files: c.files, Incomplete: c.incomplete}
-		if c.directory {
-			e.ID = c.id
-		}
-		v.Entries = append(v.Entries, e)
-	}
-	v.Map, err = d.buildMap(id, n)
-	return v, err
+	return dirview.Build[diskEntry](diskSource{d}, trail, n.diskEntry, n.kids)
 }
 
-// buildMap matches Tree's buildMap, reading folders from the cache file as it goes.
-func (d *diskTree) buildMap(id int, n diskDir) (*MapNode, error) {
-	root := &MapNode{N: n.name, S: n.size, D: true, I: id}
-	threshold := max(n.size/mapDetail, 1)
-	type item struct {
-		id   int
-		m    *MapNode
-		kids []diskEntry
-		read bool
-	}
-	queue := []item{{id, root, n.kids, true}}
-	budget := mapNodeLimit
-	for len(queue) > 0 {
-		it := queue[0]
-		queue = queue[1:]
-		ks := it.kids
-		if !it.read {
-			dd, err := d.read(it.id, true)
-			if err != nil {
-				return nil, err
-			}
-			ks = dd.kids
-		}
-		for _, c := range ks {
-			if c.size < threshold || budget <= 0 {
-				it.m.O += c.size
-				continue
-			}
-			budget--
-			cm := &MapNode{N: c.name, S: c.size, D: c.directory}
-			if c.directory {
-				cm.I = c.id
-				queue = append(queue, item{id: c.id, m: cm})
-			}
-			it.m.C = append(it.m.C, cm)
-		}
-	}
-	return root, nil
+// diskSource reads folders from the cache file as a view needs them. The caller holds d.mu.
+type diskSource struct{ d *diskTree }
+
+func (s diskSource) Item(e diskEntry) dirview.Item {
+	return dirview.Item{Name: e.name, Size: e.size, Files: e.files, Directory: e.directory, ID: e.id, Incomplete: e.incomplete}
+}
+
+func (s diskSource) Children(e diskEntry) ([]diskEntry, error) {
+	dd, err := s.d.read(e.id, true)
+	return dd.kids, err
 }
 
 // releaseMemory moves a finished local scan to the cache file and frees its nodes. It
@@ -297,11 +315,11 @@ func (d *diskTree) buildMap(id int, n diskDir) (*MapNode, error) {
 // now lives on disk.
 func (t *Tree) releaseMemory() (bool, error) {
 	t.mu.RLock()
-	if t.disk != nil {
+	if _, ok := t.store.(*diskTree); ok {
 		t.mu.RUnlock()
 		return true, nil
 	}
-	if t.remote != nil || t.Root == nil {
+	if t.store != nil || t.Root == nil {
 		t.mu.RUnlock()
 		return false, nil
 	}
@@ -327,7 +345,7 @@ func (t *Tree) releaseMemory() (bool, error) {
 		_ = os.Remove(indexFile)
 		return false, nil
 	}
-	t.disk, t.Root, t.dirs = d, nil, nil
+	t.store, t.Root, t.dirs = d, nil, nil
 	t.mu.Unlock()
 	t.keepIndex(idx, indexFile)
 	freeMemory()

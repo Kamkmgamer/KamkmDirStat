@@ -11,11 +11,8 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"cmp"
-	"compress/gzip"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,7 +25,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/dirview"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
+	"github.com/Kamkmgamer/KamkmDirStat/internal/wire"
 	"golang.org/x/sys/unix"
 )
 
@@ -55,18 +54,12 @@ type progress struct {
 var out = bufio.NewWriterSize(os.Stdout, 64<<10)
 
 func send(v any) {
-	data, err := json.Marshal(v)
+	err := wire.Write(out, v)
+	if out.Flush() != nil {
+		os.Exit(0) // the app went away
+	}
 	if err != nil {
 		panic(err)
-	}
-	var buf bytes.Buffer
-	z, _ := gzip.NewWriterLevel(&buf, 3)
-	z.Write(data)
-	z.Close()
-	binary.Write(out, binary.BigEndian, uint32(buf.Len()))
-	out.Write(buf.Bytes())
-	if err := out.Flush(); err != nil {
-		os.Exit(0) // the app went away
 	}
 }
 
@@ -405,85 +398,24 @@ func (w *walker) index() *search.Index {
 	return b.Finish()
 }
 
-type crumb struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-type entry struct {
-	Name       string `json:"name"`
-	Size       int64  `json:"size"`
-	Dir        bool   `json:"dir"`
-	ID         int    `json:"id"`
-	Files      int    `json:"files"`
-	Incomplete bool   `json:"incomplete"`
-}
-
-type mapNode struct {
-	N string     `json:"n"`
-	S int64      `json:"s"`
-	D bool       `json:"d,omitempty"`
-	I int        `json:"i,omitempty"`
-	C []*mapNode `json:"c,omitempty"`
-	O int64      `json:"o,omitempty"`
-}
-
-type dirView struct {
-	ID         int      `json:"id"`
-	Trail      []crumb  `json:"trail"`
-	Size       int64    `json:"size"`
-	Files      int      `json:"files"`
-	Items      int      `json:"items"`
-	Incomplete bool     `json:"incomplete"`
-	Entries    []entry  `json:"entries"`
-	MoreCount  int      `json:"moreCount"`
-	MoreSize   int64    `json:"moreSize"`
-	Map        *mapNode `json:"map"`
-}
-
 // view is one folder's report: its largest 500 entries and a treemap of what is beneath
-// it, built breadth first with the same limits as the Python report and the app.
-func (w *walker) view(id int) dirView {
+// it, built with the same code and limits as the app's own scans.
+func (w *walker) view(id int) dirview.View {
 	n := w.dirs[id]
-	v := dirView{ID: id, Size: n.size, Files: n.files, Items: len(n.children), Incomplete: n.incomplete, Entries: []entry{}}
+	var trail []dirview.Crumb
 	for p := n; p != nil; p = p.parent {
-		v.Trail = append(v.Trail, crumb{p.id, p.name})
+		trail = append(trail, dirview.Crumb{ID: p.id, Name: p.name})
 	}
-	slices.Reverse(v.Trail)
-	for i, c := range n.children {
-		if i >= 500 {
-			v.MoreCount++
-			v.MoreSize += c.size
-			continue
-		}
-		v.Entries = append(v.Entries, entry{Name: c.name, Size: c.size, Dir: c.dir, ID: c.id, Files: c.files, Incomplete: c.incomplete})
-	}
-	root := &mapNode{N: n.name, S: n.size, D: true, I: n.id}
-	threshold, budget := max(n.size/4000, 1), 12000
-	type item struct {
-		n *node
-		m *mapNode
-	}
-	queue := []item{{n, root}}
-	for len(queue) > 0 {
-		it := queue[0]
-		queue = queue[1:]
-		for _, c := range it.n.children {
-			if c.size < threshold || budget <= 0 {
-				it.m.O += c.size
-				continue
-			}
-			budget--
-			m := &mapNode{N: c.name, S: c.size}
-			if c.dir {
-				m.D, m.I = true, c.id
-				if len(c.children) > 0 {
-					queue = append(queue, item{c, m})
-				}
-			}
-			it.m.C = append(it.m.C, m)
-		}
-	}
-	v.Map = root
+	slices.Reverse(trail)
+	v, _ := dirview.Build[*node](nodeSource{}, trail, n, n.children)
 	return v
 }
+
+// nodeSource reads the finished scan, whose folders are already sorted by size.
+type nodeSource struct{}
+
+func (nodeSource) Item(n *node) dirview.Item {
+	return dirview.Item{Name: n.name, Size: n.size, Files: n.files, Directory: n.dir, ID: n.id, Incomplete: n.incomplete}
+}
+
+func (nodeSource) Children(n *node) ([]*node, error) { return n.children, nil }

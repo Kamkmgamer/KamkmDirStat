@@ -171,6 +171,7 @@ func TestSearchJobKeepsLatest(t *testing.T) {
 	tree.addChild(tree.Root, "beta.txt", false, 7)
 	tree.mu.Unlock()
 	tree.finalize()
+	scanState := &localMachine.scan
 	scanState.Lock()
 	old := scanState.tree
 	scanState.tree, scanState.status = tree, ScanStatus{}
@@ -222,6 +223,7 @@ func TestOpenByPath(t *testing.T) {
 			t.Errorf("%q %q resolved", bad[0], bad[1])
 		}
 	}
+	scanState := &localMachine.scan
 	scanState.Lock()
 	old := scanState.tree
 	scanState.tree = nil

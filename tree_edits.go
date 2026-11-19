@@ -29,25 +29,12 @@ type sizeFiles struct {
 
 // ancestors returns dir and the folders above it, nearest first.
 func (t *Tree) ancestors(dir int) []int {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	var ids []int
-	switch {
-	case t.disk != nil:
-		for id := dir; id >= 0; {
-			ids = append(ids, id)
-			d, err := t.disk.read(id, false)
-			if err != nil {
-				break
-			}
-			id = d.parent
-		}
-	case dir >= 0 && dir < len(t.dirs):
-		for n := t.dirs[dir]; n != nil; n = n.Parent {
-			ids = append(ids, n.id)
-		}
+	s, unlock := t.current()
+	defer unlock()
+	if s, ok := s.(lineage); ok {
+		return s.ancestors(dir)
 	}
-	return ids
+	return nil
 }
 
 func (e *treeEdits) shrinkAll(ids []int, size int64, files int) {

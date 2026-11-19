@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/wire"
 	"github.com/klauspost/compress/zstd"
 	"golang.org/x/crypto/ssh"
 )
@@ -23,12 +24,9 @@ import (
 // can be rebuilt here, and the listing is far smaller to download.
 
 const (
-	shellHeaderTimeout = 20 * time.Second
-	maxReportedErrors  = 200
-	scanHeaderPrefix   = "SSE1 "
+	maxReportedErrors = 200
+	scanHeaderPrefix  = "SSE1 "
 )
-
-func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 // findScript is sent on stdin to "sh -s" so the user's login shell only has to parse
 // "sh -s". The first output line is "SSE1 <format> [entries]", where entries is the file
@@ -43,7 +41,7 @@ func findScript(root string, oneFileSystem bool) string {
 		estimate = "if [ \"$(stat -c %m -- \"$p\" 2>/dev/null)\" = \"$p\" ]; then n=$(df -Pi -- \"$p\" 2>/dev/null | awk 'NR==2{print $3}'); fi\n"
 	}
 	return "LC_ALL=C; export LC_ALL\n" +
-		"p=" + shellQuote(root) + "\n" +
+		"p=" + wire.ShellQuote(root) + "\n" +
 		"if [ ! -d \"$p\" ]; then echo '" + scanHeaderPrefix + "notdir'; exit 0; fi\n" +
 		"if ! find \"$p\" -maxdepth 0 -printf '' >/dev/null 2>&1; then echo '" + scanHeaderPrefix + "nofind'; exit 0; fi\n" +
 		"n=\n" + estimate +
@@ -351,7 +349,7 @@ func shellScan(ctx context.Context, client *ssh.Client, c Connection, t *Tree, r
 	out := bufio.NewReaderSize(stdout, 256<<10)
 	header := make(chan string, 1)
 	go func() { header <- readScanHeader(out) }()
-	timer := time.NewTimer(shellHeaderTimeout)
+	timer := time.NewTimer(wire.HeaderTimeout)
 	defer timer.Stop()
 	var line string
 	select {

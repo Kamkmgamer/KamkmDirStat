@@ -6,33 +6,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/fslist"
+	"github.com/Kamkmgamer/KamkmDirStat/internal/ntfs"
 )
 
 // Local scans read this computer's drives directly. Sizes are file sizes, as in Explorer and
 // WinDirStat. Links, junctions and mounted volumes are not followed, so nothing is counted
 // twice through them, but hard-linked files are counted at each of their names.
-
-type localKind int
-
-const (
-	localFile localKind = iota
-	localDir
-)
-
-// localEntry is one item from listLocalDir, which leaves out links and other volumes.
-type localEntry struct {
-	name string
-	kind localKind
-	size int64
-}
-
-// More workers than this mostly contend inside the file system on Windows.
-const localScanWorkers = 8
 
 // localScanDirect allows reading NTFS drives directly. Tests turn it off to compare.
 var localScanDirect = true
@@ -161,7 +148,7 @@ func localScanInto(ctx context.Context, roots []string, t *Tree, report func(Sca
 		if ctx.Err() != nil {
 			break
 		}
-		handled, damaged, err := false, 0, errNotNTFS
+		handled, damaged, err := false, 0, ntfs.ErrNotNTFS
 		if localScanDirect {
 			handled, damaged, err = scanNTFSRoot(ctx, s.path, s.node, t, &files, &dirs, &bytes, &current)
 		}
@@ -176,9 +163,9 @@ func localScanInto(ctx context.Context, roots []string, t *Tree, report func(Sca
 			continue
 		}
 		switch {
-		case errors.Is(err, errNeedsAdmin):
+		case errors.Is(err, ntfs.ErrNeedsAdmin):
 			needAdmin = true
-		case err != nil && !errors.Is(err, errNotNTFS):
+		case err != nil && !errors.Is(err, ntfs.ErrNotNTFS):
 			result.Notes = append(result.Notes, fmt.Sprintf("Could not read the NTFS file table of %s (%v), so its folders were listed instead.", s.path, err))
 		}
 		w.walk(s.node, s.path)
@@ -201,19 +188,19 @@ func localScanInto(ctx context.Context, roots []string, t *Tree, report func(Sca
 // scanNTFSRoot reads an NTFS drive's file table into node. It reports handled=false, with
 // the reason, when the drive cannot be read directly and its folders should be listed.
 func scanNTFSRoot(ctx context.Context, path string, node *Node, t *Tree, files, dirs, bytes *atomic.Int64, current *atomic.Value) (handled bool, damaged int, err error) {
-	r, closeVolume, err := openNTFSVolume(path)
+	r, closeVolume, err := ntfs.OpenVolume(path)
 	if err != nil {
 		return false, 0, err
 	}
 	defer closeVolume()
-	v, err := openNTFS(r)
+	v, err := ntfs.Open(r)
 	if err != nil {
 		return false, 0, err
 	}
 	current.Store("Reading the NTFS file table of " + path)
 	var mu sync.Mutex
 	var seenFiles, seenBytes int64
-	idx, err := v.read(ctx, func(_, f, b int64) {
+	idx, err := v.Read(ctx, func(_, f, b int64) {
 		mu.Lock()
 		defer mu.Unlock()
 		if f > seenFiles {
@@ -235,14 +222,14 @@ func scanNTFSRoot(ctx context.Context, path string, node *Node, t *Tree, files, 
 	}
 	t.mu.Lock()
 	beforeDirs, beforeSize := len(t.dirs), node.Size
-	added := idx.addToTree(t, node, ntfsRootRecord)
+	added := addMFTToTree(idx, t, node, ntfs.RootRecord)
 	newDirs, size := len(t.dirs)-beforeDirs, node.Size-beforeSize
 	t.mu.Unlock()
 	// Replace the running totals, which counted the whole table, with what was added.
 	files.Add(int64(added) - seenFiles)
 	bytes.Add(size - seenBytes)
 	dirs.Add(int64(newDirs) + 1)
-	return true, idx.damaged, nil
+	return true, idx.Damaged, nil
 }
 
 // localWalk is what a folder walk updates. Each platform provides walk, which lists the
@@ -257,7 +244,7 @@ type localWalk struct {
 
 // add records one folder's entries under node and returns the new subfolder nodes in the
 // order of their entries. listErr marks the folder incomplete.
-func (w *localWalk) add(node *Node, dir string, entries []localEntry, listErr error) []*Node {
+func (w *localWalk) add(node *Node, dir string, entries []fslist.Entry, listErr error) []*Node {
 	if listErr != nil {
 		w.addError(fmt.Sprintf("%s: %v", dir, listErr))
 	}
@@ -271,4 +258,15 @@ func (w *localWalk) add(node *Node, dir string, entries []localEntry, listErr er
 	w.files.Add(added)
 	w.bytes.Add(size)
 	return subs
+}
+
+// localRootName is the top of the report when several drives or folders are scanned.
+func localRootName() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "This PC"
+	case "darwin":
+		return "This Mac"
+	}
+	return "This computer"
 }

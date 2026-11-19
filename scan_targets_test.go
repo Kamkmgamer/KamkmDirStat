@@ -6,9 +6,21 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 )
+
+func waitForTargetState(t *testing.T, what string, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !condition() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
 
 func TestScanTargetsRetainIndependentResults(t *testing.T) {
 	cache := t.TempDir()

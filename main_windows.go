@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/driveindex"
 	webview "github.com/jchv/go-webview2"
 	"golang.org/x/sys/windows"
 )
@@ -14,7 +15,7 @@ import (
 const iconResource = 1
 
 func main() {
-	if handleServiceCommand(os.Args[1:]) {
+	if driveindex.HandleServiceCommand(os.Args[1:]) {
 		return
 	}
 	release, ok := claimSingleInstance(len(os.Args) > 1 && os.Args[1] == restartedArg)
@@ -91,6 +92,14 @@ func main() {
 	// Only a window without its native caption offers the page's window buttons.
 	if frame != nil {
 		extra["windowControl"] = frame.control
+	}
+	// The page stops drawing while the window is minimised, hidden or covered. This handler
+	// goes in after the others, so it runs first and is removed first.
+	if visibility, err := trackWindowVisibility(w); err != nil {
+		log.Printf("The page keeps drawing while the window is hidden: %v", err)
+	} else {
+		defer visibility.close()
+		extra["isWindowCovered"] = visibility.isCovered
 	}
 	err := runWindow(w, settings, extra)
 	if err != nil {

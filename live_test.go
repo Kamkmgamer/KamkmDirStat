@@ -46,8 +46,8 @@ func TestLiveScan(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("mode=%s files=%d size=%.2f GiB elapsed=%s firstUpdate=%s updates=%d errors=%d", result.Mode, tree.Root.Files, float64(tree.Root.Size)/(1<<30), time.Since(started).Round(time.Millisecond), firstUpdate.Round(time.Millisecond), updates, result.ErrorCount)
-	if tree.remote != nil {
-		t.Logf("completed remote overview transfer: %d bytes", tree.remote.received.Load())
+	if tree.remoteStore() != nil {
+		t.Logf("completed remote overview transfer: %d bytes", tree.remoteStore().received.Load())
 	}
 	viewStarted := time.Now()
 	v, err := tree.view(0)
@@ -62,10 +62,10 @@ func TestLiveScan(t *testing.T) {
 		}
 		t.Logf("  %-28s %8.2f GiB  %d files", e.Name, float64(e.Size)/(1<<30), e.Files)
 	}
-	if tree.remote != nil {
+	if tree.remoteStore() != nil {
 		for _, entry := range v.Entries {
 			if entry.Directory && entry.Files > 0 {
-				before := tree.remote.received.Load()
+				before := tree.remoteStore().received.Load()
 				start := time.Now()
 				sub, err := tree.view(entry.ID)
 				if err != nil {
@@ -74,7 +74,7 @@ func TestLiveScan(t *testing.T) {
 				if sub.Size != entry.Size || sub.Files != entry.Files {
 					t.Fatal("remote folder report differs from overview")
 				}
-				t.Logf("on-demand folder report: %s, %d bytes", time.Since(start).Round(time.Millisecond), tree.remote.received.Load()-before)
+				t.Logf("on-demand folder report: %s, %d bytes", time.Since(start).Round(time.Millisecond), tree.remoteStore().received.Load()-before)
 				break
 			}
 		}

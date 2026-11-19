@@ -103,7 +103,7 @@ func (t *Tree) planClutter() {
 		home = ""
 	}
 	t.mu.RLock()
-	if t.Root == nil || t.disk != nil || t.remote != nil {
+	if t.Root == nil || t.store != nil {
 		t.mu.RUnlock()
 		return
 	}

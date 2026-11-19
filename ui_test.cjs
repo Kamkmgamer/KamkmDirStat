@@ -1,7 +1,8 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const html = fs.readFileSync('index.html', 'utf8');
+// The app shows ui/index.html with each {{name}} line replaced by that file (see ui.go).
+const html = fs.readFileSync('ui/index.html', 'utf8').replace(/^\{\{([\w.]+)\}\}\n/gm, (line, name) => fs.readFileSync('ui/' + name, 'utf8'));
 // The mocks below create any element on demand, so check separately that every element the
 // script looks up by id exists in the page; a missing one stops the real script while loading.
 {
@@ -366,7 +367,7 @@ console.log('UI treemap layout passed');
  get('historyRanges').querySelectorAll=()=>rangeButtons;
  const emptyTitle=node('h2'),emptyDetail=node('p');get('historyEmpty').querySelector=s=>s==='h2'?emptyTitle:emptyDetail;
  const calls={strokes:0,fills:0,lines:0,text:0,rects:0};
- const draw=new Proxy({measureText:s=>({width:String(s).length*6}),beginPath(){this.path=0},moveTo(){this.path=(this.path||0)+1},lineTo(){this.path=(this.path||0)+1;calls.lines++},stroke(){calls.strokes++},fill(){calls.fills++},fillText(){calls.text++},fillRect(){calls.rects++},strokeRect(){calls.rects++},arc(){},closePath(){},setTransform(){},clearRect(){},setLineDash(){},save(){},restore(){}},{get:(o,k)=>o[k]});
+ const draw=new Proxy({measureText:s=>({width:String(s).length*6}),beginPath(){this.path=0},moveTo(){this.path=(this.path||0)+1},lineTo(){this.path=(this.path||0)+1;calls.lines++},bezierCurveTo(){this.path=(this.path||0)+1;calls.lines++},createLinearGradient(){return {addColorStop(){}}},stroke(){calls.strokes++},fill(){calls.fills++},fillText(){calls.text++},fillRect(){calls.rects++},strokeRect(){calls.rects++},arc(){},closePath(){},setTransform(){},clearRect(){},setLineDash(){},save(){},restore(){}},{get:(o,k)=>o[k]});
  const canvas=get('historyChart');canvas.clientWidth=800;canvas.clientHeight=410;canvas.width=800;canvas.height=410;canvas.getContext=()=>draw;canvas.getBoundingClientRect=()=>({left:0,top:0,width:800,height:410});canvas.setPointerCapture=()=>{};canvas.hasPointerCapture=()=>false;
  const savedPrefs={};
  const prefStore={get(k,f){return Object.prototype.hasOwnProperty.call(savedPrefs,k)?savedPrefs[k]:f},set(k,v){savedPrefs[k]=v},flush(){}};
@@ -399,6 +400,21 @@ console.log('UI treemap layout passed');
  assert.equal(history.points.length,6);assert.equal(get('historyEmpty').classList.contains('hidden'),true);
  assert.match(get('historyCoverage').textContent,/6 samples/);assert.ok(calls.strokes>0&&calls.fills>0&&calls.text>0,'canvas chart, markers and labels drawn');
  console.log('UI history loading and alert baseline passed');
+
+ // Each metric has a tab showing its latest value; choosing one charts it and is remembered.
+ assert.equal(get('historyMetricCpu').attrs['aria-pressed'],'true');
+ assert.equal(get('historyValueCpu').textContent,'60%');assert.equal(get('historyValueMemory').textContent,'35%');
+ assert.match(get('historyValueNetwork').textContent,/^↓.+ ↑.+$/);
+ get('historyMetricNetwork').onclick();
+ assert.equal(vm.runInContext('historyMetric',ctx),'network');assert.equal(savedPrefs.historyMetric,'network');
+ assert.equal(get('historyMetricNetwork').attrs['aria-pressed'],'true');assert.equal(get('historyMetricCpu').attrs['aria-pressed'],'false');
+ vm.runInContext(`inspectHistoryTime(${points[1].time})`,ctx);assert.equal(get('historyValueCpu').textContent,'20%','tabs follow the inspected time');
+ vm.runInContext('historyCursor=null',ctx);get('historyMetricCpu').onclick();
+ // Smoothing evens out jitter but keeps gaps, missing samples and lone values.
+ const smoothed=Array.from(vm.runInContext(`smoothHistory([{time:0,v:0},{time:1,v:100},{time:2,v:0},{time:3,v:100},{time:60,v:50},{time:61,v:null}],p=>p.v,2,15)`,ctx));
+ assert.ok(smoothed[1]<100&&smoothed[1]>0&&smoothed[2]>0&&smoothed[2]<100,'spikes are softened');
+ assert.equal(smoothed[4],50,'samples after a gap are not averaged with those before it');assert.equal(smoothed[5],null);
+ console.log('UI history metric tabs and smoothing passed');
 
  // Range buttons use live relative ranges and clear any custom zoom.
  rangeButtons[4].onclick();await tick(10);

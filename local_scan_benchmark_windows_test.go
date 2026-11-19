@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/ntfs"
 )
 
 // TestBenchmarkSystemDriveScan scans the whole system drive and reports the time. It only
@@ -43,23 +45,23 @@ func TestBenchmarkSystemDriveScan(t *testing.T) {
 		listResult.Files, float64(listed.Root.Size)/(1<<30), listResult.ErrorCount)
 	// Hard links: the listing counts every name, the direct scan each file once.
 	extraNames := map[string]int{}
-	if r, closeVolume, err := openNTFSVolume(root); err == nil {
-		v, err := openNTFS(r)
+	if r, closeVolume, err := ntfs.OpenVolume(root); err == nil {
+		v, err := ntfs.Open(r)
 		if err == nil {
-			if idx, err := v.read(context.Background(), nil); err == nil {
-				for _, e := range idx.entries {
-					if e.links == 0 || e.flags&mftDir != 0 {
+			if idx, err := v.Read(context.Background(), nil); err == nil {
+				for _, e := range idx.Entries {
+					if e.Links == 0 || e.Flags&ntfs.Dir != 0 {
 						continue
 					}
 					top, p := "", e
-					for depth := 0; depth < 4096 && int(p.parent) < len(idx.entries); depth++ {
-						if p.parent == ntfsRootRecord {
-							top = p.name
+					for depth := 0; depth < 4096 && int(p.Parent) < len(idx.Entries); depth++ {
+						if p.Parent == ntfs.RootRecord {
+							top = p.Name
 							break
 						}
-						p = idx.entries[p.parent]
+						p = idx.Entries[p.Parent]
 					}
-					extraNames[top] += int(e.links)
+					extraNames[top] += int(e.Links)
 				}
 			}
 		}

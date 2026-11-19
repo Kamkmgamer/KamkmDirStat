@@ -78,10 +78,7 @@ var cleanState cleanSession
 
 // finishedLocalTree is this computer's scan, once it is complete.
 func finishedLocalTree() (*Tree, error) {
-	state := scanFor(true)
-	state.Lock()
-	tree, running := state.tree, state.status.Running
-	state.Unlock()
+	tree, running := localMachine.scanTree()
 	if tree == nil {
 		return nil, errors.New("Scan this computer first.")
 	}

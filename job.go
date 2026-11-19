@@ -40,19 +40,12 @@ type scanSession struct {
 	tree   *Tree
 }
 
-var (
-	scanState       scanSession // this computer
-	remoteScanState scanSession // the SSH server
-)
-
-func scanFor(local bool) *scanSession {
-	if local {
-		return &scanState
-	}
-	return &remoteScanState
+// scanTree returns the machine's scan results, or nil, and whether the scan is still running.
+func (m *machine) scanTree() (*Tree, bool) {
+	m.scan.Lock()
+	defer m.scan.Unlock()
+	return m.scan.tree, m.scan.status.Running
 }
-
-func scanForTarget(target string) *scanSession { return scanFor(target != "remote") }
 
 var (
 	localScanRun  = localScanInto
@@ -78,7 +71,7 @@ func startScan(c Connection) error {
 		tree = newTree(root)
 	}
 	root := tree.RootPath
-	state := scanFor(c.Local)
+	state := &machineOf(c).scan
 	state.Lock()
 	if state.status.Running {
 		state.Unlock()
@@ -158,11 +151,11 @@ func startScan(c Connection) error {
 	return nil
 }
 
-// clearResults forgets this computer's scan results and returns their memory to the system.
-func clearResults() error { return clearResultsFor("local") }
+func clearResultsFor(target string) error { return machineFor(target).clearResults() }
 
-func clearResultsFor(target string) error {
-	state := scanForTarget(target)
+// clearResults forgets the machine's scan results and returns their memory to the system.
+func (m *machine) clearResults() error {
+	state := &m.scan
 	state.Lock()
 	if state.status.Running {
 		state.Unlock()
@@ -177,40 +170,70 @@ func clearResultsFor(target string) error {
 	return nil
 }
 
-func cancelScan() error { return cancelScanFor("local") }
-
 func cancelScanFor(target string) error {
-	state := scanForTarget(target)
+	machineFor(target).cancelScan()
+	return nil
+}
+
+func (m *machine) cancelScan() {
+	state := &m.scan
 	state.Lock()
 	defer state.Unlock()
 	if state.cancel != nil {
 		state.status.Cancelling = true
 		state.cancel()
 	}
-	return nil
 }
 
-func scanStatus() ScanStatus { return scanStatusFor("local") }
+func scanStatusFor(target string) ScanStatus { return machineFor(target).scanStatus() }
 
-func scanStatusFor(target string) ScanStatus {
-	state := scanForTarget(target)
-	state.Lock()
-	defer state.Unlock()
-	return state.status
+func (m *machine) scanStatus() ScanStatus {
+	m.scan.Lock()
+	defer m.scan.Unlock()
+	return m.scan.status
 }
+
+func viewDirFor(target string, id int) (DirView, error) { return machineFor(target).viewDir(id) }
 
 // viewDir returns one folder and a size-limited treemap of what is beneath it.
-func viewDir(id int) (DirView, error) { return viewDirFor("local", id) }
-
-func viewDirFor(target string, id int) (DirView, error) {
-	state := scanForTarget(target)
-	state.Lock()
-	tree := state.tree
-	state.Unlock()
+func (m *machine) viewDir(id int) (DirView, error) {
+	tree, _ := m.scanTree()
 	if tree == nil {
 		return DirView{}, errors.New("No scan results yet.")
 	}
 	return tree.view(id)
+}
+
+// job runs one piece of background work at a time and keeps its latest status, of type S,
+// for the page to poll.
+type job[S any] struct {
+	mu      sync.Mutex
+	running bool
+	status  S
+}
+
+// start shows the status running and replaces it with what work returns. It fails with
+// the message busy while earlier work has not finished.
+func (j *job[S]) start(busy string, running S, work func() S) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.running {
+		return errors.New(busy)
+	}
+	j.running, j.status = true, running
+	go func() {
+		s := work()
+		j.mu.Lock()
+		defer j.mu.Unlock()
+		j.running, j.status = false, s
+	}()
+	return nil
+}
+
+func (j *job[S]) get() S {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.status
 }
 
 type FingerprintStatus struct {
@@ -219,47 +242,30 @@ type FingerprintStatus struct {
 	// Trust is hostKnown, hostNew or hostChanged; a known server needs no confirmation.
 	Trust string `json:"trust,omitempty"`
 	Error string `json:"error,omitempty"`
+	// key is what the check found, kept with the status so both change together. It is
+	// not sent to the page.
+	key hostKey
 }
 
-var fingerprintState struct {
-	sync.Mutex
-	status FingerprintStatus
-	key    hostKey
-}
+var fingerprintJob job[FingerprintStatus]
 
 func startFingerprint(c Connection) error {
-	fingerprintState.Lock()
-	if fingerprintState.status.Running {
-		fingerprintState.Unlock()
-		return errors.New("A connection is already in progress.")
-	}
-	fingerprintState.status = FingerprintStatus{Running: true}
-	fingerprintState.key = hostKey{}
-	fingerprintState.Unlock()
-	go func() {
+	return fingerprintJob.start("A connection is already in progress.", FingerprintStatus{Running: true}, func() FingerprintStatus {
 		key, err := fingerprint(c)
-		fingerprintState.Lock()
-		defer fingerprintState.Unlock()
-		fingerprintState.key = key
-		fingerprintState.status = FingerprintStatus{Fingerprint: key.Fingerprint, Trust: key.Trust}
+		s := FingerprintStatus{Fingerprint: key.Fingerprint, Trust: key.Trust, key: key}
 		if err != nil {
-			fingerprintState.status.Error = err.Error()
+			s.Error = err.Error()
 		}
-	}()
-	return nil
+		return s
+	})
 }
-func fingerprintStatus() FingerprintStatus {
-	fingerprintState.Lock()
-	defer fingerprintState.Unlock()
-	return fingerprintState.status
-}
+
+func fingerprintStatus() FingerprintStatus { return fingerprintJob.get() }
 
 // trustHostKey always trusts the key the last check found, so later connections to that
 // server do not ask. The fingerprint must be the one the user was shown.
 func trustHostKey(fingerprint string) error {
-	fingerprintState.Lock()
-	key := fingerprintState.key
-	fingerprintState.Unlock()
+	key := fingerprintJob.get().key
 	if key.Key == nil || fingerprint == "" || key.Fingerprint != fingerprint {
 		return errors.New("Connect again to trust this server.")
 	}
@@ -272,35 +278,19 @@ type ResolveStatus struct {
 	Error      string      `json:"error,omitempty"`
 }
 
-var resolveState struct {
-	sync.Mutex
-	status ResolveStatus
-}
+var resolveJob job[ResolveStatus]
 
 func startResolve(c Connection) error {
-	resolveState.Lock()
-	if resolveState.status.Running {
-		resolveState.Unlock()
-		return errors.New("SSH config lookup is already in progress.")
-	}
-	resolveState.status = ResolveStatus{Running: true}
-	resolveState.Unlock()
-	go func() {
+	return resolveJob.start("SSH config lookup is already in progress.", ResolveStatus{Running: true}, func() ResolveStatus {
 		value, err := resolveSSH(c)
-		resolveState.Lock()
-		defer resolveState.Unlock()
-		resolveState.status = ResolveStatus{Connection: &value}
 		if err != nil {
-			resolveState.status = ResolveStatus{Error: err.Error()}
+			return ResolveStatus{Error: err.Error()}
 		}
-	}()
-	return nil
+		return ResolveStatus{Connection: &value}
+	})
 }
-func resolveStatus() ResolveStatus {
-	resolveState.Lock()
-	defer resolveState.Unlock()
-	return resolveState.status
-}
+
+func resolveStatus() ResolveStatus { return resolveJob.get() }
 
 type ViewStatus struct {
 	Running bool     `json:"running"`
@@ -308,63 +298,26 @@ type ViewStatus struct {
 	Error   string   `json:"error,omitempty"`
 }
 
-type viewSession struct {
-	sync.Mutex
-	status ViewStatus
-}
+func startViewFor(target string, id int) error { return machineFor(target).startView(id) }
 
-var (
-	viewState       viewSession
-	remoteViewState viewSession
-)
-
-func viewForTarget(target string) *viewSession {
-	if target == "remote" {
-		return &remoteViewState
-	}
-	return &viewState
-}
-
-func startView(id int) error { return startViewFor("local", id) }
-
-func startViewFor(target string, id int) error {
-	state := viewForTarget(target)
-	state.Lock()
-	if state.status.Running {
-		state.Unlock()
-		return errors.New("A folder report is already loading.")
-	}
-	state.status = ViewStatus{Running: true}
-	state.Unlock()
-	go func() {
-		v, err := viewDirFor(target, id)
-		s := ViewStatus{View: &v}
+func (m *machine) startView(id int) error {
+	return m.view.start("A folder report is already loading.", ViewStatus{Running: true}, func() ViewStatus {
+		v, err := m.viewDir(id)
 		if err != nil {
-			s = ViewStatus{Error: err.Error()}
+			return ViewStatus{Error: err.Error()}
 		}
-		state.Lock()
-		state.status = s
-		state.Unlock()
-	}()
-	return nil
+		return ViewStatus{View: &v}
+	})
 }
 
-func viewStatus() ViewStatus { return viewStatusFor("local") }
+func viewStatusFor(target string) ViewStatus { return machineFor(target).viewStatus() }
 
-func viewStatusFor(target string) ViewStatus {
-	state := viewForTarget(target)
-	state.Lock()
-	defer state.Unlock()
-	return state.status
-}
+func (m *machine) viewStatus() ViewStatus { return m.view.get() }
 
 func closeResults() {
-	for _, target := range []string{"local", "remote"} {
-		_ = cancelScanFor(target)
-		state := scanForTarget(target)
-		state.Lock()
-		tree := state.tree
-		state.Unlock()
+	for _, m := range machines {
+		m.cancelScan()
+		tree, _ := m.scanTree()
 		tree.close()
 	}
 }
