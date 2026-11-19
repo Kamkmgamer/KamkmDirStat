@@ -1,4 +1,4 @@
-package main
+package monitor
 
 import (
 	"context"
@@ -17,23 +17,23 @@ func withFastMonitorTimeouts(t *testing.T) {
 func TestSuperviseMonitorReconnectsAfterStall(t *testing.T) {
 	withFastMonitorTimeouts(t)
 	var mu sync.Mutex
-	status := MonitorStatus{Running: true, Connecting: true}
-	update := func(f func(*MonitorStatus)) bool { mu.Lock(); defer mu.Unlock(); f(&status); return true }
+	status := Status{Running: true, Connecting: true}
+	update := func(f func(*Status)) bool { mu.Lock(); defer mu.Unlock(); f(&status); return true }
 	attempts := 0
 	sawReconnecting := false
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	run := func(ctx context.Context, up func(func(*MonitorStatus)) bool) error {
+	run := func(ctx context.Context, up func(func(*Status)) bool) error {
 		attempts++
 		mu.Lock()
 		sawReconnecting = sawReconnecting || status.Reconnecting
 		mu.Unlock()
-		up(func(s *MonitorStatus) { s.Connecting = false })
+		up(func(s *Status) { s.Connecting = false })
 		if attempts == 1 {
 			<-ctx.Done() // a stalled connection: no samples, no error
 			return ctx.Err()
 		}
-		up(func(s *MonitorStatus) { s.Seq++ })
+		up(func(s *Status) { s.Seq++ })
 		cancel()
 		return ctx.Err()
 	}
@@ -48,10 +48,10 @@ func TestSuperviseMonitorReconnectsAfterStall(t *testing.T) {
 
 func TestSuperviseMonitorReturnsErrorsBeforeConnecting(t *testing.T) {
 	withFastMonitorTimeouts(t)
-	update := func(f func(*MonitorStatus)) bool { var s MonitorStatus; f(&s); return true }
+	update := func(f func(*Status)) bool { var s Status; f(&s); return true }
 	want := errors.New("no python")
 	attempts := 0
-	err := superviseMonitor(context.Background(), func(context.Context, func(func(*MonitorStatus)) bool) error {
+	err := superviseMonitor(context.Background(), func(context.Context, func(func(*Status)) bool) error {
 		attempts++
 		return want
 	}, update)
@@ -62,13 +62,13 @@ func TestSuperviseMonitorReturnsErrorsBeforeConnecting(t *testing.T) {
 
 func TestSuperviseMonitorReconnectsAfterDrop(t *testing.T) {
 	withFastMonitorTimeouts(t)
-	update := func(f func(*MonitorStatus)) bool { var s MonitorStatus; f(&s); return true }
+	update := func(f func(*Status)) bool { var s Status; f(&s); return true }
 	attempts := 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_ = superviseMonitor(ctx, func(ctx context.Context, up func(func(*MonitorStatus)) bool) error {
+	_ = superviseMonitor(ctx, func(ctx context.Context, up func(func(*Status)) bool) error {
 		attempts++
-		up(func(s *MonitorStatus) { s.Connecting = false })
+		up(func(s *Status) { s.Connecting = false })
 		if attempts < 3 {
 			return errors.New("The monitor stopped unexpectedly: EOF")
 		}

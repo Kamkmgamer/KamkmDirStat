@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/wire"
 )
 
 // The native helper (cmd/kamkm-helper) scans Linux servers several times faster than find
@@ -99,7 +101,7 @@ func helperCommand(root string, oneFS bool) string {
 	}
 	return `[ -n "$HOME" ] || { printf 'SSE2 unavailable\n'; exit 0; }; ` +
 		`case "$(uname -s) $(uname -m)" in ` + cases.String() + `*) printf 'SSE2 unavailable\n'; exit 0 ;; esac; ` +
-		`p=` + helperDir + `/$h; if [ -x "$p" ]; then exec "$p" report ` + shellQuote(root) + ` ` + one + `; fi; ` +
+		`p=` + helperDir + `/$h; if [ -x "$p" ]; then exec "$p" report ` + wire.ShellQuote(root) + ` ` + one + `; fi; ` +
 		`printf 'SSE2 needhelper %s\n' "$a"`
 }
 

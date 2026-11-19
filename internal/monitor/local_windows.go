@@ -1,4 +1,4 @@
-package main
+package monitor
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
@@ -103,11 +102,11 @@ type localSampler struct {
 	gpu       *gpuSampler
 }
 
-func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func(*MonitorStatus)) bool) error {
+func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func(*Status)) bool) error {
 	s := newLocalSampler()
 	defer s.gpu.close()
 	hello, _ := json.Marshal(s.hello())
-	if !update(func(st *MonitorStatus) { st.Hello = hello; st.Connecting = false }) {
+	if !update(func(st *Status) { st.Hello = hello; st.Connecting = false }) {
 		return context.Canceled
 	}
 	go func() {
@@ -117,7 +116,7 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 				return
 			case line := <-writes:
 				result, _ := json.Marshal(s.handle(line))
-				update(func(st *MonitorStatus) { addMonitorResult(st, result) })
+				update(func(st *Status) { addMonitorResult(st, result) })
 			}
 		}
 	}()
@@ -519,7 +518,7 @@ func (s *localSampler) readNetwork(elapsed float64) []map[string]any {
 
 // handle carries out one action from the page and returns its result message.
 func (s *localSampler) handle(line []byte) map[string]any {
-	var a MonitorAction
+	var a Action
 	if err := json.Unmarshal(line, &a); err != nil {
 		return map[string]any{"type": "result", "ok": false, "message": "Invalid request."}
 	}
@@ -542,7 +541,7 @@ func (s *localSampler) handle(line []byte) map[string]any {
 	return map[string]any{"type": "result", "id": a.ID, "ok": true, "message": message}
 }
 
-func (s *localSampler) endProcess(a MonitorAction) (string, error) {
+func (s *localSampler) endProcess(a Action) (string, error) {
 	pid := uint32(a.PID)
 	list := s.readProcessList()
 	var target *localProcess
@@ -919,24 +918,4 @@ func listGPUAdapters() []gpuAdapter {
 			dedicated: int64(desc.DedicatedVideoMemory), shared: int64(desc.SharedSystemMemory)})
 	}
 	return adapters
-}
-
-// launchElevated starts another copy of the app as administrator. It returns an error if
-// the user declines the Windows prompt.
-func launchElevated() error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	verb, _ := windows.UTF16PtrFromString("runas")
-	file, _ := windows.UTF16PtrFromString(exe)
-	dir, _ := windows.UTF16PtrFromString(filepath.Dir(exe))
-	args, _ := windows.UTF16PtrFromString(restartedArg)
-	if err := windows.ShellExecute(0, verb, file, args, dir, windows.SW_SHOWNORMAL); err != nil {
-		if errors.Is(err, windows.ERROR_CANCELLED) {
-			return errors.New("Administrator access was not granted.")
-		}
-		return err
-	}
-	return nil
 }

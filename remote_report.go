@@ -184,7 +184,7 @@ func remoteReportScan(ctx context.Context, client *ssh.Client, c Connection, t *
 	if c.SkipVirtual {
 		one = "1"
 	}
-	command := "if command -v python3 >/dev/null 2>&1; then exec python3 -u -c " + shellQuote(remoteReportScript) + " " + shellQuote(t.RootPath) + " " + one + "; else printf 'SSE2 unavailable\\n'; fi"
+	command := "if command -v python3 >/dev/null 2>&1; then exec python3 -u -c " + wire.ShellQuote(remoteReportScript) + " " + wire.ShellQuote(t.RootPath) + " " + one + "; else printf 'SSE2 unavailable\\n'; fi"
 	_, handled, err := runRemoteReport(ctx, client, command, t, result, report)
 	return handled, err
 }
@@ -218,7 +218,7 @@ func runRemoteReport(ctx context.Context, client *ssh.Client, command string, t 
 	output := bufio.NewReaderSize(stdout, 64<<10)
 	header := make(chan string, 1)
 	go func() { header <- wire.Header(output, "SSE2 ") }()
-	timer := time.NewTimer(shellHeaderTimeout)
+	timer := time.NewTimer(wire.HeaderTimeout)
 	defer timer.Stop()
 	var line string
 	select {

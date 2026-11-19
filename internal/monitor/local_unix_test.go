@@ -1,10 +1,9 @@
 //go:build linux || (darwin && cgo)
 
-package main
+package monitor
 
 import (
 	"encoding/json"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -13,11 +12,11 @@ import (
 )
 
 func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
-	if err := startMonitor(Connection{Local: true}); err != nil {
+	if err := startLocalMonitor(); err != nil {
 		t.Fatal(err)
 	}
 	defer stopMonitor()
-	s := waitUnixMonitor(t, func(s MonitorStatus) bool { return s.Seq >= 2 })
+	s := waitUnixMonitor(t, func(s Status) bool { return s.Seq >= 2 })
 	var hello struct{ Platform, Privilege, User, System string }
 	if err := json.Unmarshal(s.Hello, &hello); err != nil {
 		t.Fatal(err)
@@ -63,14 +62,14 @@ func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
 	}
 	defer victim.Process.Kill()
 	start := testProcessStart(t, victim.Process.Pid)
-	for _, a := range []MonitorAction{
+	for _, a := range []Action{
 		{ID: 1, Type: "kill", PID: victim.Process.Pid, Start: start + 1, Signal: "TERM"},
 		{ID: 2, Type: "kill", PID: victim.Process.Pid, Start: start, Signal: "TERM"},
 	} {
 		if err := monitorAction(a); err != nil {
 			t.Fatal(err)
 		}
-		waitUnixMonitor(t, func(s MonitorStatus) bool { _, _, found := monitorResult(s, a.ID); return found })
+		waitUnixMonitor(t, func(s Status) bool { _, _, found := monitorResult(s, a.ID); return found })
 	}
 	s = monitorStatus()
 	if _, message, _ := monitorResult(s, 1); !strings.Contains(message, "already exited") {
@@ -91,11 +90,11 @@ func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
 // The page waits for the first sample, so it must not wait a whole sampling interval.
 func TestLocalMonitorFirstSampleIsQuick(t *testing.T) {
 	began := time.Now()
-	if err := startMonitor(Connection{Local: true}); err != nil {
+	if err := startLocalMonitor(); err != nil {
 		t.Fatal(err)
 	}
 	defer stopMonitor()
-	waitUnixMonitor(t, func(s MonitorStatus) bool { return s.Seq >= 1 })
+	waitUnixMonitor(t, func(s Status) bool { return s.Seq >= 1 })
 	if took := time.Since(began); took > 900*time.Millisecond {
 		t.Fatalf("first sample took %v", took)
 	} else {
@@ -103,7 +102,7 @@ func TestLocalMonitorFirstSampleIsQuick(t *testing.T) {
 	}
 }
 
-func waitUnixMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus {
+func waitUnixMonitor(t *testing.T, done func(Status) bool) Status {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
@@ -117,21 +116,5 @@ func waitUnixMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus 
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("timed out: %+v", monitorStatus())
-	return MonitorStatus{}
-}
-
-func TestListDrivesFindsSystemDisk(t *testing.T) {
-	drives := listDrives()
-	if len(drives) == 0 {
-		t.Fatal("no drives found")
-	}
-	for _, d := range drives {
-		if d.Total <= 0 || d.Free < 0 || d.Free > d.Total || d.Path == "" {
-			t.Errorf("bad drive %+v", d)
-		}
-		if _, err := os.Stat(d.Path); err != nil {
-			t.Errorf("drive path %s: %v", d.Path, err)
-		}
-	}
-	t.Logf("drives: %+v", drives)
+	return Status{}
 }

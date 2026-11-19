@@ -1,6 +1,6 @@
 //go:build linux
 
-package main
+package monitor
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 )
 
 // On Linux the local monitor runs the same sampler as on servers, as a child process.
-func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func(*MonitorStatus)) bool) error {
+func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func(*Status)) bool) error {
 	python, err := exec.LookPath("python3")
 	if err != nil {
 		return errors.New("Monitoring this computer needs Python 3. Install the python3 package and try again.")

@@ -1,6 +1,6 @@
 //go:build darwin && cgo
 
-package main
+package monitor
 
 /*
 #include <mach/mach.h>
@@ -180,11 +180,11 @@ import (
 // The Mac monitor reads the same figures Activity Monitor shows. Administrators are asked
 // for their password to end other users' processes or free the cache with purge.
 
-func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func(*MonitorStatus)) bool) error {
+func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func(*Status)) bool) error {
 	s := newMacSampler()
 	defer s.gpu.stop()
 	hello, _ := json.Marshal(s.hello())
-	if !update(func(st *MonitorStatus) { st.Hello = hello; st.Connecting = false }) {
+	if !update(func(st *Status) { st.Hello = hello; st.Connecting = false }) {
 		return context.Canceled
 	}
 	go func() {
@@ -194,7 +194,7 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 				return
 			case line := <-writes:
 				result, _ := json.Marshal(s.handle(line))
-				update(func(st *MonitorStatus) { addMonitorResult(st, result) })
+				update(func(st *Status) { addMonitorResult(st, result) })
 			}
 		}
 	}()
@@ -211,7 +211,7 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 		if err != nil {
 			return err
 		}
-		if !update(func(st *MonitorStatus) { st.Sample = data; st.Seq++ }) {
+		if !update(func(st *Status) { st.Sample = data; st.Seq++ }) {
 			return context.Canceled
 		}
 		select {
@@ -485,7 +485,7 @@ func (s *macSampler) interfaces(elapsed float64) []map[string]any {
 }
 
 func (s *macSampler) handle(line []byte) map[string]any {
-	var a MonitorAction
+	var a Action
 	if err := json.Unmarshal(line, &a); err != nil {
 		return map[string]any{"type": "result", "ok": false, "message": "Invalid request."}
 	}
@@ -505,7 +505,7 @@ func (s *macSampler) handle(line []byte) map[string]any {
 	return map[string]any{"type": "result", "id": a.ID, "ok": true, "message": message}
 }
 
-func (s *macSampler) endProcess(a MonitorAction) (string, error) {
+func (s *macSampler) endProcess(a Action) (string, error) {
 	sig := map[string]syscall.Signal{"TERM": syscall.SIGTERM, "KILL": syscall.SIGKILL}[a.Signal]
 	if sig == 0 {
 		return "", errors.New("Invalid request to end a process.")

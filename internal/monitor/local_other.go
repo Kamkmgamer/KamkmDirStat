@@ -1,12 +1,12 @@
 //go:build !windows && !linux && !(darwin && cgo)
 
-package main
+package monitor
 
 import (
 	"context"
 	"errors"
 )
 
-func runLocalMonitor(context.Context, <-chan []byte, func(func(*MonitorStatus)) bool) error {
+func runLocalMonitor(context.Context, <-chan []byte, func(func(*Status)) bool) error {
 	return errors.New("Monitoring this computer is not available on this system.")
 }

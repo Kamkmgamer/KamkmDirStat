@@ -13,12 +13,19 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"time"
 )
 
 const (
 	maxFrame   = 8 << 20  // compressed
 	maxMessage = 32 << 20 // JSON
 )
+
+// HeaderTimeout is how long a program started on a server may take to send its header.
+const HeaderTimeout = 20 * time.Second
+
+// ShellQuote quotes s as one word for a POSIX shell.
+func ShellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 // Read reads one message. It returns the JSON and the number of bytes read from src.
 func Read(src io.Reader) ([]byte, int64, error) {

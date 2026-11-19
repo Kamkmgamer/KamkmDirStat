@@ -1,8 +1,7 @@
-package main
+package monitor
 
 import (
 	"encoding/json"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -12,11 +11,11 @@ import (
 )
 
 func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
-	if err := startMonitor(Connection{Local: true}); err != nil {
+	if err := startLocalMonitor(); err != nil {
 		t.Fatal(err)
 	}
 	defer stopMonitor()
-	s := waitLocalMonitor(t, func(s MonitorStatus) bool { return s.Seq >= 2 })
+	s := waitLocalMonitor(t, func(s Status) bool { return s.Seq >= 2 })
 	var hello struct{ Platform, Privilege, User, System, CPUModel string }
 	if err := json.Unmarshal(s.Hello, &hello); err != nil {
 		t.Fatal(err)
@@ -68,7 +67,7 @@ func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
 	t.Logf("%d cores, %d network interfaces, %d processes", len(sample.CPU.Cores), len(sample.Network), sample.ProcessCount)
 
 	// The system process is refused, and so is a PID whose start time no longer matches.
-	if err := monitorAction(MonitorAction{ID: 1, Type: "kill", PID: 4, Start: 0, Signal: "KILL"}); err != nil {
+	if err := monitorAction(Action{ID: 1, Type: "kill", PID: 4, Start: 0, Signal: "KILL"}); err != nil {
 		t.Fatal(err)
 	}
 	victim := exec.Command("ping", "-n", "60", "127.0.0.1")
@@ -77,7 +76,7 @@ func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
 	}
 	defer victim.Process.Kill()
 	start := processStart(t, victim.Process.Pid)
-	actions := []MonitorAction{
+	actions := []Action{
 		{ID: 2, Type: "kill", PID: victim.Process.Pid, Start: start + 1, Signal: "KILL"},
 		{ID: 3, Type: "kill", PID: victim.Process.Pid, Start: start, Signal: "TERM"},
 		{ID: 4, Type: "kill", PID: victim.Process.Pid, Start: start, Signal: "KILL"},
@@ -86,7 +85,7 @@ func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
 		if err := monitorAction(a); err != nil {
 			t.Fatal(err)
 		}
-		waitLocalMonitor(t, func(s MonitorStatus) bool { _, _, found := monitorResult(s, a.ID); return found })
+		waitLocalMonitor(t, func(s Status) bool { _, _, found := monitorResult(s, a.ID); return found })
 	}
 	s = monitorStatus()
 	expect := map[int]struct {
@@ -112,11 +111,11 @@ func TestLocalMonitorSamplesAndEndsProcess(t *testing.T) {
 // for the GPU counters, which take about a second to load the first time.
 func TestLocalMonitorFirstSampleIsQuick(t *testing.T) {
 	began := time.Now()
-	if err := startMonitor(Connection{Local: true}); err != nil {
+	if err := startLocalMonitor(); err != nil {
 		t.Fatal(err)
 	}
 	defer stopMonitor()
-	waitLocalMonitor(t, func(s MonitorStatus) bool { return s.Seq >= 1 })
+	waitLocalMonitor(t, func(s Status) bool { return s.Seq >= 1 })
 	if took := time.Since(began); took > 900*time.Millisecond {
 		t.Fatalf("first sample took %v", took)
 	} else {
@@ -158,7 +157,7 @@ func processStart(t *testing.T, pid int) int64 {
 	return (int64(created.HighDateTime)<<32 | int64(created.LowDateTime)) / 10000
 }
 
-func waitLocalMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus {
+func waitLocalMonitor(t *testing.T, done func(Status) bool) Status {
 	t.Helper()
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
@@ -172,19 +171,5 @@ func waitLocalMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("timed out: %+v", monitorStatus())
-	return MonitorStatus{}
-}
-
-func TestListDrives(t *testing.T) {
-	drives := listDrives()
-	system := strings.ToUpper(os.Getenv("SystemDrive")) + `\`
-	for _, d := range drives {
-		if strings.EqualFold(d.Path, system) {
-			if d.Total <= 0 || d.Free < 0 || d.Free > d.Total || d.Kind != "fixed" {
-				t.Fatalf("bad system drive: %+v", d)
-			}
-			return
-		}
-	}
-	t.Fatalf("system drive %s missing from %+v", system, drives)
+	return Status{}
 }

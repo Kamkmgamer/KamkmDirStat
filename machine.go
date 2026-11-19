@@ -1,5 +1,7 @@
 package main
 
+import "github.com/Kamkmgamer/KamkmDirStat/internal/monitor"
+
 // machine is one computer the app works with. Each has its own scan, folder views,
 // searches and monitor, so work on one never disturbs another. The page names a machine
 // by its target: "local" for this computer, "remote" for the SSH server.
@@ -9,7 +11,7 @@ type machine struct {
 	scan    scanSession
 	view    job[ViewStatus]
 	search  searchSession
-	monitor monitorSession
+	monitor monitor.Session
 }
 
 var (

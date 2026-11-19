@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/wire"
 )
 
 func findStream(records ...string) *strings.Reader {
@@ -106,7 +108,7 @@ func TestRelativePaths(t *testing.T) {
 }
 
 func TestShellQuote(t *testing.T) {
-	if got := shellQuote("/it's here"); got != `'/it'\''s here'` {
+	if got := wire.ShellQuote("/it's here"); got != `'/it'\''s here'` {
 		t.Fatalf("got %s", got)
 	}
 	script := findScript("/a'b", true)
