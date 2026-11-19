@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"runtime"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/history"
 )
 
 // window is the part of a webview the app uses. WebView2 on Windows and the webview
@@ -19,6 +21,9 @@ const (
 	windowWidth  = 1320
 	windowHeight = 850
 )
+
+// Monitoring history is kept beside the settings.
+func init() { history.Dir = func() (string, error) { return settingsDir() } }
 
 // appPlatform tells the page which operating system it runs on: windows, linux or darwin.
 func appPlatform() string { return runtime.GOOS }
@@ -50,9 +55,9 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"stopMonitor":         stopMonitorFor,
 		"monitorStatus":       monitorStatusFor,
 		"monitorAction":       monitorActionFor,
-		"monitorHistory":      monitorHistory,
-		"clearMonitorHistory": clearMonitorHistory,
-		"historyMachines":     historyMachines,
+		"monitorHistory":      history.Get,
+		"clearMonitorHistory": history.Clear,
+		"historyMachines":     history.Machines,
 		"listDrives":          listDrives,
 		"saveSettings":        saveSettings,
 		"exportTheme":         exportTheme,
@@ -81,7 +86,7 @@ func runWindow(w window, settings json.RawMessage, extra map[string]interface{})
 	defer stopDriveIndex()
 	defer closeResults()
 	defer stopAllMonitors()
-	defer closeMonitorHistory()
+	defer history.Close()
 	defer cancelOpen()
 	defer cancelCleanup()
 	w.SetTitle(windowTitle)

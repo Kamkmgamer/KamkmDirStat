@@ -1,4 +1,7 @@
-package main
+// Package history records what the activity monitor samples on each computer, keeps it
+// for three days in a file per computer, and turns it into the chart, process snapshots
+// and events the History view shows.
+package history
 
 import (
 	"bufio"
@@ -33,7 +36,7 @@ const (
 	historyCoarseStep   = 10.0
 )
 
-type HistoryPoint struct {
+type Point struct {
 	Time       float64  `json:"time"`
 	CPU        float64  `json:"cpu"`
 	Memory     float64  `json:"memory"`
@@ -46,7 +49,7 @@ type HistoryPoint struct {
 	CPUTemp    *float64 `json:"cpuTemp,omitempty"`
 }
 
-type HistoryProcess struct {
+type Process struct {
 	PID       int     `json:"pid"`
 	PPID      int     `json:"ppid,omitempty"`
 	Start     int64   `json:"start"`
@@ -61,8 +64,8 @@ type HistoryProcess struct {
 	Elevated  *bool   `json:"elevated,omitempty"`
 }
 
-func (p HistoryProcess) identity() string   { return fmt.Sprintf("%d:%d", p.PID, p.Start) }
-func (p HistoryProcess) executable() string { return executableKey(p.Name, p.Cmd) }
+func (p Process) identity() string   { return fmt.Sprintf("%d:%d", p.PID, p.Start) }
+func (p Process) executable() string { return executableKey(p.Name, p.Cmd) }
 
 func executableKey(name, cmd string) string {
 	if cmd != "" {
@@ -71,12 +74,12 @@ func executableKey(name, cmd string) string {
 	return strings.ToLower(name)
 }
 
-type HistorySnapshot struct {
-	Time      float64          `json:"time"`
-	Processes []HistoryProcess `json:"processes"`
+type Snapshot struct {
+	Time      float64   `json:"time"`
+	Processes []Process `json:"processes"`
 }
 
-// storedPoint is a HistoryPoint as kept in memory. Values are float32 and a missing optional
+// storedPoint is a Point as kept in memory. Values are float32 and a missing optional
 // value is NaN, so three days of samples need no allocations beyond one slice.
 type storedPoint struct {
 	Time                                                               float64
@@ -100,14 +103,14 @@ func optional64(v float32) *float64 {
 	return &f
 }
 
-func storePoint(p HistoryPoint) storedPoint {
+func storePoint(p Point) storedPoint {
 	return storedPoint{Time: p.Time, CPU: float32(p.CPU), Memory: float32(p.Memory), GPU: optional32(p.GPU),
 		Rx: float32(p.Rx), Tx: float32(p.Tx), DiskRead: float32(p.DiskRead), DiskWrite: float32(p.DiskWrite),
 		DiskActive: optional32(p.DiskActive), CPUTemp: optional32(p.CPUTemp)}
 }
 
-func (p storedPoint) point() HistoryPoint {
-	return HistoryPoint{Time: p.Time, CPU: float64(p.CPU), Memory: float64(p.Memory), GPU: optional64(p.GPU),
+func (p storedPoint) point() Point {
+	return Point{Time: p.Time, CPU: float64(p.CPU), Memory: float64(p.Memory), GPU: optional64(p.GPU),
 		Rx: float64(p.Rx), Tx: float64(p.Tx), DiskRead: float64(p.DiskRead), DiskWrite: float64(p.DiskWrite),
 		DiskActive: optional64(p.DiskActive), CPUTemp: optional64(p.CPUTemp)}
 }
@@ -164,28 +167,28 @@ type snapshotRef struct {
 	size int32
 }
 
-type MonitorEvent struct {
-	ID        string          `json:"id"`
-	Time      float64         `json:"time"`
-	Type      string          `json:"type"`
-	Severity  string          `json:"severity"`
-	Title     string          `json:"title"`
-	Message   string          `json:"message"`
-	Process   *HistoryProcess `json:"process,omitempty"`
-	Metric    string          `json:"metric,omitempty"`
-	Value     float64         `json:"value,omitempty"`
-	Threshold float64         `json:"threshold,omitempty"`
+type Event struct {
+	ID        string   `json:"id"`
+	Time      float64  `json:"time"`
+	Type      string   `json:"type"`
+	Severity  string   `json:"severity"`
+	Title     string   `json:"title"`
+	Message   string   `json:"message"`
+	Process   *Process `json:"process,omitempty"`
+	Metric    string   `json:"metric,omitempty"`
+	Value     float64  `json:"value,omitempty"`
+	Threshold float64  `json:"threshold,omitempty"`
 }
 
 type historyRecord struct {
-	Kind     string           `json:"kind"`
-	Machine  string           `json:"machine,omitempty"`
-	Point    *HistoryPoint    `json:"point,omitempty"`
-	Snapshot *HistorySnapshot `json:"snapshot,omitempty"`
-	Event    *MonitorEvent    `json:"event,omitempty"`
+	Kind     string    `json:"kind"`
+	Machine  string    `json:"machine,omitempty"`
+	Point    *Point    `json:"point,omitempty"`
+	Snapshot *Snapshot `json:"snapshot,omitempty"`
+	Event    *Event    `json:"event,omitempty"`
 }
 
-type HistoryQuery struct {
+type Query struct {
 	From        float64 `json:"from"`
 	To          float64 `json:"to"`
 	Points      int     `json:"points"`
@@ -193,28 +196,28 @@ type HistoryQuery struct {
 	EventType   string  `json:"eventType"`
 	EventLimit  int     `json:"eventLimit"`
 	// Machine selects whose history to read: "local" (or empty) for this computer, or the
-	// key of a server, as reported by monitorStatus and historyMachines.
+	// key of a server, as reported by monitorStatus and Machines.
 	Machine string `json:"machine"`
 }
 
-// HistoryMachine is a computer with recorded history.
-type HistoryMachine struct {
+// Machine is a computer with recorded history.
+type Machine struct {
 	Key    string  `json:"key"`
 	Local  bool    `json:"local"`
 	Newest float64 `json:"newest"`
 }
 
-type MonitorHistory struct {
-	From           float64          `json:"from"`
-	To             float64          `json:"to"`
-	Machine        string           `json:"machine"`
-	Oldest         float64          `json:"oldest"`
-	Newest         float64          `json:"newest"`
-	Points         []HistoryPoint   `json:"points"`
-	Events         []MonitorEvent   `json:"events"`
-	Processes      []HistoryProcess `json:"processes,omitempty"`
-	ProcessTime    float64          `json:"processTime,omitempty"`
-	StorageWarning string           `json:"storageWarning,omitempty"`
+type History struct {
+	From           float64   `json:"from"`
+	To             float64   `json:"to"`
+	Machine        string    `json:"machine"`
+	Oldest         float64   `json:"oldest"`
+	Newest         float64   `json:"newest"`
+	Points         []Point   `json:"points"`
+	Events         []Event   `json:"events"`
+	Processes      []Process `json:"processes,omitempty"`
+	ProcessTime    float64   `json:"processTime,omitempty"`
+	StorageWarning string    `json:"storageWarning,omitempty"`
 }
 
 type resourceState struct {
@@ -230,15 +233,15 @@ type historyStore struct {
 	size           int64
 	points         []storedPoint
 	snapshots      []snapshotRef
-	events         []MonitorEvent
-	known          map[string]HistoryProcess
+	events         []Event
+	known          map[string]Process
 	executables    map[string]bool
 	lastActivity   float64
 	lastSnapshot   float64
 	resources      map[string]*resourceState
 	nextEventID    uint64
 	storageWarning string
-	identify       func(HistoryProcess) HistoryProcess
+	identify       func(Process) Process
 	lastCompact    float64
 }
 
@@ -276,9 +279,9 @@ func (h *historyStore) openAppend() error {
 // historyLoadRecord reads a history line without keeping a snapshot's processes: loading
 // only needs each process's executable.
 type historyLoadRecord struct {
-	Kind     string        `json:"kind"`
-	Machine  string        `json:"machine,omitempty"`
-	Point    *HistoryPoint `json:"point,omitempty"`
+	Kind     string `json:"kind"`
+	Machine  string `json:"machine,omitempty"`
+	Point    *Point `json:"point,omitempty"`
 	Snapshot *struct {
 		Time      float64 `json:"time"`
 		Processes []struct {
@@ -286,7 +289,7 @@ type historyLoadRecord struct {
 			Cmd  string `json:"cmd"`
 		} `json:"processes"`
 	} `json:"snapshot,omitempty"`
-	Event *MonitorEvent `json:"event,omitempty"`
+	Event *Event `json:"event,omitempty"`
 }
 
 func (h *historyStore) load(now time.Time) error {
@@ -355,7 +358,7 @@ func (h *historyStore) prune(now float64) {
 	cutoff := now - monitorHistoryRetention.Seconds()
 	h.points = sliceAfter(h.points, cutoff, func(p storedPoint) float64 { return p.Time })
 	h.snapshots = sliceAfter(h.snapshots, cutoff, func(s snapshotRef) float64 { return s.time })
-	h.events = sliceAfter(h.events, cutoff, func(e MonitorEvent) float64 { return e.Time })
+	h.events = sliceAfter(h.events, cutoff, func(e Event) float64 { return e.Time })
 	h.trimEvents(historyEventSlack)
 }
 
@@ -485,22 +488,22 @@ func (h *historyStore) writeTemp(src *os.File) ([]snapshotRef, int64, error) {
 	return snapshots, off, err
 }
 
-func (h *historyStore) readSnapshot(ref snapshotRef) (HistorySnapshot, error) {
+func (h *historyStore) readSnapshot(ref snapshotRef) (Snapshot, error) {
 	f, err := os.Open(h.path)
 	if err != nil {
-		return HistorySnapshot{}, err
+		return Snapshot{}, err
 	}
 	defer f.Close()
 	buf := make([]byte, ref.size)
 	if _, err := f.ReadAt(buf, ref.off); err != nil {
-		return HistorySnapshot{}, err
+		return Snapshot{}, err
 	}
 	var r historyRecord
 	if err := json.Unmarshal(buf, &r); err != nil {
-		return HistorySnapshot{}, err
+		return Snapshot{}, err
 	}
 	if r.Kind != "snapshot" || r.Snapshot == nil {
-		return HistorySnapshot{}, errors.New("history snapshot not found")
+		return Snapshot{}, errors.New("history snapshot not found")
 	}
 	return *r.Snapshot, nil
 }
@@ -557,13 +560,13 @@ type sampleData struct {
 		Write  float64  `json:"write"`
 		Active *float64 `json:"active"`
 	} `json:"disk"`
-	CPUTemp         *float64         `json:"cpuTemp"`
-	Processes       []HistoryProcess `json:"processes"`
-	ProcessActivity []HistoryProcess `json:"processActivity"`
+	CPUTemp         *float64  `json:"cpuTemp"`
+	Processes       []Process `json:"processes"`
+	ProcessActivity []Process `json:"processActivity"`
 }
 
-func historyPoint(s sampleData) HistoryPoint {
-	p := HistoryPoint{Time: s.Time, CPU: s.CPU.Total, DiskRead: s.Disk.Read, DiskWrite: s.Disk.Write, DiskActive: s.Disk.Active, CPUTemp: s.CPUTemp}
+func historyPoint(s sampleData) Point {
+	p := Point{Time: s.Time, CPU: s.CPU.Total, DiskRead: s.Disk.Read, DiskWrite: s.Disk.Write, DiskActive: s.Disk.Active, CPUTemp: s.CPUTemp}
 	if s.Memory.Total > 0 {
 		p.Memory = 100 * float64(s.Memory.Used) / float64(s.Memory.Total)
 	}
@@ -624,7 +627,7 @@ func (h *historyStore) record(raw json.RawMessage) {
 	h.append(historyRecord{Kind: "point", Point: &p})
 	h.recordProcesses(s.Time, s.ProcessActivity)
 	if len(s.Processes) > 0 && s.Time-h.lastSnapshot >= historySnapshotInterval.Seconds() {
-		processes := append([]HistoryProcess(nil), s.Processes...)
+		processes := append([]Process(nil), s.Processes...)
 		sort.Slice(processes, func(i, j int) bool {
 			if processes[i].CPU != processes[j].CPU {
 				return processes[i].CPU > processes[j].CPU
@@ -634,7 +637,7 @@ func (h *historyStore) record(raw json.RawMessage) {
 		if len(processes) > 30 {
 			processes = processes[:30]
 		}
-		snap := HistorySnapshot{Time: s.Time, Processes: processes}
+		snap := Snapshot{Time: s.Time, Processes: processes}
 		if off, n := h.append(historyRecord{Kind: "snapshot", Snapshot: &snap}); off >= 0 && n <= math.MaxInt32 {
 			h.snapshots = append(h.snapshots, snapshotRef{time: s.Time, off: off, size: int32(n)})
 		}
@@ -650,11 +653,11 @@ func (h *historyStore) record(raw json.RawMessage) {
 	}
 }
 
-func (h *historyStore) recordProcesses(now float64, current []HistoryProcess) {
+func (h *historyStore) recordProcesses(now float64, current []Process) {
 	if len(current) == 0 {
 		return
 	}
-	next := make(map[string]HistoryProcess, len(current))
+	next := make(map[string]Process, len(current))
 	for _, p := range current {
 		next[p.identity()] = p
 	}
@@ -676,26 +679,26 @@ func (h *historyStore) recordProcesses(now float64, current []HistoryProcess) {
 		}
 		p = identify(p)
 		next[id] = p
-		h.addEvent(MonitorEvent{Time: now, Type: "process_start", Severity: "info", Title: p.Name + " started", Message: fmt.Sprintf("%s started with PID %d.", p.Name, p.PID), Process: processCopy(p)})
+		h.addEvent(Event{Time: now, Type: "process_start", Severity: "info", Title: p.Name + " started", Message: fmt.Sprintf("%s started with PID %d.", p.Name, p.PID), Process: processCopy(p)})
 		if key := p.executable(); key != "" && !h.executables[key] {
-			h.addEvent(MonitorEvent{Time: now, Type: "process_new", Severity: "notice", Title: "New executable: " + p.Name, Message: executableMessage(p), Process: processCopy(p)})
+			h.addEvent(Event{Time: now, Type: "process_new", Severity: "notice", Title: "New executable: " + p.Name, Message: executableMessage(p), Process: processCopy(p)})
 		}
 		if p.Signed != nil && !*p.Signed {
-			h.addEvent(MonitorEvent{Time: now, Type: "process_unsigned", Severity: "warning", Title: "Unverified executable: " + p.Name, Message: p.executable() + " has no Authenticode signature that Windows can verify.", Process: processCopy(p)})
+			h.addEvent(Event{Time: now, Type: "process_unsigned", Severity: "warning", Title: "Unverified executable: " + p.Name, Message: p.executable() + " has no Authenticode signature that Windows can verify.", Process: processCopy(p)})
 		}
 		h.executables[p.executable()] = true
 	}
 	for id, p := range h.known {
 		if _, ok := next[id]; !ok {
-			h.addEvent(MonitorEvent{Time: now, Type: "process_exit", Severity: "info", Title: p.Name + " exited", Message: fmt.Sprintf("%s (PID %d) exited.", p.Name, p.PID), Process: processCopy(p)})
+			h.addEvent(Event{Time: now, Type: "process_exit", Severity: "info", Title: p.Name + " exited", Message: fmt.Sprintf("%s (PID %d) exited.", p.Name, p.PID), Process: processCopy(p)})
 		}
 	}
 	h.known = next
 	h.lastActivity = now
 }
 
-func processCopy(p HistoryProcess) *HistoryProcess { return &p }
-func executableMessage(p HistoryProcess) string {
+func processCopy(p Process) *Process { return &p }
+func executableMessage(p Process) string {
 	if p.Cmd != "" {
 		return p.Cmd + " ran for the first time in the recorded history."
 	}
@@ -714,7 +717,7 @@ func (h *historyStore) resource(now float64, metric, label string, value, thresh
 		}
 		if !r.active && now-r.since >= 30 {
 			r.active = true
-			h.addEvent(MonitorEvent{Time: now, Type: "resource_" + metric, Severity: "warning", Title: label + " is high", Message: fmt.Sprintf("%s stayed at or above %.0f%% for 30 seconds (now %.0f%%).", label, threshold, value), Metric: metric, Value: value, Threshold: threshold})
+			h.addEvent(Event{Time: now, Type: "resource_" + metric, Severity: "warning", Title: label + " is high", Message: fmt.Sprintf("%s stayed at or above %.0f%% for 30 seconds (now %.0f%%).", label, threshold, value), Metric: metric, Value: value, Threshold: threshold})
 		}
 	} else if value < threshold-15 {
 		r.since = 0
@@ -722,7 +725,7 @@ func (h *historyStore) resource(now float64, metric, label string, value, thresh
 	}
 }
 
-func (h *historyStore) addEvent(e MonitorEvent) {
+func (h *historyStore) addEvent(e Event) {
 	h.nextEventID++
 	e.ID = fmt.Sprintf("%d-%s-%d", int64(e.Time*1000), e.Type, h.nextEventID)
 	h.events = append(h.events, e)
@@ -730,7 +733,7 @@ func (h *historyStore) addEvent(e MonitorEvent) {
 	h.trimEvents(historyEventSlack)
 }
 
-func (h *historyStore) query(q HistoryQuery) MonitorHistory {
+func (h *historyStore) query(q Query) History {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	now := float64(time.Now().UnixNano()) / 1e9
@@ -748,7 +751,7 @@ func (h *historyStore) query(q HistoryQuery) MonitorHistory {
 		q.Points = 600
 	}
 	q.Points = min(2000, q.Points)
-	out := MonitorHistory{Machine: h.machine, From: q.From, To: q.To, Points: []HistoryPoint{}, Events: []MonitorEvent{}, StorageWarning: h.storageWarning}
+	out := History{Machine: h.machine, From: q.From, To: q.To, Points: []Point{}, Events: []Event{}, StorageWarning: h.storageWarning}
 	if len(h.points) > 0 {
 		out.Oldest = h.points[0].Time
 		out.Newest = h.points[len(h.points)-1].Time
@@ -797,16 +800,16 @@ func eventGroup(kind string) string {
 }
 
 // downsampleHistory averages time-ordered points into at most limit equal slices of from–to.
-func downsampleHistory(points []storedPoint, from, to float64, limit int) []HistoryPoint {
+func downsampleHistory(points []storedPoint, from, to float64, limit int) []Point {
 	if len(points) <= limit || limit <= 0 {
-		out := make([]HistoryPoint, len(points))
+		out := make([]Point, len(points))
 		for i, p := range points {
 			out[i] = p.point()
 		}
 		return out
 	}
 	width := math.Max((to-from)/float64(limit), 0.001)
-	out := make([]HistoryPoint, 0, limit)
+	out := make([]Point, 0, limit)
 	var sum pointSum
 	bucket := -1
 	for _, p := range points {
@@ -849,28 +852,31 @@ func (h *historyStore) clear() error {
 
 // Each computer has its own history file. This computer keeps the original file name; a
 // server's file is named after a hash of its key, which the file also records in a meta line.
-const localHistoryMachine = "local"
+const Local = "local"
+
+// Dir returns the folder the history files are kept in. The app sets it.
+var Dir = func() (string, error) { return "", errors.New("no folder for monitoring history") }
 
 func normalizeHistoryMachine(machine string) string {
 	machine = strings.TrimSpace(machine)
-	if machine == "" || strings.EqualFold(machine, localHistoryMachine) {
-		return localHistoryMachine
+	if machine == "" || strings.EqualFold(machine, Local) {
+		return Local
 	}
 	return machine
 }
 
-// remoteHistoryMachine identifies a server by user, host and port, so two accounts on the
+// Remote identifies a server by user, host and port, so two accounts on the
 // same server, or two servers behind one address, keep separate histories.
-func remoteHistoryMachine(c Connection) string {
-	port := strings.TrimSpace(c.Port)
+func Remote(user, host, port string) string {
+	port = strings.TrimSpace(port)
 	if port == "" {
 		port = "22"
 	}
-	return strings.TrimSpace(c.User) + "@" + strings.ToLower(strings.TrimSpace(c.Host)) + ":" + port
+	return strings.TrimSpace(user) + "@" + strings.ToLower(strings.TrimSpace(host)) + ":" + port
 }
 
 func historyFileName(machine string) string {
-	if machine == localHistoryMachine {
+	if machine == Local {
 		return "monitor-history.jsonl"
 	}
 	sum := sha256.Sum256([]byte(machine))
@@ -893,7 +899,7 @@ func historyStoreFor(machine string) (*historyStore, error) {
 	if err := appHistory.errs[machine]; err != nil {
 		return nil, err
 	}
-	dir, err := settingsDir()
+	dir, err := Dir()
 	var h *historyStore
 	if err == nil {
 		h, err = openMachineHistory(filepath.Join(dir, historyFileName(machine)), machine, time.Now())
@@ -914,9 +920,9 @@ func openMachineHistory(path, machine string, now time.Time) (*historyStore, err
 	if err != nil {
 		return nil, err
 	}
-	if machine != localHistoryMachine {
+	if machine != Local {
 		// Signatures are checked against files on this computer, which says nothing about a server.
-		h.identify = func(p HistoryProcess) HistoryProcess { return p }
+		h.identify = func(p Process) Process { return p }
 	}
 	if h.machine != machine {
 		h.mu.Lock()
@@ -931,23 +937,23 @@ func openMachineHistory(path, machine string, now time.Time) (*historyStore, err
 	return h, nil
 }
 
-func defaultHistoryStore() (*historyStore, error) { return historyStoreFor(localHistoryMachine) }
+func defaultHistoryStore() (*historyStore, error) { return historyStoreFor(Local) }
 
-func recordMonitorSample(machine string, raw json.RawMessage) {
+func Record(machine string, raw json.RawMessage) {
 	if h, err := historyStoreFor(machine); err == nil {
 		h.record(raw)
 	}
 }
 
-func monitorHistory(q HistoryQuery) (MonitorHistory, error) {
+func Get(q Query) (History, error) {
 	h, err := historyStoreFor(q.Machine)
 	if err != nil {
-		return MonitorHistory{}, errors.New("Monitoring history is unavailable: " + err.Error())
+		return History{}, errors.New("Monitoring history is unavailable: " + err.Error())
 	}
 	return h.query(q), nil
 }
 
-func clearMonitorHistory(machine string) error {
+func Clear(machine string) error {
 	h, err := historyStoreFor(machine)
 	if err != nil {
 		return err
@@ -955,14 +961,14 @@ func clearMonitorHistory(machine string) error {
 	return h.clear()
 }
 
-// historyMachines lists this computer and every server with a history file, newest first
+// Machines lists this computer and every server with a history file, newest first
 // after this computer. Files that are not open are dated by their last change.
-func historyMachines() ([]HistoryMachine, error) {
-	dir, err := settingsDir()
+func Machines() ([]Machine, error) {
+	dir, err := Dir()
 	if err != nil {
 		return nil, err
 	}
-	found := map[string]float64{localHistoryMachine: 0}
+	found := map[string]float64{Local: 0}
 	appHistory.Lock()
 	open := map[string]*historyStore{}
 	for k, h := range appHistory.stores {
@@ -972,7 +978,7 @@ func historyMachines() ([]HistoryMachine, error) {
 	files, _ := filepath.Glob(filepath.Join(dir, "monitor-history-*.jsonl"))
 	for _, path := range files {
 		machine := readHistoryMachine(path)
-		if machine == "" || machine == localHistoryMachine || historyFileName(machine) != filepath.Base(path) {
+		if machine == "" || machine == Local || historyFileName(machine) != filepath.Base(path) {
 			continue
 		}
 		if info, err := os.Stat(path); err == nil {
@@ -988,9 +994,9 @@ func historyMachines() ([]HistoryMachine, error) {
 		}
 		h.mu.Unlock()
 	}
-	out := make([]HistoryMachine, 0, len(found))
+	out := make([]Machine, 0, len(found))
 	for k, newest := range found {
-		out = append(out, HistoryMachine{Key: k, Local: k == localHistoryMachine, Newest: newest})
+		out = append(out, Machine{Key: k, Local: k == Local, Newest: newest})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Local != out[j].Local {
@@ -1022,7 +1028,7 @@ func readHistoryMachine(path string) string {
 	return r.Machine
 }
 
-func closeMonitorHistory() {
+func Close() {
 	appHistory.Lock()
 	defer appHistory.Unlock()
 	for k, h := range appHistory.stores {

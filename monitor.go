@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/history"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/wire"
 )
 
@@ -79,9 +80,9 @@ func startMonitor(c Connection) error {
 	writes := make(chan []byte, 16)
 	state.cancel = cancel
 	state.writes = writes
-	machine := localHistoryMachine
+	machine := history.Local
 	if !c.Local {
-		machine = remoteHistoryMachine(c)
+		machine = history.Remote(c.User, c.Host, c.Port)
 	}
 	state.status = MonitorStatus{Running: true, Connecting: true, Machine: machine}
 	state.Unlock()
@@ -232,7 +233,7 @@ func stopAllMonitors() {
 // recordSample records a sample in its machine's history, then publishes it, so the
 // history already holds a sample by the time the page polls it.
 func recordSample(machine string, raw json.RawMessage) func(*MonitorStatus) {
-	recordMonitorSample(machine, raw)
+	history.Record(machine, raw)
 	return func(s *MonitorStatus) { s.Sample = raw; s.Seq++ }
 }
 

@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package history
 
 import (
 	"encoding/hex"
@@ -31,7 +31,7 @@ var historyIdentities = struct {
 
 // identifyHistoryProcess checks the executable on disk. Inaccessible paths stay unknown;
 // an explicit false means Windows examined the file but did not verify its signature.
-func identifyHistoryProcess(p HistoryProcess) HistoryProcess {
+func identifyHistoryProcess(p Process) Process {
 	path := filepath.Clean(p.Cmd)
 	if path == "." || path == "" {
 		return p

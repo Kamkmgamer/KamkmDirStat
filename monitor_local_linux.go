@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/history"
 )
 
 // On Linux the local monitor runs the same sampler as on servers, as a child process.
@@ -30,7 +32,7 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	err = monitorProtocolMode(ctx, input, output, func() { _ = cmd.Process.Kill() }, "this computer", writes, update, localHistoryMachine)
+	err = monitorProtocolMode(ctx, input, output, func() { _ = cmd.Process.Kill() }, "this computer", writes, update, history.Local)
 	_ = input.Close() // the sampler exits when its input closes
 	_ = cmd.Wait()
 	return err

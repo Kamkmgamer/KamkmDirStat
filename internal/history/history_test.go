@@ -1,4 +1,4 @@
-package main
+package history
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ func historyTestStore(t *testing.T) *historyStore {
 	return h
 }
 
-func historySample(at float64, activity ...HistoryProcess) sampleData {
+func historySample(at float64, activity ...Process) sampleData {
 	var s sampleData
 	s.Time = at
 	s.CPU.Total = 20
@@ -28,7 +28,7 @@ func historySample(at float64, activity ...HistoryProcess) sampleData {
 	return s
 }
 
-func historyTypes(events []MonitorEvent) []string {
+func historyTypes(events []Event) []string {
 	out := make([]string, len(events))
 	for i, e := range events {
 		out[i] = e.Type
@@ -62,14 +62,14 @@ func TestHistoryPoint(t *testing.T) {
 func TestHistoryProcessEventsAndIdentity(t *testing.T) {
 	h := historyTestStore(t)
 	unsigned := false
-	h.identify = func(p HistoryProcess) HistoryProcess { p.Signed = &unsigned; p.Publisher = ""; return p }
-	old := HistoryProcess{PID: 10, Start: 100, Name: "old.exe", Cmd: `C:\Apps\old.exe`}
-	h.recordProcesses(1000, []HistoryProcess{old})
+	h.identify = func(p Process) Process { p.Signed = &unsigned; p.Publisher = ""; return p }
+	old := Process{PID: 10, Start: 100, Name: "old.exe", Cmd: `C:\Apps\old.exe`}
+	h.recordProcesses(1000, []Process{old})
 	if len(h.events) != 0 {
 		t.Fatalf("baseline created events: %v", historyTypes(h.events))
 	}
-	started := HistoryProcess{PID: 10, Start: 200, Name: "new.exe", Cmd: `C:\Apps\new.exe`}
-	h.recordProcesses(1001, []HistoryProcess{old, started})
+	started := Process{PID: 10, Start: 200, Name: "new.exe", Cmd: `C:\Apps\new.exe`}
+	h.recordProcesses(1001, []Process{old, started})
 	if got, want := fmt.Sprint(historyTypes(h.events)), "[process_start process_new process_unsigned]"; got != want {
 		t.Fatalf("events %s, want %s", got, want)
 	}
@@ -77,8 +77,8 @@ func TestHistoryProcessEventsAndIdentity(t *testing.T) {
 		t.Fatalf("PID reuse was not distinguished by start time: %+v", h.events[0].Process)
 	}
 	// A known unsigned executable alerts on a later start too, without another first-run alert.
-	h.recordProcesses(1002, []HistoryProcess{old})
-	h.recordProcesses(1003, []HistoryProcess{old, started})
+	h.recordProcesses(1002, []Process{old})
+	h.recordProcesses(1003, []Process{old, started})
 	if got, want := fmt.Sprint(historyTypes(h.events)), "[process_start process_new process_unsigned process_exit process_start process_unsigned]"; got != want {
 		t.Fatalf("events %s, want %s", got, want)
 	}
@@ -89,14 +89,14 @@ func TestHistoryProcessEventsAndIdentity(t *testing.T) {
 
 func TestHistoryUnknownIdentityIsNotUnsigned(t *testing.T) {
 	h := historyTestStore(t)
-	h.recordProcesses(1000, []HistoryProcess{{PID: 1, Start: 1, Name: "one"}})
-	h.recordProcesses(1001, []HistoryProcess{{PID: 2, Start: 2, Name: "two", Cmd: filepath.Join(t.TempDir(), "missing.exe")}})
+	h.recordProcesses(1000, []Process{{PID: 1, Start: 1, Name: "one"}})
+	h.recordProcesses(1001, []Process{{PID: 2, Start: 2, Name: "two", Cmd: filepath.Join(t.TempDir(), "missing.exe")}})
 	for _, e := range h.events {
 		if e.Type == "process_unsigned" {
 			t.Fatal("an inaccessible executable was called unsigned")
 		}
 	}
-	p := identifyHistoryProcess(HistoryProcess{Cmd: filepath.Join(t.TempDir(), "missing.exe")})
+	p := identifyHistoryProcess(Process{Cmd: filepath.Join(t.TempDir(), "missing.exe")})
 	if p.Signed != nil || p.Publisher != "" {
 		t.Fatalf("inaccessible identity should be unknown: %+v", p)
 	}
@@ -138,7 +138,7 @@ func TestHistoryPruneAndCompaction(t *testing.T) {
 	h := historyTestStore(t)
 	h.record(mustHistoryJSON(t, historySample(float64(now.Add(-73*time.Hour).Unix())+0.5)))
 	h.record(mustHistoryJSON(t, historySample(float64(now.Add(-time.Hour).Unix())+0.5)))
-	h.addEvent(MonitorEvent{Time: epoch(now.Add(-73 * time.Hour)), Type: "process_start"})
+	h.addEvent(Event{Time: epoch(now.Add(-73 * time.Hour)), Type: "process_start"})
 	h.prune(float64(now.Unix()))
 	if len(h.points) != 1 || len(h.events) != 0 {
 		t.Fatalf("retention was not applied: %d points, %d events", len(h.points), len(h.events))
@@ -185,9 +185,9 @@ func TestHistoryQueryAndDownsample(t *testing.T) {
 		}
 		h.record(mustHistoryJSON(t, s))
 	}
-	h.addEvent(MonitorEvent{Time: epoch(base.Add(2 * time.Second)), Type: "process_start"})
-	h.addEvent(MonitorEvent{Time: epoch(base.Add(3 * time.Second)), Type: "resource_cpu"})
-	out := h.query(HistoryQuery{From: epoch(base), To: epoch(base.Add(9 * time.Second)), Points: 5, EventType: "alerts"})
+	h.addEvent(Event{Time: epoch(base.Add(2 * time.Second)), Type: "process_start"})
+	h.addEvent(Event{Time: epoch(base.Add(3 * time.Second)), Type: "resource_cpu"})
+	out := h.query(Query{From: epoch(base), To: epoch(base.Add(9 * time.Second)), Points: 5, EventType: "alerts"})
 	if len(out.Points) != 5 || len(out.Events) != 1 || out.Events[0].Type != "resource_cpu" {
 		t.Fatalf("unexpected query: %+v", out)
 	}
@@ -197,7 +197,7 @@ func TestHistoryQueryAndDownsample(t *testing.T) {
 	if out.Points[1].GPU == nil || *out.Points[1].GPU != 4 {
 		t.Fatalf("optional values were not averaged over reported samples: %+v", out.Points[1])
 	}
-	swapped := h.query(HistoryQuery{From: epoch(base.Add(9 * time.Second)), To: epoch(base), EventLimit: 1})
+	swapped := h.query(Query{From: epoch(base.Add(9 * time.Second)), To: epoch(base), EventLimit: 1})
 	if len(swapped.Points) == 0 || len(swapped.Events) != 1 || swapped.Events[0].Type != "resource_cpu" {
 		t.Fatalf("range swap or newest-first limit failed: %+v", swapped)
 	}
@@ -212,9 +212,9 @@ func TestHistorySnapshotsAndPersistence(t *testing.T) {
 	}
 	base := float64(now.Add(-time.Minute).Unix())
 	s := historySample(base)
-	s.ProcessActivity = []HistoryProcess{{PID: 100, Start: 1, Name: "app"}}
+	s.ProcessActivity = []Process{{PID: 100, Start: 1, Name: "app"}}
 	for j := 0; j < 35; j++ {
-		s.Processes = append(s.Processes, HistoryProcess{PID: j + 1, Start: 1, Name: fmt.Sprintf("p%d", j), CPU: float64(j), RSS: int64(j)})
+		s.Processes = append(s.Processes, Process{PID: j + 1, Start: 1, Name: fmt.Sprintf("p%d", j), CPU: float64(j), RSS: int64(j)})
 	}
 	h.record(mustHistoryJSON(t, s))
 	if len(h.snapshots) != 1 {
@@ -223,25 +223,25 @@ func TestHistorySnapshotsAndPersistence(t *testing.T) {
 	if snap, err := h.readSnapshot(h.snapshots[0]); err != nil || len(snap.Processes) != 30 || snap.Processes[0].PID != 35 {
 		t.Fatalf("snapshot was not capped and sorted: %+v %v", snap, err)
 	}
-	h.addEvent(MonitorEvent{Time: base, Type: "process_start"})
+	h.addEvent(Event{Time: base, Type: "process_start"})
 	h.close()
 	reopened, err := openHistoryStore(path, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer reopened.close()
-	out := reopened.query(HistoryQuery{From: base - 1, To: base + 1, ProcessTime: base + 2})
+	out := reopened.query(Query{From: base - 1, To: base + 1, ProcessTime: base + 2})
 	if len(out.Points) != 1 || len(out.Processes) != 30 || out.ProcessTime != base || len(out.Events) != 1 {
 		t.Fatalf("saved history did not reload: %+v", out)
 	}
-	far := reopened.query(HistoryQuery{From: base - 1, To: base + 100, ProcessTime: base + 31})
+	far := reopened.query(Query{From: base - 1, To: base + 100, ProcessTime: base + 31})
 	if len(far.Processes) != 0 {
 		t.Fatal("selected a process snapshot too far from the requested time")
 	}
 	if err := reopened.clear(); err != nil {
 		t.Fatal(err)
 	}
-	cleared := reopened.query(HistoryQuery{From: base - 1, To: base + 1})
+	cleared := reopened.query(Query{From: base - 1, To: base + 1})
 	if len(cleared.Points) != 0 || len(cleared.Events) != 0 || len(reopened.snapshots) != 0 {
 		t.Fatal("clear left history behind")
 	}
@@ -250,7 +250,7 @@ func TestHistorySnapshotsAndPersistence(t *testing.T) {
 func TestHistoryLoadSkipsCorruptLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "history.jsonl")
 	now := time.Now().Truncate(time.Second)
-	point := HistoryPoint{Time: epoch(now.Add(-time.Minute)), CPU: 12}
+	point := Point{Time: epoch(now.Add(-time.Minute)), CPU: 12}
 	line, _ := json.Marshal(historyRecord{Kind: "point", Point: &point})
 	data := append([]byte("not json\n"), line...)
 	data = append(data, []byte("\n{\"kind\":\"point\",\"point\":null}\n")...)
@@ -272,7 +272,7 @@ func TestHistoryIdentityCacheFileVersion(t *testing.T) {
 		t.Skip("Authenticode is Windows-only")
 	}
 	path := os.Getenv("SystemRoot") + `\System32\kernel32.dll`
-	p := identifyHistoryProcess(HistoryProcess{Cmd: path})
+	p := identifyHistoryProcess(Process{Cmd: path})
 	if p.Signed == nil || !*p.Signed {
 		t.Fatalf("Windows system library was not verified: %+v", p)
 	}
@@ -293,55 +293,58 @@ func epoch(t time.Time) float64 { return float64(t.UnixNano()) / 1e9 }
 // this computer's, its processes are not checked against local files, and the server is
 // listed again after the stores are closed and reopened.
 func TestHistoryPerMachine(t *testing.T) {
-	dir := useSettingsDir(t)
-	closeMonitorHistory()
-	t.Cleanup(closeMonitorHistory)
-	server := remoteHistoryMachine(Connection{User: "root", Host: "Host-01", Port: ""})
+	dir := filepath.Join(t.TempDir(), "KamkmDirStat")
+	old := Dir
+	Dir = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { Dir = old })
+	Close()
+	t.Cleanup(Close)
+	server := Remote("root", "Host-01", "")
 	if server != "root@host-01:22" {
 		t.Fatalf("server key = %q", server)
 	}
 	now := float64(time.Now().Unix())
-	recordMonitorSample(localHistoryMachine, mustHistoryJSON(t, historySample(now-2)))
+	Record(Local, mustHistoryJSON(t, historySample(now-2)))
 	remote := historySample(now - 1)
 	remote.CPU.Total = 77
-	recordMonitorSample(server, mustHistoryJSON(t, remote))
+	Record(server, mustHistoryJSON(t, remote))
 
-	local, err := monitorHistory(HistoryQuery{From: now - 60, To: now + 1})
-	if err != nil || len(local.Points) != 1 || local.Points[0].CPU != 20 || local.Machine != localHistoryMachine {
+	local, err := Get(Query{From: now - 60, To: now + 1})
+	if err != nil || len(local.Points) != 1 || local.Points[0].CPU != 20 || local.Machine != Local {
 		t.Fatalf("local history = %+v, %v", local, err)
 	}
-	got, err := monitorHistory(HistoryQuery{From: now - 60, To: now + 1, Machine: server})
+	got, err := Get(Query{From: now - 60, To: now + 1, Machine: server})
 	if err != nil || len(got.Points) != 1 || got.Points[0].CPU != 77 || got.Machine != server {
 		t.Fatalf("server history = %+v, %v", got, err)
 	}
 	h, _ := historyStoreFor(server)
-	if p := h.identify(HistoryProcess{Name: "sshd", Cmd: "/usr/sbin/sshd"}); p.Signed != nil || p.Publisher != "" {
+	if p := h.identify(Process{Name: "sshd", Cmd: "/usr/sbin/sshd"}); p.Signed != nil || p.Publisher != "" {
 		t.Fatalf("server process was checked locally: %+v", p)
 	}
 	if _, err := os.Stat(filepath.Join(dir, historyFileName(server))); err != nil {
 		t.Fatalf("server history file: %v", err)
 	}
 
-	closeMonitorHistory()
-	machines, err := historyMachines()
+	Close()
+	machines, err := Machines()
 	if err != nil || len(machines) != 2 || !machines[0].Local || machines[1].Key != server || machines[1].Newest == 0 {
 		t.Fatalf("machines = %+v, %v", machines, err)
 	}
-	got, err = monitorHistory(HistoryQuery{From: now - 60, To: now + 1, Machine: server})
+	got, err = Get(Query{From: now - 60, To: now + 1, Machine: server})
 	if err != nil || len(got.Points) != 1 || got.Points[0].CPU != 77 {
 		t.Fatalf("server history after reopening = %+v, %v", got, err)
 	}
-	if err := clearMonitorHistory(server); err != nil {
+	if err := Clear(server); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ = monitorHistory(HistoryQuery{From: now - 60, To: now + 1, Machine: server}); len(got.Points) != 0 {
+	if got, _ = Get(Query{From: now - 60, To: now + 1, Machine: server}); len(got.Points) != 0 {
 		t.Fatalf("server history was not cleared: %+v", got.Points)
 	}
-	if local, _ = monitorHistory(HistoryQuery{From: now - 60, To: now + 1}); len(local.Points) != 1 {
+	if local, _ = Get(Query{From: now - 60, To: now + 1}); len(local.Points) != 1 {
 		t.Fatal("clearing a server cleared this computer's history")
 	}
-	closeMonitorHistory()
-	if machines, _ = historyMachines(); len(machines) != 2 {
+	Close()
+	if machines, _ = Machines(); len(machines) != 2 {
 		t.Fatalf("a cleared server should stay listed: %+v", machines)
 	}
 }
@@ -389,7 +392,7 @@ func TestHistoryCompactionKeepsSnapshots(t *testing.T) {
 	base := epoch(now.Add(-time.Hour))
 	for i := 0; i < 3; i++ {
 		s := historySample(base + float64(i*20))
-		s.Processes = []HistoryProcess{{PID: 100 + i, Start: 1, Name: fmt.Sprintf("p%d", i), Cmd: `C:\p.exe`}}
+		s.Processes = []Process{{PID: 100 + i, Start: 1, Name: fmt.Sprintf("p%d", i), Cmd: `C:\p.exe`}}
 		h.record(mustHistoryJSON(t, s))
 	}
 	h.mu.Lock()
@@ -399,11 +402,11 @@ func TestHistoryCompactionKeepsSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := historySample(base + 80)
-	s.Processes = []HistoryProcess{{PID: 200, Start: 1, Name: "after"}}
+	s.Processes = []Process{{PID: 200, Start: 1, Name: "after"}}
 	h.record(mustHistoryJSON(t, s))
 	for i, want := range []int{100, 101, 102, 200} {
 		at := base + []float64{0, 20, 40, 80}[i]
-		out := h.query(HistoryQuery{From: base - 1, To: base + 100, ProcessTime: at})
+		out := h.query(Query{From: base - 1, To: base + 100, ProcessTime: at})
 		if out.ProcessTime != at || len(out.Processes) != 1 || out.Processes[0].PID != want {
 			t.Fatalf("snapshot %d after compaction: %+v", i, out.Processes)
 		}
@@ -414,12 +417,12 @@ func TestHistoryEventsStayBounded(t *testing.T) {
 	h := historyTestStore(t)
 	at := epoch(time.Now())
 	for i := 0; i < maxHistoryEvents+historyEventSlack+10; i++ {
-		h.addEvent(MonitorEvent{Time: at, Type: "process_start"})
+		h.addEvent(Event{Time: at, Type: "process_start"})
 	}
 	if len(h.events) > maxHistoryEvents+historyEventSlack {
 		t.Fatalf("event list was not trimmed: %d", len(h.events))
 	}
-	out := h.query(HistoryQuery{From: at - 1, To: at + 1, EventLimit: maxHistoryEvents * 2})
+	out := h.query(Query{From: at - 1, To: at + 1, EventLimit: maxHistoryEvents * 2})
 	if len(out.Events) != maxHistoryEvents {
 		t.Fatalf("query returned %d events", len(out.Events))
 	}
@@ -431,7 +434,7 @@ func TestHistoryIdentityCatalogSigned(t *testing.T) {
 		t.Skip("Authenticode is Windows-only")
 	}
 	for _, name := range []string{`System32\conhost.exe`, `System32\cmd.exe`} {
-		p := identifyHistoryProcess(HistoryProcess{Cmd: filepath.Join(os.Getenv("SystemRoot"), name)})
+		p := identifyHistoryProcess(Process{Cmd: filepath.Join(os.Getenv("SystemRoot"), name)})
 		if p.Signed == nil || !*p.Signed || p.Publisher == "" {
 			t.Fatalf("catalog-signed %s was not verified: %+v", name, p)
 		}
@@ -440,7 +443,7 @@ func TestHistoryIdentityCatalogSigned(t *testing.T) {
 	if err := os.WriteFile(unsigned, []byte("MZ not a real program"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if p := identifyHistoryProcess(HistoryProcess{Cmd: unsigned}); p.Signed == nil || *p.Signed {
+	if p := identifyHistoryProcess(Process{Cmd: unsigned}); p.Signed == nil || *p.Signed {
 		t.Fatalf("an unsigned file was reported as signed: %+v", p)
 	}
 }

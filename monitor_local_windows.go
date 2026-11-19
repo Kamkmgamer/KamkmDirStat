@@ -17,6 +17,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/history"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -133,7 +134,7 @@ func runLocalMonitor(ctx context.Context, writes <-chan []byte, update func(func
 		if err != nil {
 			return err
 		}
-		if !update(recordSample(localHistoryMachine, data)) {
+		if !update(recordSample(history.Local, data)) {
 			return context.Canceled
 		}
 		select {
@@ -412,7 +413,7 @@ func (s *localSampler) owner(key processKey) processOwner {
 	return o
 }
 
-func (s *localSampler) processes(elapsed float64, cores int, totalMemory int64) ([]map[string]any, []HistoryProcess, int) {
+func (s *localSampler) processes(elapsed float64, cores int, totalMemory int64) ([]map[string]any, []history.Process, int) {
 	list := s.readProcessList()
 	mine := appProcesses(list)
 	seen := make(map[processKey]bool, len(list))
@@ -440,10 +441,10 @@ func (s *localSampler) processes(elapsed float64, cores int, totalMemory int64) 
 	for _, p := range append(byCPU[:min(60, len(byCPU))], byMemory[:min(60, len(byMemory))]...) {
 		chosen[p.key.pid] = p
 	}
-	activity := make([]HistoryProcess, 0, len(list))
+	activity := make([]history.Process, 0, len(list))
 	for _, p := range list {
 		o := s.owner(p.key)
-		activity = append(activity, HistoryProcess{PID: int(p.key.pid), PPID: int(p.ppid), Start: p.key.created / 10000,
+		activity = append(activity, history.Process{PID: int(p.key.pid), PPID: int(p.ppid), Start: p.key.created / 10000,
 			Name: p.name, User: o.user, Cmd: o.path, CPU: round2(p.cpu), RSS: p.private, Memory: round2(percent(p.private, totalMemory))})
 	}
 	rows := make([]map[string]any, 0, len(chosen))
