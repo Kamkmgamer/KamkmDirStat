@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -257,4 +258,15 @@ func (w *localWalk) add(node *Node, dir string, entries []fslist.Entry, listErr 
 	w.files.Add(added)
 	w.bytes.Add(size)
 	return subs
+}
+
+// localRootName is the top of the report when several drives or folders are scanned.
+func localRootName() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "This PC"
+	case "darwin":
+		return "This Mac"
+	}
+	return "This computer"
 }

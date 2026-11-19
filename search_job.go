@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/driveindex"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 )
 
@@ -98,7 +99,7 @@ func (m *machine) runSearches() {
 
 func (m *machine) runSearch(ctx context.Context, q search.Query) (search.Result, error) {
 	if q.Scope == "drives" {
-		return searchDrives(ctx, q)
+		return driveindex.Search(ctx, q)
 	}
 	tree, running := m.scanTree()
 	if tree == nil {

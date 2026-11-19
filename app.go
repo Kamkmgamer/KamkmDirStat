@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"runtime"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/driveindex"
+	"github.com/Kamkmgamer/KamkmDirStat/internal/drives"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/history"
 )
 
@@ -48,9 +50,9 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"startOpen":           startOpen,
 		"openStatus":          openStatus,
 		"cancelOpen":          cancelOpen,
-		"driveIndexStatus":    driveIndexStatus,
-		"refreshDriveIndex":   refreshDriveIndex,
-		"setupIndexService":   startIndexServiceSetup,
+		"driveIndexStatus":    driveindex.Current,
+		"refreshDriveIndex":   driveindex.Refresh,
+		"setupIndexService":   driveindex.SetupService,
 		"startMonitor":        startMonitor,
 		"stopMonitor":         stopMonitorFor,
 		"monitorStatus":       monitorStatusFor,
@@ -58,7 +60,7 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"monitorHistory":      history.Get,
 		"clearMonitorHistory": history.Clear,
 		"historyMachines":     history.Machines,
-		"listDrives":          listDrives,
+		"listDrives":          drives.List,
 		"saveSettings":        saveSettings,
 		"exportTheme":         exportTheme,
 		"startCleanupFind":    startCleanupFind,
@@ -83,7 +85,7 @@ func bindAll(w window, extra map[string]interface{}) error {
 // runWindow shows the page with the saved settings until the window closes, then stops any
 // running work.
 func runWindow(w window, settings json.RawMessage, extra map[string]interface{}) error {
-	defer stopDriveIndex()
+	defer driveindex.Stop()
 	defer closeResults()
 	defer stopAllMonitors()
 	defer history.Close()

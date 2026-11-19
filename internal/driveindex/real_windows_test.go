@@ -1,4 +1,4 @@
-package main
+package driveindex
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/drives"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 )
 
@@ -21,7 +22,7 @@ func TestRealDrives(t *testing.T) {
 	if only == "" {
 		t.Skip("set KAMKM_DRIVE_TEST=1 to index this computer's drives")
 	}
-	for _, d := range listDrives() {
+	for _, d := range drives.List() {
 		if !indexable(d) || only != "1" && !strings.EqualFold(only, d.Path) {
 			continue
 		}

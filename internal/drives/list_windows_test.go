@@ -1,4 +1,4 @@
-package main
+package drives
 
 import (
 	"os"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestListDrives(t *testing.T) {
-	drives := listDrives()
+	drives := List()
 	system := strings.ToUpper(os.Getenv("SystemDrive")) + `\`
 	for _, d := range drives {
 		if strings.EqualFold(d.Path, system) {

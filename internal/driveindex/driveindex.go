@@ -1,4 +1,5 @@
-package main
+// Package driveindex searches every drive of this computer without a scan.
+package driveindex
 
 import "github.com/Kamkmgamer/KamkmDirStat/internal/search"
 
@@ -16,8 +17,8 @@ import "github.com/Kamkmgamer/KamkmDirStat/internal/search"
 // Indexes are saved between runs. In the app they leave memory a few minutes after the
 // last search; the service keeps them.
 
-// DriveIndexState is one drive's index.
-type DriveIndexState struct {
+// DriveState is one drive's index.
+type DriveState struct {
 	Root    string `json:"root"`
 	Label   string `json:"label,omitempty"`
 	Mode    string `json:"mode,omitempty"`  // "live" (follows the change journal) or "snapshot"
@@ -28,17 +29,17 @@ type DriveIndexState struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// DriveIndexStatus says how every-drive search works at the moment.
-type DriveIndexStatus struct {
-	Supported bool              `json:"supported"`
-	Admin     bool              `json:"admin"`             // this window can read drives directly
-	Source    string            `json:"source,omitempty"`  // "service" or "app": who answers searches
-	Service   string            `json:"service,omitempty"` // "", "running", "stopped", "starting" or "unreachable"
-	Outdated  bool              `json:"outdated,omitempty"`
-	Note      string            `json:"note,omitempty"`
-	Setup     string            `json:"setup,omitempty"` // "install" or "remove" while the background indexer is set up
-	SetupErr  string            `json:"setupError,omitempty"`
-	Drives    []DriveIndexState `json:"drives"`
+// Status says how every-drive search works at the moment.
+type Status struct {
+	Supported bool         `json:"supported"`
+	Admin     bool         `json:"admin"`             // this window can read drives directly
+	Source    string       `json:"source,omitempty"`  // "service" or "app": who answers searches
+	Service   string       `json:"service,omitempty"` // "", "running", "stopped", "starting" or "unreachable"
+	Outdated  bool         `json:"outdated,omitempty"`
+	Note      string       `json:"note,omitempty"`
+	Setup     string       `json:"setup,omitempty"` // "install" or "remove" while the background indexer is set up
+	SetupErr  string       `json:"setupError,omitempty"`
+	Drives    []DriveState `json:"drives"`
 }
 
 // indexServiceRequest is a line sent to the background indexer.
@@ -50,8 +51,8 @@ type indexServiceRequest struct {
 
 // indexServiceReply is its answer.
 type indexServiceReply struct {
-	Status *DriveIndexStatus `json:"status,omitempty"`
-	Result *search.Result    `json:"result,omitempty"`
-	Build  string            `json:"build,omitempty"` // identifies the service's program file
-	Error  string            `json:"error,omitempty"`
+	Status *Status        `json:"status,omitempty"`
+	Result *search.Result `json:"result,omitempty"`
+	Build  string         `json:"build,omitempty"` // identifies the service's program file
+	Error  string         `json:"error,omitempty"`
 }

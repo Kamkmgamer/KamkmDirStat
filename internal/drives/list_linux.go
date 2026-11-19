@@ -1,4 +1,4 @@
-package main
+package drives
 
 import (
 	"bufio"
@@ -16,9 +16,9 @@ var linuxDiskFileSystems = map[string]string{
 	"fuse.sshfs": "network", "9p": "network",
 }
 
-// listDrives returns mounted disk file systems from /proc/self/mountinfo. Pseudo file
+// List returns mounted disk file systems from /proc/self/mountinfo. Pseudo file
 // systems, snap packages and repeated mounts of the same device are left out.
-func listDrives() []Drive {
+func List() []Drive {
 	drives := []Drive{}
 	f, err := os.Open("/proc/self/mountinfo")
 	if err != nil {

@@ -1,4 +1,4 @@
-package main
+package drives
 
 import (
 	"path/filepath"
@@ -7,9 +7,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// listDrives returns the Mac's data volume and other mounted disks. The read-only system
+// List returns the Mac's data volume and other mounted disks. The read-only system
 // volume at / is left out: user files live on the data volume.
-func listDrives() []Drive {
+func List() []Drive {
 	drives := []Drive{}
 	n, err := unix.Getfsstat(nil, unix.MNT_NOWAIT)
 	if err != nil || n <= 0 {

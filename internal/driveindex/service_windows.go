@@ -1,4 +1,4 @@
-package main
+package driveindex
 
 import (
 	"bufio"
@@ -131,9 +131,9 @@ func callService(ctx context.Context, req indexServiceRequest) (indexServiceRepl
 	return reply, nil
 }
 
-// searchDrives searches every drive, with the background indexer when it runs and with
+// Search searches every drive, with the background indexer when it runs and with
 // this window's own indexes otherwise.
-func searchDrives(ctx context.Context, q search.Query) (search.Result, error) {
+func Search(ctx context.Context, q search.Query) (search.Result, error) {
 	if state, _ := queryIndexService(); state == "running" {
 		reply, err := callService(ctx, indexServiceRequest{Op: "search", Query: &q})
 		if err == nil {
@@ -165,12 +165,12 @@ var setupState struct {
 	err     string
 }
 
-func driveIndexStatus() DriveIndexStatus {
+func Current() Status {
 	setupState.Lock()
 	setup, setupErr := setupState.running, setupState.err
 	setupState.Unlock()
 	state, _ := queryIndexService()
-	var st DriveIndexStatus
+	var st Status
 	if state == "running" {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		reply, err := callService(ctx, indexServiceRequest{Op: "status"})
@@ -194,7 +194,7 @@ func driveIndexStatus() DriveIndexStatus {
 	return st
 }
 
-func refreshDriveIndex(root string) error {
+func Refresh(root string) error {
 	if state, _ := queryIndexService(); state == "running" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -210,9 +210,9 @@ func refreshDriveIndex(root string) error {
 	return driveIndex.refreshDrive(root)
 }
 
-// startIndexServiceSetup sets the background indexer up, or removes it, in the background.
+// SetupService sets the background indexer up, or removes it, in the background.
 // Windows asks for administrator approval unless this window already has it.
-func startIndexServiceSetup(install bool) error {
+func SetupService(install bool) error {
 	setupState.Lock()
 	defer setupState.Unlock()
 	if setupState.running != "" {
@@ -258,7 +258,7 @@ func startIndexServiceSetup(install bool) error {
 	return nil
 }
 
-var procShellExecuteExW = shell32.NewProc("ShellExecuteExW")
+var procShellExecuteExW = windows.NewLazySystemDLL("shell32.dll").NewProc("ShellExecuteExW")
 
 type shellExecuteInfo struct {
 	size       uint32
@@ -345,9 +345,9 @@ func serviceExePath() (string, error) {
 	return filepath.Join(pf, indexServiceDir, indexServiceExe), nil
 }
 
-// handleServiceCommand runs the service or its setup when the program was started for
+// HandleServiceCommand runs the service or its setup when the program was started for
 // that, and reports whether it was.
-func handleServiceCommand(args []string) bool {
+func HandleServiceCommand(args []string) bool {
 	if len(args) == 0 {
 		return false
 	}
@@ -610,7 +610,7 @@ func serveConn(conn net.Conn, ix *driveIndexer) {
 		} else {
 			switch req.Op {
 			case "status":
-				st := DriveIndexStatus{Supported: true, Admin: true, Source: "service", Drives: ix.states()}
+				st := Status{Supported: true, Admin: true, Source: "service", Drives: ix.states()}
 				reply.Status = &st
 			case "search":
 				if req.Query == nil {

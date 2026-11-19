@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/driveindex"
 	webview "github.com/jchv/go-webview2"
 	"golang.org/x/sys/windows"
 )
@@ -14,7 +15,7 @@ import (
 const iconResource = 1
 
 func main() {
-	if handleServiceCommand(os.Args[1:]) {
+	if driveindex.HandleServiceCommand(os.Args[1:]) {
 		return
 	}
 	release, ok := claimSingleInstance(len(os.Args) > 1 && os.Args[1] == restartedArg)

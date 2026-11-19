@@ -1,6 +1,6 @@
 //go:build linux || (darwin && cgo)
 
-package main
+package drives
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestListDrivesFindsSystemDisk(t *testing.T) {
-	drives := listDrives()
+	drives := List()
 	if len(drives) == 0 {
 		t.Fatal("no drives found")
 	}

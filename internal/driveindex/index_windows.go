@@ -1,4 +1,4 @@
-package main
+package driveindex
 
 import (
 	"bufio"
@@ -19,6 +19,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/drives"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/fslist"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/ntfs"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
@@ -175,7 +176,7 @@ func (ix *driveIndexer) active() []*driveStore {
 
 // indexable reports whether a drive gets an index: drives in this computer and ones
 // plugged into it, but not network or optical drives.
-func indexable(d Drive) bool { return d.Kind == "fixed" || d.Kind == "removable" }
+func indexable(d drives.Drive) bool { return d.Kind == "fixed" || d.Kind == "removable" }
 
 // volumeKey names a drive's saved index. It stays the same when the drive letter changes.
 func volumeKey(root string) string {
@@ -199,7 +200,7 @@ func (ix *driveIndexer) syncDrives() {
 		ix.stores = map[string]*driveStore{}
 	}
 	seen := map[string]bool{}
-	for _, d := range listDrives() {
+	for _, d := range drives.List() {
 		if !indexable(d) {
 			continue
 		}
@@ -275,8 +276,8 @@ func (ix *driveIndexer) loaded() bool {
 	return len(ix.stores) > 0
 }
 
-func (ix *driveIndexer) states() []DriveIndexState {
-	out := []DriveIndexState{}
+func (ix *driveIndexer) states() []DriveState {
+	out := []DriveState{}
 	for _, s := range ix.active() {
 		out = append(out, s.status())
 	}
@@ -332,10 +333,10 @@ func joinDrivePath(names []string) string {
 	return filepath.Join(names...)
 }
 
-func (s *driveStore) status() DriveIndexState {
+func (s *driveStore) status() DriveState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st := DriveIndexState{Root: s.root, Label: s.label, Mode: s.mode, State: s.state, Error: s.err}
+	st := DriveState{Root: s.root, Label: s.label, Mode: s.mode, State: s.state, Error: s.err}
 	if s.idx != nil {
 		st.Entries = s.idx.Len()
 	}
@@ -1028,9 +1029,9 @@ func walkDrive(ctx context.Context, root string, idx *search.Index, read *atomic
 func isElevated() bool { return windows.GetCurrentProcessToken().IsElevated() }
 
 // appIndexStatus is the status of the indexes this window keeps itself.
-func appIndexStatus() DriveIndexStatus {
-	return DriveIndexStatus{Supported: true, Admin: isElevated(), Source: "app", Drives: driveIndex.states()}
+func appIndexStatus() Status {
+	return Status{Supported: true, Admin: isElevated(), Source: "app", Drives: driveIndex.states()}
 }
 
-// stopDriveIndex saves this window's indexes when it closes.
-func stopDriveIndex() { driveIndex.stop(10 * time.Second) }
+// Stop saves this window's indexes when it closes.
+func Stop() { driveIndex.stop(10 * time.Second) }

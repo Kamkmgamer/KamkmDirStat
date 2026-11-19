@@ -1,10 +1,10 @@
-package main
+package drives
 
 import "golang.org/x/sys/windows"
 
-// listDrives returns the drives that are ready to scan. Empty card readers and optical
+// List returns the drives that are ready to scan. Empty card readers and optical
 // drives without a disc are left out.
-func listDrives() []Drive {
+func List() []Drive {
 	mask, err := windows.GetLogicalDrives()
 	if err != nil {
 		return nil
