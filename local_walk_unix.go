@@ -5,12 +5,14 @@ package main
 import (
 	"path/filepath"
 	"sync"
+
+	"github.com/Kamkmgamer/KamkmDirStat/internal/fslist"
 )
 
-// walk lists folders by path, with up to localScanWorkers folders at a time.
+// walk lists folders by path, with up to fslist.Workers folders at a time.
 func (w *localWalk) walk(root *Node, rootPath string) {
-	device := deviceOf(rootPath)
-	sem := make(chan struct{}, localScanWorkers)
+	device := fslist.DeviceOf(rootPath)
+	sem := make(chan struct{}, fslist.Workers)
 	var wg sync.WaitGroup
 	var visit func(node *Node, dir string)
 	visit = func(node *Node, dir string) {
@@ -18,14 +20,14 @@ func (w *localWalk) walk(root *Node, rootPath string) {
 			return
 		}
 		w.current.Store(dir)
-		entries, err := listLocalDir(dir, device)
+		entries, err := fslist.List(dir, device)
 		subs := w.add(node, dir, entries, err)
 		i := 0
 		for _, e := range entries {
-			if e.kind != localDir {
+			if e.Kind != fslist.Dir {
 				continue
 			}
-			child, path := subs[i], filepath.Join(dir, e.name)
+			child, path := subs[i], filepath.Join(dir, e.Name)
 			i++
 			select {
 			case sem <- struct{}{}:

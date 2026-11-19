@@ -12,29 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/fslist"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/ntfs"
 )
 
 // Local scans read this computer's drives directly. Sizes are file sizes, as in Explorer and
 // WinDirStat. Links, junctions and mounted volumes are not followed, so nothing is counted
 // twice through them, but hard-linked files are counted at each of their names.
-
-type localKind int
-
-const (
-	localFile localKind = iota
-	localDir
-)
-
-// localEntry is one item from listLocalDir, which leaves out links and other volumes.
-type localEntry struct {
-	name string
-	kind localKind
-	size int64
-}
-
-// More workers than this mostly contend inside the file system on Windows.
-const localScanWorkers = 8
 
 // localScanDirect allows reading NTFS drives directly. Tests turn it off to compare.
 var localScanDirect = true
@@ -259,7 +243,7 @@ type localWalk struct {
 
 // add records one folder's entries under node and returns the new subfolder nodes in the
 // order of their entries. listErr marks the folder incomplete.
-func (w *localWalk) add(node *Node, dir string, entries []localEntry, listErr error) []*Node {
+func (w *localWalk) add(node *Node, dir string, entries []fslist.Entry, listErr error) []*Node {
 	if listErr != nil {
 		w.addError(fmt.Sprintf("%s: %v", dir, listErr))
 	}

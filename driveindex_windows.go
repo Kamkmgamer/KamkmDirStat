@@ -19,6 +19,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/Kamkmgamer/KamkmDirStat/internal/fslist"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/ntfs"
 	"github.com/Kamkmgamer/KamkmDirStat/internal/search"
 	"golang.org/x/sys/windows"
@@ -718,7 +719,7 @@ func (s *driveStore) apply(records []usnRecord) {
 	results := make([]found, len(jobs))
 	for i, j := range jobs {
 		var d windows.Win32finddata
-		p, err := windows.UTF16PtrFromString(longPath(j.path))
+		p, err := windows.UTF16PtrFromString(fslist.LongPath(j.path))
 		if err != nil {
 			results[i].gone = true
 			continue
@@ -928,7 +929,7 @@ func (s *driveStore) walk(ctx context.Context) error {
 func walkDrive(ctx context.Context, root string, idx *search.Index, read *atomic.Int64) error {
 	idx.Update(func(u search.Updater) { u.Set(0, root, -1, 0, true) })
 	type job struct {
-		parent *parentHandle
+		parent *fslist.Parent
 		name   string
 		slot   int
 	}
@@ -936,27 +937,27 @@ func walkDrive(ctx context.Context, root string, idx *search.Index, read *atomic
 	next.Store(1)
 	var mu sync.Mutex
 	cond := sync.NewCond(&mu)
-	stack := []job{{name: `\??\` + strings.TrimPrefix(longPath(root), `\\?\`)}}
+	stack := []job{{name: fslist.NTRoot(root)}}
 	active := 0
 	rootErr := error(nil)
 	visit := func(j job, buf []byte) []job {
 		var parent windows.Handle
 		if j.parent != nil {
-			parent = j.parent.h
+			parent = j.parent.H
 		}
 		if ctx.Err() != nil {
-			j.parent.release()
+			j.parent.Release()
 			return nil
 		}
-		h, err := openFolderRelative(parent, j.name)
-		j.parent.release()
+		h, err := fslist.OpenRelative(parent, j.name)
+		j.parent.Release()
 		if err != nil {
 			if j.parent == nil {
 				rootErr = err
 			}
 			return nil
 		}
-		entries, _ := readFolder(h, buf)
+		entries, _ := fslist.Read(h, buf)
 		if len(entries) == 0 {
 			windows.CloseHandle(h)
 			return nil
@@ -965,8 +966,8 @@ func walkDrive(ctx context.Context, root string, idx *search.Index, read *atomic
 		dirs := 0
 		idx.Update(func(u search.Updater) {
 			for i, e := range entries {
-				u.Set(base+i, e.name, j.slot, e.size, e.kind == localDir)
-				if e.kind == localDir {
+				u.Set(base+i, e.Name, j.slot, e.Size, e.Kind == fslist.Dir)
+				if e.Kind == fslist.Dir {
 					dirs++
 				}
 			}
@@ -976,12 +977,11 @@ func walkDrive(ctx context.Context, root string, idx *search.Index, read *atomic
 			windows.CloseHandle(h)
 			return nil
 		}
-		ph := &parentHandle{h: h}
-		ph.pending.Store(int32(dirs))
+		ph := fslist.Hold(h, dirs)
 		jobs := make([]job, 0, dirs)
 		for i, e := range entries {
-			if e.kind == localDir {
-				jobs = append(jobs, job{parent: ph, name: e.name, slot: base + i})
+			if e.Kind == fslist.Dir {
+				jobs = append(jobs, job{parent: ph, name: e.Name, slot: base + i})
 			}
 		}
 		return jobs
@@ -991,7 +991,7 @@ func walkDrive(ctx context.Context, root string, idx *search.Index, read *atomic
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			buf := make([]byte, localWalkBuffer)
+			buf := fslist.NewBuffer()
 			for {
 				mu.Lock()
 				for len(stack) == 0 && active > 0 {
