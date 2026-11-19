@@ -10,6 +10,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const drivesOK=()=>platform==='windows';
 function enterFiles(){
   if(filesMode||$('find').classList.contains('hidden'))return;
+  cleanExit(false);
   if(!scanReady)findScope='drives';
   savedListing=lastView?null:$('listing').firstElementChild||null;
   filesMode=true;hideMenu();$('filesBar').classList.remove('hidden');syncScope();runSearch();
@@ -29,6 +30,7 @@ function resetFind(){
 // syncFind shows the search box when there is something to search.
 function syncFind(){
   $('find').classList.toggle('hidden',!(scanReady||drivesOK()));
+  $('cleanButton').classList.toggle('hidden',!(scanReady&&target==='local'));
   $('search').placeholder=scanReady?'Search files and folders':'Search every drive';
   $('search').setAttribute('aria-label',scanReady?'Search files and folders in this scan':'Search files and folders on every drive');
   if(filesMode)syncScope();
@@ -115,8 +117,9 @@ function renderHits(r,text,ms,scope=''){
     tr.append(nameTd,where,cell(drives&&h.dir?'':size(h.size)),act);
     const open=()=>drives?openEntry(null,h.name,'open',h.path):openHit(h);
     tr.ondblclick=open;
-    tr.onkeydown=e=>{if(e.key==='Enter')open();else rowKeys(e)};
-    tr.oncontextmenu=e=>drives?driveMenu(e,h):itemMenu(e,{parent:h.parent,name:h.name,dir:!!h.dir,id:h.id,size:h.size,nav:true});
+    const item={parent:h.parent,name:h.name,dir:!!h.dir,id:h.id,size:h.size,nav:true};
+    tr.onkeydown=e=>{if(e.key==='Enter')open();else if(drives||!deleteKey(e,item))rowKeys(e)};
+    tr.oncontextmenu=e=>drives?driveMenu(e,h):itemMenu(e,item);
     if(!drives){tr.onmouseenter=()=>{const l=hitLeaf(h);highlight(l||null)};tr.onmouseleave=()=>highlight(null)}
     body.append(tr);
   }
@@ -189,6 +192,14 @@ function renderDriveBar(st){
   if(st.setupError&&st.setupError!==lastSetupError)toast(st.setupError,{error:true});
   lastSetupError=st.setupError||'';
 }
+// Only the Windows app has isElevated, and only a window without administrator rights offers
+// to restart with them.
+if(typeof isElevated==='function')isElevated().then(admin=>$('adminTip').classList.toggle('hidden',!!admin)).catch(()=>{});
+$('adminRestart').onclick=async()=>{
+  const ok=await confirmAction({title:'Restart as administrator?',text:'The app starts again with administrator rights, so scans of whole NTFS drives read the file table of the drive directly, which takes seconds instead of minutes. It also counts folders closed to your account.'+(scanReady?' The scan results in this window are closed.':''),label:'Restart'});
+  if(!ok)return;
+  try{await restartElevated()}catch(e){toast(String(e),{error:true})}
+};
 $('driveRefresh').onclick=async()=>{try{await refreshDriveIndex('');toast('Reading the drives\' folders again…');pollDrives()}catch(e){toast(String(e),{error:true})}};
 $('driveAdmin').onclick=async()=>{
   const ok=await confirmAction({title:'Restart as administrator?',text:'The app starts again with administrator rights, so it can read each drive\'s file table directly and keep the index current from the drive\'s change journal.'+(scanReady?' The scan results in this window are closed.':''),label:'Restart'});

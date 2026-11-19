@@ -121,6 +121,11 @@ func startScan(c Connection) error {
 				s.Error = "Scan cancelled."
 			}
 		}
+		// Clean up works from the finished tree, so find what it can offer while the
+		// nodes are still in memory, before the scan reports that it is done.
+		if c.Local && err == nil {
+			tree.planClutter()
+		}
 		state.Lock()
 		if state.tree != tree {
 			state.Unlock()
@@ -234,15 +239,20 @@ func (j *job[S]) get() S {
 type FingerprintStatus struct {
 	Running     bool   `json:"running"`
 	Fingerprint string `json:"fingerprint,omitempty"`
-	Error       string `json:"error,omitempty"`
+	// Trust is hostKnown, hostNew or hostChanged; a known server needs no confirmation.
+	Trust string `json:"trust,omitempty"`
+	Error string `json:"error,omitempty"`
+	// key is what the check found, kept with the status so both change together. It is
+	// not sent to the page.
+	key hostKey
 }
 
 var fingerprintJob job[FingerprintStatus]
 
 func startFingerprint(c Connection) error {
 	return fingerprintJob.start("A connection is already in progress.", FingerprintStatus{Running: true}, func() FingerprintStatus {
-		value, err := fingerprint(c)
-		s := FingerprintStatus{Fingerprint: value}
+		key, err := fingerprint(c)
+		s := FingerprintStatus{Fingerprint: key.Fingerprint, Trust: key.Trust, key: key}
 		if err != nil {
 			s.Error = err.Error()
 		}
@@ -251,6 +261,16 @@ func startFingerprint(c Connection) error {
 }
 
 func fingerprintStatus() FingerprintStatus { return fingerprintJob.get() }
+
+// trustHostKey always trusts the key the last check found, so later connections to that
+// server do not ask. The fingerprint must be the one the user was shown.
+func trustHostKey(fingerprint string) error {
+	key := fingerprintJob.get().key
+	if key.Key == nil || fingerprint == "" || key.Fingerprint != fingerprint {
+		return errors.New("Connect again to trust this server.")
+	}
+	return rememberHostKey(key.Hostname, key.Key)
+}
 
 type ResolveStatus struct {
 	Running    bool        `json:"running"`

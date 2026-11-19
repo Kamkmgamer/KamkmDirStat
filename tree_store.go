@@ -29,6 +29,13 @@ type storeItem struct {
 	trail []string // names from the scan root down to the item
 	dir   bool
 	size  int64
+	files int // for an entry of a folder in a local scan: the files it holds, at least 1
+}
+
+// lineage is a store that knows which folders lie above another.
+type lineage interface {
+	// ancestors returns folder id and the folders above it, nearest first.
+	ancestors(id int) []int
 }
 
 // current returns the store holding the results now. The in-memory store reads nodes the
@@ -60,7 +67,16 @@ func (t *Tree) diskStore() *diskTree {
 	return d
 }
 
+// view is one folder of the scan, without what was deleted since.
 func (t *Tree) view(id int) (DirView, error) {
+	v, err := t.viewScanned(id)
+	if err == nil {
+		t.applyEdits(&v)
+	}
+	return v, err
+}
+
+func (t *Tree) viewScanned(id int) (DirView, error) {
 	s, unlock := t.current()
 	defer unlock()
 	return s.view(id)
@@ -107,8 +123,18 @@ func (m memStore) item(id int, name string) (storeItem, error) {
 		if i < 0 {
 			return storeItem{}, errItemGone
 		}
-		it.dir, it.size = n.Children[i].Directory, n.Children[i].Size
+		it.dir, it.size, it.files = n.Children[i].Directory, n.Children[i].Size, max(1, n.Children[i].Files)
 		it.trail = append(it.trail, name)
 	}
 	return it, nil
+}
+
+func (m memStore) ancestors(id int) []int {
+	var ids []int
+	if id >= 0 && id < len(m.t.dirs) {
+		for n := m.t.dirs[id]; n != nil; n = n.Parent {
+			ids = append(ids, n.id)
+		}
+	}
+	return ids
 }

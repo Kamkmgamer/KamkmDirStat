@@ -263,10 +263,25 @@ func (d *diskTree) item(id int, name string) (storeItem, error) {
 		if i < 0 {
 			return storeItem{}, errItemGone
 		}
-		it.dir, it.size = n.kids[i].directory, n.kids[i].size
+		it.dir, it.size, it.files = n.kids[i].directory, n.kids[i].size, max(1, n.kids[i].files)
 		it.trail = append(it.trail, name)
 	}
 	return it, nil
+}
+
+func (d *diskTree) ancestors(id int) []int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var ids []int
+	for id >= 0 {
+		ids = append(ids, id)
+		n, err := d.read(id, false)
+		if err != nil {
+			break
+		}
+		id = n.parent
+	}
+	return ids
 }
 
 func (d *diskTree) view(id int) (DirView, error) {

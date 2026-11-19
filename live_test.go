@@ -26,9 +26,11 @@ func TestLiveScan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Fingerprint, err = fingerprint(c); err != nil {
+	found, err := fingerprint(c)
+	if err != nil {
 		t.Fatal(err)
 	}
+	c.Fingerprint = found.Fingerprint
 	tree := newTree(root)
 	defer tree.close()
 	updates := 0

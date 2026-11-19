@@ -12,9 +12,13 @@ Inspect disk usage on this PC (one, some or all drives, or a folder) and on SSH-
 
 This PC and one SSH server are separate tabs that run side by side. This PC is monitored from start-up, and connecting to a server adds a second monitor and a second scan beside it. Switching tabs changes only what is shown: the machine in the background keeps monitoring, keeps recording its history and keeps its finished scan and the folder it was browsing. Searches, the folder list, the map and opening files follow the selected tab.
 
+## Deleting and cleaning up
+
+Items of a finished scan of this PC can be moved to the Recycle Bin (Trash) or deleted permanently after confirmation. Clean up matches the finished scan, while it is still in memory, against rules for dependency folders, build output, package, build and browser caches, downloaded models, temporary files and old installers, and asks git, Docker and the Recycle Bin about agent worktrees, Docker data and deleted files when it opens. Nothing is removed outside the scanned folders, through links, or without confirmation. Deleted items are recorded beside the scan's cache file, which is never rewritten, so views, the map and search leave them out at once.
+
 ## Connections
 
-Support SSH config aliases, agent authentication, passwords, and private keys. Verify the server host-key fingerprint before sending credentials. Credentials are not saved.
+Support SSH config aliases, agent authentication, passwords, and private keys. Verify the server host key before sending credentials: keys in ~/.ssh/known_hosts or ones the user chose to always trust are accepted without asking, and a changed key is warned about. Credentials are not saved.
 
 ## Remote reports
 

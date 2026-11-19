@@ -7,18 +7,18 @@ const pct=(a,b)=>b?(100*a/b).toFixed(1)+'%':'0.0%';
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 function icon(name,cls){const ns='http://www.w3.org/2000/svg',s=document.createElementNS(ns,'svg'),u=document.createElementNS(ns,'use');s.setAttribute('class','i'+(cls?' '+cls:''));u.setAttribute('href','#i-'+name);s.append(u);return s}
 function status(message,error=false,busy=false){$('status').textContent=message;$('status').title='';$('status').classList.toggle('error',error);$('status').classList.toggle('busy',busy&&!error)}
-function conn(state,text){$('conn').dataset.state=state;$('connText').textContent=text}
+function conn(state,text){$('conn').dataset.state=state;$('connText').textContent=text;$('conn').title=text}
 function showTrust(on){$('trust').classList.toggle('hidden',!on);if(on)$('reject').focus()}
 $('method').onchange=()=>{let key=$('method').value==='key';$('passwordFields').classList.toggle('hidden',$('method').value!=='password');$('keyFields').classList.toggle('hidden',!key)};
 let target='local',drives=[],platform='windows';
-function newStorageSession(){return {who:'',viewId:null,lastView:null,poll:null,polling:false,refreshing:null,refreshAgain:false,leaves:[],tops:new Map(),mode:'',tick:0,scanReady:false,status:null,needsFinal:false,footer:'Ready',footerTitle:'',statusText:'Ready',statusError:false,statusBusy:false,filesMode:false,flashTarget:null,findKind:'all',findSort:'',typesLoaded:false,types:[],searchSeq:0,searchTimer:null,findScope:'',savedListing:null,searchValue:'',extValue:''}}
+function newStorageSession(){return {who:'',viewId:null,lastView:null,poll:null,polling:false,refreshing:null,refreshAgain:false,leaves:[],tops:new Map(),mode:'',tick:0,scanReady:false,status:null,needsFinal:false,footer:'',footerTitle:'',statusText:'Ready',statusError:false,statusBusy:false,filesMode:false,flashTarget:null,findKind:'all',findSort:'',typesLoaded:false,types:[],searchSeq:0,searchTimer:null,findScope:'',savedListing:null,searchValue:'',extValue:'',back:[],fwd:[]}}
 const storageSessions={local:newStorageSession(),remote:newStorageSession()};
 const localName=()=>platform==='darwin'?'This Mac':platform==='linux'?'This computer':'This PC';
 // The page starts with Windows wording and adjusts once the app reports its platform.
 function applyPlatform(){
   $('localTargetName').textContent=localName();
   $('localFolder').placeholder=platform==='windows'?'C:\\Users\\you\\Downloads':platform==='darwin'?'/Users/you/Downloads':'/home/you/Downloads';
-  if(platform==='darwin'){$('findKey').textContent='⌘F';$('footerKeys').innerHTML='<kbd>⌘</kbd> <kbd>F</kbd> search &nbsp; <kbd>⌘</kbd> <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> view &nbsp; <kbd>⌘</kbd> <kbd>B</kbd> panel &nbsp; <kbd>⌘</kbd> <kbd>,</kbd> appearance'}
+  if(platform==='darwin'){$('findKey').textContent='⌘F'}
   syncFind();
 }
 try{if((prefs?prefs.get('target'):localStorage.getItem('kamkm.target'))==='remote')target='remote'}catch(e){}
@@ -41,6 +41,7 @@ function saveStorageTarget(t){
   s.statusText=$('status').textContent;s.statusError=$('status').classList.contains('error');s.statusBusy=$('status').classList.contains('busy');
 }
 function restoreStorageTarget(t){
+  cleanExit(false);
   const s=storageSessions[t];
   ({viewId,lastView,poll,polling,refreshing,refreshAgain,leaves,tops,mode,tick,scanReady,filesMode,flashTarget,findKind,findSort,typesLoaded,searchSeq,searchTimer,findScope,savedListing}=s);
   $('search').value=s.searchValue;$('extFilter').value=s.extValue;$('footer').textContent=s.footer;$('footer').title=s.footerTitle;
@@ -51,7 +52,7 @@ function restoreStorageTarget(t){
   if(lastView)render(lastView);
   if(poll){if(!filesMode)placeholder(t==='local'?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');pollScan()}
   else if(s.needsFinal)pollScan();
-  else if(!filesMode){if(t==='remote')serverScanPrompt();else placeholder('No scan yet. Choose a drive or folder and scan this computer.',true)}
+  else if(!filesMode){if(t==='remote')serverScanPrompt();else placeholder('No scan yet.',true)}
   if(filesMode)runSearch();
   if(filesMode&&findScope==='drives')startDrivePoll();else stopDrivePoll();
 }
@@ -105,13 +106,24 @@ $('connect').onsubmit=async e=>{
     let c=resolved.connection;await startFingerprint(c);let f;
     do{await new Promise(resolve=>setTimeout(resolve,400));f=await fingerprintStatus()}while(f.running);
     if(f.error)throw f.error;
-    pending={...c,fingerprint:f.fingerprint};
-    $('target').textContent=c.user+'@'+c.host+':'+c.port;$('fingerprint').textContent=f.fingerprint;
-    status('Confirm the server fingerprint to continue.');conn('warn','Verify '+c.host);showTrust(true);
+    const trusted={...c,fingerprint:f.fingerprint};
+    if(f.trust==='known'){begin(trusted,serverLabel(trusted));return}
+    pending=trusted;
+    const changed=f.trust==='changed';
+    $('trustShield').classList.toggle('danger',changed);
+    $('trustTitle').textContent=changed?'This server’s key has changed':'Trust this server?';
+    $('trustText').textContent=changed?'It is not the key you trusted before. That happens when a server is reinstalled, but it can also mean someone is intercepting the connection.':'This is the first connection to it from this computer. Nothing is sent until you choose.';
+    $('target').textContent=c.user+'@'+c.host+':'+c.port;
+    status(changed?'The server’s key has changed.':'Choose whether to trust the server.',changed);conn('warn','Verify '+c.host);showTrust(true);
   }catch(e){status(String(e),true);conn('error','Connection failed');$('submit').disabled=false}
 };
 $('reject').onclick=()=>{pending=null;showTrust(false);$('submit').disabled=false;status('Connection cancelled.');conn('idle','Not connected')};
-$('accept').onclick=()=>{const c=pending;pending=null;showTrust(false);begin(c,c.user+'@'+c.host+(c.port&&c.port!=='22'?':'+c.port:''))};
+function serverLabel(c){return c.user+'@'+c.host+(c.port&&c.port!=='22'?':'+c.port:'')}
+$('accept').onclick=()=>{const c=pending;pending=null;showTrust(false);begin(c,serverLabel(c))};
+// Always trust saves the key, so later connections to this server do not ask.
+$('acceptAlways').onclick=async()=>{const c=pending;pending=null;showTrust(false);
+  try{await trustHostKey(c.fingerprint)}catch(e){toast('The server is trusted for this connection only: '+errorText(e),{error:true})}
+  begin(c,serverLabel(c))};
 // serverConn is the trusted server last connected to. Connecting to a server only starts the
 // monitor; its files are scanned when the user asks, using these details. They stay in memory
 // for this session and are never saved.
@@ -125,7 +137,7 @@ function syncServerScan(){
 function serverScanPrompt(){
   if(target!=='remote'||!serverConn||viewId!==null||poll)return;
   lastView=null;leaves=[];tops=new Map();$('workspace').classList.add('idle');
-  $('heading').replaceChildren(el('span','here','No scan yet'));$('subheading').textContent='Monitoring '+serverWho+'. Its files are scanned only when you ask.';$('up').classList.add('hidden');
+  $('heading').replaceChildren(el('span','here','No scan yet'));$('subheading').textContent='Monitoring '+serverWho;$('up').classList.add('hidden');
   const box=el('div','empty welcome'),b=el('button','btn primary');
   box.append(el('h2','','Files on '+serverWho+' have not been scanned'),el('p','','Scanning reads every folder under '+(serverConn.path||'/')+' on the server, which can take a while on large disks. Monitoring keeps running meanwhile.'));
   b.type='button';b.id='scanServerInline';b.append(icon('scan'),'Scan files');b.onclick=scanServer;box.append(b);
@@ -138,7 +150,7 @@ async function beginScan(c,who,local){
   Object.assign(s,{who,viewId:0,lastView:null,mode:'',tick:0,scanReady:false,status:{running:true},needsFinal:false});
   clearInterval(s.poll);s.poll=setInterval(()=>pollScanFor(t),500);
   if(target===t){
-    restoreStorageTarget(t);resetFind();scanReady=false;s.scanReady=false;$('cancelScanButton').classList.remove('hidden');$('clearResults').classList.add('hidden');conn('busy','Scanning '+who);
+    restoreStorageTarget(t);resetFind();scanReady=false;s.scanReady=false;s.back=[];s.fwd=[];$('cancelScanButton').classList.remove('hidden');$('clearResults').classList.add('hidden');conn('busy','Scanning '+who);
     placeholder(local?'Scanning '+localName().toLowerCase()+'…':'Waiting for the completed report from the server…');$('footer').textContent='Scanning…';
   }
   setTab('storage');syncServerScan();
@@ -170,13 +182,32 @@ async function begin(c,who){
 }
 $('clearResults').onclick=async()=>{
   try{await clearResults(target)}catch(e){status(String(e),true);return}
-  resetFind();viewId=null;Object.assign(storageSessions[target],{viewId:null,lastView:null,leaves:[],tops:new Map(),status:{cleared:true},scanReady:false,needsFinal:false});placeholder('Results cleared. Their memory was released; scan again to see them.',true);
-  $('clearResults').classList.add('hidden');$('footer').textContent='Ready';$('footer').title='';status('Results cleared.');
+  cleanExit(false);$('cleanButton').classList.add('hidden');
+  resetFind();viewId=null;Object.assign(storageSessions[target],{viewId:null,lastView:null,leaves:[],tops:new Map(),status:{cleared:true},scanReady:false,needsFinal:false,back:[],fwd:[]});syncNav();placeholder('Results cleared. Their memory was released; scan again to see them.',true);
+  $('clearResults').classList.add('hidden');$('footer').textContent='';$('footer').title='';status('Results cleared.');
 };
 $('scanServerButton').onclick=scanServer;
 $('cancelScanButton').onclick=async()=>{try{await cancelScan(target);status('Cancelling scan…',false,true)}catch(e){status(String(e),true)}};
 function goUp(){if(lastView&&lastView.trail.length>1)go(lastView.trail[lastView.trail.length-2].id)}
 $('up').onclick=goUp;
+$('mapUp').onclick=goUp;$('mapBack').onclick=goBack;$('mapForward').onclick=goForward;
+// The mouse's back and forward buttons, and Alt with a left or right click, go back and
+// forward through the folders opened in Storage. The browser's own back navigation is
+// stopped, as it would leave the page.
+function storageNavClick(e){
+  if(tab!=='storage'||!lastView)return false;
+  const back=e.button===3||(e.altKey&&e.button===0),forward=e.button===4||(e.altKey&&e.button===2);
+  if(!back&&!forward)return false;
+  e.preventDefault();e.stopPropagation();
+  return back?'back':'forward';
+}
+if(typeof document.addEventListener==='function'){
+  document.addEventListener('mousedown',e=>{if(e.button===3||e.button===4)e.preventDefault()},true);
+  document.addEventListener('mouseup',e=>{const way=storageNavClick(e);if(way==='back')goBack();else if(way==='forward')goForward()},true);
+  // The click and context menu that follow are swallowed so the folder under the pointer
+  // is not opened and no menu appears.
+  for(const type of ['click','auxclick','contextmenu'])document.addEventListener(type,e=>{if(tab==='storage'&&lastView&&(e.button===3||e.button===4||(e.altKey&&(e.button===0||e.button===2))))storageNavClick(e)},true);
+}
 function setSide(on){$('layout').classList.toggle('collapsed',!on);$('toggleSide').setAttribute('aria-pressed',String(on))}
 $('toggleSide').onclick=()=>{const on=$('layout').classList.contains('collapsed');setSide(on);if(prefs)prefs.set('sidebar',on)};
 const dialogOpen=id=>!$(id).classList.contains('hidden');
@@ -188,10 +219,12 @@ document.onkeydown=e=>{
   if(!$('menu').classList.contains('hidden')){if(e.key==='Escape'){e.preventDefault();hideMenu()}return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();if(!$('find').classList.contains('hidden')){setTab('storage');$('search').focus();$('search').select()}return}
   if(e.key==='Escape'&&filesMode&&tab==='storage'){e.preventDefault();exitFiles();return}
+  if(e.key==='Escape'&&cleanOn()&&tab==='storage'){e.preventDefault();cleanExit(true);return}
   if(e.key==='Escape'&&Dash.escape()){e.preventDefault();return}
   if((e.ctrlKey||e.metaKey)&&e.key===','){e.preventDefault();openAppearance();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();$('toggleSide').click();return}
   if((e.ctrlKey||e.metaKey)&&['1','2','3','4'].includes(e.key)){e.preventDefault();setTab({1:'storage',2:'activity',3:'history',4:'events'}[e.key]);return}
+  if(tab==='storage'&&e.altKey&&!e.ctrlKey&&!e.shiftKey&&!e.metaKey&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();if(e.key==='ArrowLeft')goBack();else goForward();return}
   if(typing)return;
   if(tab==='storage'&&!filesMode&&(e.key==='Backspace'||(e.altKey&&e.key==='ArrowUp'))){e.preventDefault();goUp()}
 };
@@ -269,10 +302,23 @@ function refresh(){
   if(t===target)refreshing=state.refreshing;
   return state.refreshing;
 }
-function go(id){if(id===undefined||id===null)return;viewId=id;storageSessions[target].viewId=id;refresh()}
+// go opens a folder of the scan. Folders opened by the user are remembered, so Back and
+// Forward can return to them; going back or forward itself passes fromHistory.
+function go(id,fromHistory){
+  if(id===undefined||id===null)return;
+  const s=storageSessions[target];
+  if(!fromHistory&&viewId!==null&&viewId!==undefined&&id!==viewId){s.back.push(viewId);if(s.back.length>200)s.back.shift();s.fwd.length=0}
+  viewId=id;s.viewId=id;syncNav();refresh();
+}
+function goBack(){const s=storageSessions[target];if(!s.back.length||!lastView)return;s.fwd.push(viewId);go(s.back.pop(),true)}
+function goForward(){const s=storageSessions[target];if(!s.fwd.length||!lastView)return;s.back.push(viewId);go(s.fwd.pop(),true)}
+function syncNav(){
+  const s=storageSessions[target],ready=!!lastView;
+  $('mapBack').disabled=!(ready&&s.back.length);$('mapForward').disabled=!(ready&&s.fwd.length);$('mapUp').disabled=!(ready&&lastView.trail.length>1);
+}
 function placeholder(text,done=false){
   lastView=null;leaves=[];tops=new Map();$('workspace').classList.add('idle');
-  $('heading').replaceChildren(el('span','here',done?'No results':'Scanning…'));$('subheading').textContent='';$('up').classList.add('hidden');
+  $('heading').replaceChildren(el('span','here',done?'No results':'Scanning…'));$('subheading').textContent='';$('up').classList.add('hidden');syncNav();
   const box=el('div','empty');if(!done)box.append(el('div','spinner'));box.append(el('div','',text));if(!done){const d=el('div','scan-detail');d.id='scanDetail';box.append(d)}
   $('listing').replaceChildren(box);drawMap(null);
 }
@@ -291,9 +337,9 @@ function render(v){
   const sub=$('subheading');sub.replaceChildren();
   for(const [k,t] of [[size(v.size),'total'],[count(v.items),'items'],[count(v.files),'files']]){const s=el('span');s.append(el('b','',k),' '+t);sub.append(s)}
   if(v.incomplete)sub.append(el('span','badge','Incomplete'));
-  $('up').classList.toggle('hidden',v.trail.length<2);
+  $('up').classList.toggle('hidden',v.trail.length<2);syncNav();
   computeColors(v);
-  if(!filesMode)renderList(v);
+  if(!filesMode&&!cleanOn())renderList(v);
   drawMap(v);
 }
 function renderList(v){
@@ -310,8 +356,8 @@ function renderList(v){
   for(const n of entries){
     const tr=el('tr'),target={parent:v.id,name:n.name,dir:!!n.dir,id:n.id,size:n.size};
     tr.dataset.click='1';tr.tabIndex=0;tr.dataset.name=n.name;
-    if(n.dir){tr.onclick=()=>go(n.id);tr.onkeydown=e=>{if(e.key==='Enter')go(n.id);else rowKeys(e)}}
-    else{tr.ondblclick=()=>openEntry(v.id,n.name);tr.onkeydown=e=>{if(e.key==='Enter')openEntry(v.id,n.name);else rowKeys(e)}}
+    if(n.dir){tr.onclick=()=>go(n.id);tr.onkeydown=e=>{if(e.key==='Enter')go(n.id);else if(!deleteKey(e,target))rowKeys(e)}}
+    else{tr.ondblclick=()=>openEntry(v.id,n.name);tr.onkeydown=e=>{if(e.key==='Enter')openEntry(v.id,n.name);else if(!deleteKey(e,target))rowKeys(e)}}
     tr.oncontextmenu=e=>itemMenu(e,target);
     const color=n.dir?null:typeColor.get(ext(n.name))||OTHER_TYPE,share=el('td'),wrap=el('div','share'),bar=el('span','bar'),fill=el('i');
     fill.style.width=Math.min(100,v.size?100*n.size/v.size:0).toFixed(1)+'%';if(color)fill.style.background=color;

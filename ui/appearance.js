@@ -78,7 +78,7 @@ function filePane(exporting){
   closePanes();
   const t=exporting?TH.find(TH.id):null;fileTheme=t;
   $('fileTitle').textContent=t?`Export “${t.label}”`:'Import a theme';
-  $('fileHint').textContent=t?'Copy this file or save it, then import it on another computer. T3 Code theme files can be imported the same way.':'Paste a theme file, or open one. Themes exported from KamkmDirStat or T3 Code both work.';
+  $('fileHint').textContent=t?'Copy or save it to import elsewhere.':'Paste or open a theme file.';
   $('fileText').value=t?TH.toFile(t):'';$('fileText').readOnly=!!t;$('fileMsg').textContent='';$('fileMsg').className='msg';
   for(const id of ['fileBrowse','fileImport'])$(id).classList.toggle('hidden',!!t);
   $('fileCopy').classList.toggle('hidden',!t);$('fileSave').classList.toggle('hidden',!t||typeof window.exportTheme!=='function');
@@ -117,4 +117,21 @@ async function startLocalMonitoring(){
 }
 startLocalMonitoring();
 startHistoryUpdates();
-if(typeof appPlatform==='function')appPlatform().then(p=>{platform=p;applyPlatform();storageSessions.local.who=localName();monitorSessions.local.who=localName();if(monitorTarget==='local'){$('actHost').textContent=localName();$('connText').dataset.who=localName()}}).catch(()=>{});
+if(typeof appPlatform==='function')appPlatform().then(p=>{platform=p;applyPlatform();storageSessions.local.who=localName();monitorSessions.local.who=localName();if(monitorTarget==='local'){$('actHost').textContent=hello&&hello.system||localName();$('connText').dataset.who=localName()}}).catch(()=>{});
+
+// On Windows the page's bar is the window's title bar (frame_windows.go): pressing an empty
+// part of it moves the window, a double press maximises it, a right press opens the window
+// menu, and the strip along the top edge resizes the window.
+if(typeof windowControl==='function'){
+  const root=document.documentElement,bar=document.querySelector('.titlebar'),strip=$('winResize');
+  const win=action=>windowControl(action).then(max=>{root.classList.toggle('maximized',!!max);const label=max?'Restore':'Maximize';$('winMax').title=label;$('winMax').setAttribute('aria-label',label)}).catch(()=>{});
+  root.classList.add('custom-frame');
+  $('winMin').onclick=()=>win('minimize');$('winMax').onclick=()=>win('maximize');$('winClose').onclick=()=>win('close');
+  const empty=e=>!e.target.closest('button,input,select,a,[role=tab]');
+  bar.addEventListener('mousedown',e=>{if(e.button!==0||!empty(e))return;e.preventDefault();win(e.detail>=2?'maximize':'drag')});
+  bar.addEventListener('contextmenu',e=>{if(!empty(e))return;e.preventDefault();win('menu')});
+  const edge=x=>x<12?'resize-topleft':x>innerWidth-12?'resize-topright':'resize-top';
+  strip.onmousemove=e=>{strip.style.cursor={'resize-topleft':'nw-resize','resize-topright':'ne-resize'}[edge(e.clientX)]||'n-resize'};
+  strip.onmousedown=e=>{if(e.button===0){e.preventDefault();win(edge(e.clientX))}};
+  window.addEventListener('resize',()=>win('state'));win('state');
+}

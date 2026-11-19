@@ -31,6 +31,7 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"resolveStatus":       resolveStatus,
 		"startFingerprint":    startFingerprint,
 		"fingerprintStatus":   fingerprintStatus,
+		"trustHostKey":        trustHostKey,
 		"startScan":           startScan,
 		"scanStatus":          scanStatusFor,
 		"cancelScan":          cancelScanFor,
@@ -55,6 +56,13 @@ func bindAll(w window, extra map[string]interface{}) error {
 		"listDrives":          listDrives,
 		"saveSettings":        saveSettings,
 		"exportTheme":         exportTheme,
+		"startCleanupFind":    startCleanupFind,
+		"cleanupStatus":       cleanupStatus,
+		"startCleanup":        startCleanup,
+		"cancelCleanup":       cancelCleanup,
+		"revealCleanupPath":   revealCleanupPath,
+		"startDelete":         startDelete,
+		"deleteStatus":        deleteStatus,
 	}
 	for name, f := range extra {
 		functions[name] = f
@@ -75,6 +83,7 @@ func runWindow(w window, settings json.RawMessage, extra map[string]interface{})
 	defer stopAllMonitors()
 	defer closeMonitorHistory()
 	defer cancelOpen()
+	defer cancelCleanup()
 	w.SetTitle(windowTitle)
 	if err := bindAll(w, extra); err != nil {
 		return err

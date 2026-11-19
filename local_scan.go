@@ -90,11 +90,11 @@ func isInside(p, parent string) bool {
 func newLocalTree(roots []string) *Tree {
 	if len(roots) == 1 {
 		t := newTree(roots[0])
-		t.local = true
+		t.local, t.roots = true, slices.Clone(roots)
 		return t
 	}
 	t := newTree(localRootName())
-	t.local = true
+	t.local, t.roots = true, slices.Clone(roots)
 	for _, r := range roots {
 		t.addChild(t.Root, r, true, 0)
 	}

@@ -17,8 +17,8 @@ function renderMachinePickers(){
     }
     s.value=historyMachine;
   }
-  $('historySub').textContent='Resource use on '+machineName(historyMachine)+', kept for up to 72 hours.';
-  $('eventsSub').textContent='Process activity and alerts from monitoring '+machineName(historyMachine)+'.';
+  $('historySub').textContent=machineName(historyMachine)+' · last 72 hours';
+  $('eventsSub').textContent=machineName(historyMachine);
 }
 async function loadHistoryMachineList(){
   if(typeof historyMachines==='function'){try{const list=await historyMachines();historyMachineList=Array.isArray(list)?list:[]}catch(e){}}
@@ -93,7 +93,7 @@ async function loadResourceHistory(background=false){
     $('historyCoverage').textContent='History is unavailable';setHistoryEmpty('History is unavailable','The local monitoring history service could not be started.');return null;
   }
   const seq=++historyRequest,range=historyRange();
-  if(!background||!historyData){$('historyCoverage').textContent='Loading history…';if(!historyData)setHistoryEmpty('Loading local history…','Resource samples will appear here.')}
+  if(!background||!historyData){$('historyCoverage').textContent='Loading history…';if(!historyData)setHistoryEmpty('Loading history…','')}
   try{
     const data=await monitorHistory({...range,machine:historyMachine,points:Math.max(200,Math.min(1600,historyCanvas.clientWidth||900)),eventType:'alerts',eventLimit:1000});
     if(seq!==historyRequest)return null;
@@ -101,7 +101,7 @@ async function loadResourceHistory(background=false){
     if(historyCursor!==null&&(historyCursor<historyData.from||historyCursor>historyData.to))historyCursor=null;
     if(historySelectedEvent&&(historySelectedEvent.time<historyData.from||historySelectedEvent.time>historyData.to))historySelectedEvent=null;
     $('historyCoverage').textContent=historyCoverage(historyData);$('historyCoverage').title=$('historyCoverage').textContent;
-    setHistoryEmpty('No samples in this range',historyData.oldest?'Recording has gaps. Choose another range or inspect a different time.':'Keep monitoring '+machineName(historyMachine)+' to record resource use. History only advances while the app is monitoring it.',!historyData.points.length);
+    setHistoryEmpty('No samples in this range',historyData.oldest?'Try another range.':'Recorded while monitoring runs.',!historyData.points.length);
     if(!historyData.points.length)resetHistoryProcesses();
     historyStorageWarning(data.storageWarning||'');
     drawResourceHistory();
@@ -195,30 +195,115 @@ function renderHistoryProcesses(processes,time){
     list.append(row);
   }
 }
-function historyChartLayout(W,H){
-  const left=66,right=Math.max(left+1,W-14),top=20,bottom=Math.max(top+4,H-27),gap=9,laneH=(bottom-top-gap*3)/4;
-  return {left,right,top,bottom,gap,laneH,lanes:[0,1,2,3].map(i=>({y:top+i*(laneH+gap),h:laneH}))};
+function historyChartLayout(W,H,scaleWidth=34){
+  // The scale's labels sit on the right, so the chart starts at the panel's edge.
+  const left=14,right=Math.max(left+1,W-scaleWidth-18),top=22,bottom=Math.max(top+4,H-27);
+  return {left,right,top,bottom};
 }
 function historyNiceMax(value){
   if(!isFinite(value)||value<=0)return 1;
   const power=10**Math.floor(Math.log10(value)),scaled=value/power;
   return (scaled<=1?1:scaled<=2?2:scaled<=5?5:10)*power;
 }
-function drawHistorySeries(ctx,points,lane,get,color,x,y,gap){
-  // Segments break at gaps; a segment with a single sample is drawn as a dot so it stays visible.
-  let segment=0,previous=null,lone=null;
-  const dot=p=>{ctx.fillStyle=color;ctx.beginPath();ctx.arc(p[0],p[1],2.2,0,Math.PI*2);ctx.fill()};
-  const end=()=>{if(segment>1)ctx.stroke();else if(segment===1)dot(lone);segment=0;ctx.beginPath()};
-  ctx.strokeStyle=color;ctx.lineWidth=1.45;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
-  for(const p of points){
-    const value=get(p),missing=value===null||value===undefined||!isFinite(value);
-    if(missing||previous!==null&&p.time-previous>gap)end();
-    previous=p.time;if(missing)continue;
-    const px=x(p.time),py=y(value);
-    if(!segment){ctx.moveTo(px,py);lone=[px,py]}else ctx.lineTo(px,py);
-    segment++;
+// historyRateMax rounds a rate up in the binary units rate() shows, so the scale reads 25, 50,
+// 75 and 100 KiB/s rather than 24.4 and 48.8.
+function historyRateMax(value){
+  const unit=1024**Math.max(0,Math.floor(Math.log(Math.max(1,value))/Math.log(1024)));
+  const scaled=value/unit;
+  return (scaled<=1?1:scaled<=2?2:scaled<=4?4:scaled<=8?8:historyNiceMax(scaled))*unit;
+}
+// The History tab shows one metric at a time. value() is the figure on its tab.
+const HISTORY_METRICS={
+  cpu:{label:'CPU',get:p=>p.cpu,max:()=>100,value:p=>pct0(p.cpu)},
+  memory:{label:'Memory',get:p=>p.memory,max:()=>100,value:p=>pct0(p.memory)},
+  gpu:{label:'GPU',get:p=>p.gpu,max:()=>100,value:p=>p.gpu===null||p.gpu===undefined?'–':pct0(p.gpu)},
+  network:{label:'Network',get:p=>p.rx,second:p=>p.tx,max:points=>historyRateMax(Math.max(1,...points.map(p=>Math.max(p.rx||0,p.tx||0)))),value:p=>'↓'+rate(p.rx)+' ↑'+rate(p.tx)}
+};
+const HISTORY_METRIC_IDS={cpu:'Cpu',memory:'Memory',gpu:'Gpu',network:'Network'};
+let historyMetric='cpu';
+if(prefs&&HISTORY_METRICS[prefs.get('historyMetric','cpu')])historyMetric=prefs.get('historyMetric','cpu');
+// The tabs show the values under the pointer, or the latest ones when nothing is inspected.
+function syncHistoryMetrics(){
+  const cursor=historyHoverTime??historyCursor,points=historyData&&historyData.points||[];
+  const p=points.length?(cursor!==null&&cursor!==undefined?nearestHistoryPoint(cursor):points[points.length-1]):null;
+  for(const [key,suffix] of Object.entries(HISTORY_METRIC_IDS)){
+    const b=$('historyMetric'+suffix),v=$('historyValue'+suffix);
+    if(b)b.setAttribute('aria-pressed',String(key===historyMetric));
+    if(v)v.textContent=p?HISTORY_METRICS[key].value(p):'–';
   }
-  end();
+}
+for(const [key,suffix] of Object.entries(HISTORY_METRIC_IDS)){
+  const b=$('historyMetric'+suffix);if(!b)continue;
+  b.onclick=()=>{historyMetric=key;if(prefs)prefs.set('historyMetric',key);syncHistoryMetrics();drawResourceHistory()};
+}
+// smoothHistory averages each sample with its neighbours within radius seconds, weighting
+// nearer ones more, so second-to-second jitter does not turn the line into spikes. Samples
+// are never averaged across a gap in the recording. The readout keeps the exact values.
+function smoothHistory(points,get,radius,gap){
+  const out=new Array(points.length);
+  let start=0;
+  for(let i=0;i<points.length;i++){
+    if(i>0&&points[i].time-points[i-1].time>gap)start=i;
+    const v=get(points[i]);
+    if(v===null||v===undefined||!isFinite(v)){out[i]=null;continue}
+    if(!(radius>0)){out[i]=v;continue}
+    let sum=0,weight=0;
+    for(let j=i;j>=start;j--){
+      const d=points[i].time-points[j].time;if(d>radius)break;
+      const u=get(points[j]);if(u===null||u===undefined||!isFinite(u))continue;
+      const w=1-d/(radius+1e-9);sum+=u*w;weight+=w;
+    }
+    for(let j=i+1;j<points.length&&points[j].time-points[j-1].time<=gap;j++){
+      const d=points[j].time-points[i].time;if(d>radius)break;
+      const u=get(points[j]);if(u===null||u===undefined||!isFinite(u))continue;
+      const w=1-d/(radius+1e-9);sum+=u*w;weight+=w;
+    }
+    out[i]=weight?sum/weight:v;
+  }
+  return out;
+}
+// traceSmooth draws a curve through the points with monotone cubic interpolation, which never
+// swings above or below the samples, so a curve of percentages stays between 0 and 100.
+function traceSmooth(ctx,pts){
+  const n=pts.length;ctx.moveTo(pts[0][0],pts[0][1]);
+  if(n===2){ctx.lineTo(pts[1][0],pts[1][1]);return}
+  const slope=[],tangent=new Array(n);
+  for(let i=0;i<n-1;i++){const dx=pts[i+1][0]-pts[i][0];slope.push(dx>0?(pts[i+1][1]-pts[i][1])/dx:0)}
+  tangent[0]=slope[0];tangent[n-1]=slope[n-2];
+  for(let i=1;i<n-1;i++)tangent[i]=slope[i-1]*slope[i]<=0?0:(slope[i-1]+slope[i])/2;
+  for(let i=0;i<n-1;i++){
+    if(slope[i]===0){tangent[i]=0;tangent[i+1]=0;continue}
+    const a=tangent[i]/slope[i],b=tangent[i+1]/slope[i],s=a*a+b*b;
+    if(s>9){const t=3/Math.sqrt(s);tangent[i]=t*a*slope[i];tangent[i+1]=t*b*slope[i]}
+  }
+  for(let i=0;i<n-1;i++){
+    const dx=(pts[i+1][0]-pts[i][0])/3;
+    ctx.bezierCurveTo(pts[i][0]+dx,pts[i][1]+dx*tangent[i],pts[i+1][0]-dx,pts[i+1][1]-dx*tangent[i+1],pts[i+1][0],pts[i+1][1]);
+  }
+}
+// drawHistorySeries draws one series as smooth curves that break at gaps in the recording. A
+// segment with a single sample is drawn as a dot so it stays visible. With opts.base, the area
+// under the curve is shaded down to that height; opts.smooth is the averaging radius in seconds.
+function drawHistorySeries(ctx,points,lane,get,color,x,y,gap,opts={}){
+  const values=opts.smooth?smoothHistory(points,get,opts.smooth,gap):points.map(get);
+  const segments=[];let current=[],previous=null;
+  points.forEach((p,i)=>{
+    const value=values[i],missing=value===null||value===undefined||!isFinite(value);
+    if(missing||previous!==null&&p.time-previous>gap){if(current.length)segments.push(current);current=[]}
+    previous=p.time;if(!missing)current.push([x(p.time),y(value)]);
+  });
+  if(current.length)segments.push(current);
+  for(const pts of segments){
+    if(pts.length===1){ctx.fillStyle=color;ctx.beginPath();ctx.arc(pts[0][0],pts[0][1],2.2,0,Math.PI*2);ctx.fill();continue}
+    if(opts.base!==undefined){
+      const top=Math.min(...pts.map(p=>p[1])),soft=withAlpha(color,.28);
+      let fill=soft;
+      if(soft!==color&&typeof ctx.createLinearGradient==='function'){fill=ctx.createLinearGradient(0,top,0,opts.base);fill.addColorStop(0,soft);fill.addColorStop(1,withAlpha(color,0))}
+      ctx.save();if(soft===color)ctx.globalAlpha=.16;
+      ctx.fillStyle=fill;ctx.beginPath();traceSmooth(ctx,pts);ctx.lineTo(pts[pts.length-1][0],opts.base);ctx.lineTo(pts[0][0],opts.base);ctx.closePath();ctx.fill();ctx.restore();
+    }
+    ctx.strokeStyle=color;ctx.lineWidth=opts.width||1.6;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();traceSmooth(ctx,pts);ctx.stroke();
+  }
 }
 // Tick labels adapt to both the visible span and the chart width.
 function historyTicks(from,to,width){
@@ -240,30 +325,39 @@ function drawResourceHistory(){
   const dpr=Math.min(2,window.devicePixelRatio||1),st=getComputedStyle(document.documentElement),cv=name=>st.getPropertyValue(name).trim();
   if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){c.width=Math.round(W*dpr);c.height=Math.round(H*dpr)}
   const ctx=c.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
-  const L=historyChartLayout(W,H),points=historyData.points,span=Math.max(.001,historyData.to-historyData.from),x=t=>L.left+(t-historyData.from)/span*(L.right-L.left),gap=historyGap();
-  const font=getComputedStyle(c).fontFamily||'sans-serif',colors={text:cv('--text'),muted:cv('--text-muted'),faint:cv('--text-faint'),border:cv('--border'),line:cv('--chart-1'),second:cv('--chart-2'),accent:cv('--accent'),warning:cv('--warning-foreground'),error:cv('--error-foreground')};
+  const font=getComputedStyle(c).fontFamily||'sans-serif',points=historyData.points;
+  // The chosen metric fills the chart, on a scale with quarter lines labelled on the right.
+  const metric=HISTORY_METRICS[historyMetric]||HISTORY_METRICS.cpu,max=metric.max(points),scaleLabel=v=>historyMetric==='network'?rate(v):Math.round(v)+'%';
+  ctx.font='500 10px '+font;
+  const scaleWidth=Math.max(...[.25,.5,.75,1].map(f=>ctx.measureText(scaleLabel(max*f)).width));
+  const L=historyChartLayout(W,H,scaleWidth),span=Math.max(.001,historyData.to-historyData.from),x=t=>L.left+(t-historyData.from)/span*(L.right-L.left),gap=historyGap();
+  const colors={text:cv('--text'),muted:cv('--text-muted'),faint:cv('--text-faint'),border:cv('--border'),line:cv('--chart-1'),second:cv('--chart-2'),accent:cv('--accent'),warning:cv('--warning-foreground'),error:cv('--error-foreground')};
   ctx.font='500 10.5px '+font;ctx.textBaseline='alphabetic';
   for(let i=1;i<points.length;i++){
     const p=points[i];if(p.time-points[i-1].time>gap){
       ctx.strokeStyle=colors.border;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(x(p.time),L.top);ctx.lineTo(x(p.time),L.bottom);ctx.stroke();ctx.setLineDash([]);
     }
   }
-  const netMax=historyNiceMax(Math.max(1,...points.map(p=>Math.max(p.rx||0,p.tx||0))));
-  const configs=[
-    {label:'CPU',max:100,get:p=>p.cpu,color:colors.line,unit:'100%'},
-    {label:'Memory',max:100,get:p=>p.memory,color:colors.line,unit:'100%'},
-    {label:'GPU',max:100,get:p=>p.gpu,color:colors.line,unit:'100%'},
-    {label:'Network',max:netMax,get:p=>p.rx,color:colors.line,second:p=>p.tx,unit:rate(netMax)}
-  ];
-  configs.forEach((cfg,i)=>{
-    const lane=L.lanes[i],top=lane.y+18,bottom=lane.y+lane.h,h=Math.max(1,bottom-top),y=v=>bottom-Math.max(0,Math.min(1,v/cfg.max))*h;
-    ctx.strokeStyle=colors.border;ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(L.left,Math.round((top+bottom)/2)+.5);ctx.lineTo(L.right,Math.round((top+bottom)/2)+.5);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=colors.text;ctx.font='600 11px '+font;ctx.textAlign='left';ctx.fillText(cfg.label,9,lane.y+12);
-    // The scale sits under the label, so long labels such as Memory and Network never overlap it.
-    ctx.fillStyle=colors.faint;ctx.font='500 10px '+font;ctx.fillText(cfg.unit,9,lane.y+25);
-    drawHistorySeries(ctx,points,lane,cfg.get,cfg.color,x,y,gap);
-    if(cfg.second)drawHistorySeries(ctx,points,lane,cfg.second,colors.second,x,y,gap);
-  });
+  const h=Math.max(1,L.bottom-L.top),y=v=>L.bottom-Math.max(0,Math.min(1,v/max))*h;
+  ctx.lineWidth=1;ctx.textAlign='left';ctx.textBaseline='middle';ctx.font='500 10px '+font;
+  for(const f of [0,.25,.5,.75,1]){
+    const gy=Math.round(L.bottom-f*h)+.5;
+    ctx.strokeStyle=colors.border;ctx.setLineDash(f===0?[]:[2,4]);ctx.beginPath();ctx.moveTo(L.left,gy);ctx.lineTo(L.right,gy);ctx.stroke();
+    if(f>0){ctx.fillStyle=colors.faint;ctx.fillText(scaleLabel(max*f),L.right+8,gy)}
+  }
+  ctx.setLineDash([]);ctx.textBaseline='alphabetic';
+  // Average over about twelve pixels' worth of time, so the curve looks the same at every range.
+  const smooth=Math.max(2,span/Math.max(1,L.right-L.left)*12);
+  drawHistorySeries(ctx,points,null,metric.get,colors.line,x,y,gap,{smooth,base:L.bottom,width:1.8});
+  if(metric.second)drawHistorySeries(ctx,points,null,metric.second,colors.second,x,y,gap,{smooth,width:1.5});
+  if(metric.second){
+    // A small key tells download from upload.
+    ctx.font='500 10.5px '+font;ctx.textAlign='left';let kx=L.left+8;
+    for(const [label,color] of [['Download',colors.line],['Upload',colors.second]]){
+      ctx.fillStyle=color;ctx.fillRect(kx,L.top+6,10,2.5);ctx.fillStyle=colors.muted;ctx.fillText(label,kx+15,L.top+11);kx+=15+ctx.measureText(label).width+16;
+    }
+  }
+  syncHistoryMetrics();
   // Events stay visible even when their resource series is flat. The selected event gets a full-height rule.
   for(const e of historyData.events){
     if(e.time<historyData.from||e.time>historyData.to)continue;
@@ -366,7 +460,7 @@ function renderMonitorEvents(){
   eventsDirty=false;
   const list=$('eventList'),events=filteredMonitorEvents();clearElement(list);
   $('eventCount').textContent=events.length===monitorEvents.length?count(events.length)+' events':count(events.length)+' of '+count(monitorEvents.length)+' events';
-  if(!events.length){setEventEmpty(monitorEvents.length?'No matching events':'No events yet',monitorEvents.length?'Change the search or filters to see more events.':'Process starts, exits and alert events are recorded while monitoring runs.');return}
+  if(!events.length){setEventEmpty(monitorEvents.length?'No matching events':'No events yet',monitorEvents.length?'Try other filters.':'Recorded while monitoring runs.');return}
   if(typeof document.createElement!=='function')return;
   const today=new Date().toDateString();
   for(const e of events.slice(0,eventRowLimit)){
@@ -416,7 +510,7 @@ async function loadMonitorEvents(background=false){
   const seq=++eventRequest,to=historyNow(),incremental=background&&eventBaseline&&monitorEvents.length>0;
   // The newest event's own second is fetched again; events already known are skipped by ID.
   const from=incremental?monitorEvents[0].time:to-72*3600;
-  if(!monitorEvents.length&&!background){$('eventCount').textContent='Loading events…';setEventEmpty('Loading events…','Process activity and alerts will appear here.')}
+  if(!monitorEvents.length&&!background){$('eventCount').textContent='Loading events…';setEventEmpty('Loading events…','')}
   try{
     const data=await monitorHistory({from,to,machine:historyMachine,points:1,eventType:'',eventLimit:MAX_MONITOR_EVENTS});
     if(seq!==eventRequest)return null;
@@ -450,7 +544,7 @@ $('eventsRefresh').onclick=()=>loadMonitorEvents();
 function startHistoryUpdates(){
   if(historyUpdateTimer!==null||typeof setInterval!=='function'||typeof monitorHistory!=='function')return;
   loadHistoryMachineList();loadMonitorEvents(true);
-  historyUpdateTimer=setInterval(()=>{loadMonitorEvents(true);if(tab==='history')loadResourceHistory(true)},5000);
+  historyUpdateTimer=setInterval(()=>{loadMonitorEvents(true);if(tab==='history'&&pageShown())loadResourceHistory(true)},5000);
 }
 syncHistoryRanges();
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{redraw();drawSparks();drawResourceHistory()},150)});

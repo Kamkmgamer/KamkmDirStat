@@ -105,19 +105,28 @@ func sshConnectContext(ctx context.Context, c Connection, callback ssh.HostKeyCa
 	_ = conn.SetDeadline(time.Time{})
 	return ssh.NewClient(cc, chans, reqs), nil
 }
-func fingerprint(c Connection) (string, error) {
-	var found string
-	client, err := sshConnect(c, func(_ string, _ net.Addr, key ssh.PublicKey) error {
-		found = ssh.FingerprintSHA256(key)
+
+// hostKey is the key a server presented, and whether the user already trusts it.
+type hostKey struct {
+	Hostname    string
+	Key         ssh.PublicKey
+	Fingerprint string
+	Trust       string
+}
+
+func fingerprint(c Connection) (hostKey, error) {
+	var found hostKey
+	client, err := sshConnect(c, func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		found = hostKey{Hostname: hostname, Key: key, Fingerprint: ssh.FingerprintSHA256(key), Trust: checkHostKey(hostname, remote, key, hostKeyFiles())}
 		return errors.New("host key received")
 	}, nil)
 	if client != nil {
 		client.Close()
 	}
-	if found != "" {
+	if found.Key != nil {
 		return found, nil
 	}
-	return "", err
+	return hostKey{}, err
 }
 
 func cleanRemotePath(p string) (string, error) {

@@ -16,7 +16,7 @@ func waitMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus {
 	t.Helper()
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		s := monitorStatus()
+		s := monitorStatusFor("remote")
 		if done(s) {
 			return s
 		}
@@ -25,7 +25,7 @@ func waitMonitor(t *testing.T, done func(MonitorStatus) bool) MonitorStatus {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	t.Fatalf("timed out: %+v", monitorStatus())
+	t.Fatalf("timed out: %+v", monitorStatusFor("remote"))
 	return MonitorStatus{}
 }
 
@@ -34,7 +34,7 @@ func TestMonitorSamplesAndEndsProcess(t *testing.T) {
 	if err := startMonitor(c); err != nil {
 		t.Fatal(err)
 	}
-	defer stopMonitor()
+	defer stopMonitorFor("remote")
 	s := waitMonitor(t, func(s MonitorStatus) bool { return s.Seq >= 2 })
 	var hello struct {
 		Privilege string `json:"privilege"`
@@ -98,14 +98,14 @@ func TestMonitorSamplesAndEndsProcess(t *testing.T) {
 	start, _ := strconv.ParseInt(fields[19], 10, 64)
 
 	// A stale start time means the PID now belongs to a different process: leave it alone.
-	if err := monitorAction(MonitorAction{ID: 1, Type: "kill", PID: victim.Process.Pid, Start: start + 1, Signal: "TERM"}); err != nil {
+	if err := monitorActionFor("remote", MonitorAction{ID: 1, Type: "kill", PID: victim.Process.Pid, Start: start + 1, Signal: "TERM"}); err != nil {
 		t.Fatal(err)
 	}
 	s = waitMonitor(t, func(s MonitorStatus) bool { _, _, found := monitorResult(s, 1); return found })
 	if _, message, _ := monitorResult(s, 1); !strings.Contains(message, "already exited") {
 		t.Fatalf("stale PID was not refused: %q", message)
 	}
-	if err := monitorAction(MonitorAction{ID: 2, Type: "kill", PID: victim.Process.Pid, Start: start, Signal: "TERM"}); err != nil {
+	if err := monitorActionFor("remote", MonitorAction{ID: 2, Type: "kill", PID: victim.Process.Pid, Start: start, Signal: "TERM"}); err != nil {
 		t.Fatal(err)
 	}
 	s = waitMonitor(t, func(s MonitorStatus) bool { _, _, found := monitorResult(s, 2); return found })
@@ -117,7 +117,7 @@ func TestMonitorSamplesAndEndsProcess(t *testing.T) {
 	}
 
 	if os.Geteuid() != 0 {
-		if err := monitorAction(MonitorAction{ID: 3, Type: "dropcaches"}); err != nil {
+		if err := monitorActionFor("remote", MonitorAction{ID: 3, Type: "dropcaches"}); err != nil {
 			t.Fatal(err)
 		}
 		s = waitMonitor(t, func(s MonitorStatus) bool { _, _, found := monitorResult(s, 3); return found })
@@ -126,10 +126,10 @@ func TestMonitorSamplesAndEndsProcess(t *testing.T) {
 		}
 	}
 
-	if err := stopMonitor(); err != nil {
+	if err := stopMonitorFor("remote"); err != nil {
 		t.Fatal(err)
 	}
-	if monitorStatus().Running {
+	if monitorStatusFor("remote").Running {
 		t.Fatal("monitor still running after stop")
 	}
 }
@@ -139,12 +139,12 @@ func TestMonitorWithoutPython(t *testing.T) {
 	if err := startMonitor(c); err != nil {
 		t.Fatal(err)
 	}
-	defer stopMonitor()
+	defer stopMonitorFor("remote")
 	deadline := time.Now().Add(20 * time.Second)
-	for monitorStatus().Running && time.Now().Before(deadline) {
+	for monitorStatusFor("remote").Running && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)
 	}
-	if s := monitorStatus(); s.Running || !strings.Contains(s.Error, "Python 3") {
+	if s := monitorStatusFor("remote"); s.Running || !strings.Contains(s.Error, "Python 3") {
 		t.Fatalf("unexpected status: %+v", s)
 	}
 }

@@ -27,8 +27,16 @@ function record(s,h=hist){
   if(h.cores.length!==cores.length)h.cores=cores.map(()=>[]);
   cores.forEach((v,i)=>{const a=h.cores[i];a.push(v);if(a.length>HISTORY)a.shift()});
 }
-const activityVisible=()=>tab==='activity'&&!(typeof document.hidden==='boolean'&&document.hidden);
+// The app tells the page when other windows cover its window completely, which the browser
+// cannot see; a minimised or hidden window makes document.hidden true instead.
+let windowCovered=false;
+const pageShown=()=>!windowCovered&&!(typeof document.hidden==='boolean'&&document.hidden);
+const activityVisible=()=>tab==='activity'&&pageShown();
 function showActivity(){if(sample&&activityStale&&activityVisible()){activityStale=false;renderActivity()}}
+// Brings the open tab up to date when the window can be seen again.
+function pageShownAgain(){if(!pageShown())return;showActivity();if(tab==='history'&&typeof loadResourceHistory==='function')loadResourceHistory(true)}
+window.__setWindowCovered=c=>{const was=windowCovered;windowCovered=!!c;if(was&&!windowCovered)pageShownAgain()};
+if(typeof isWindowCovered==='function')Promise.resolve(isWindowCovered()).then(c=>window.__setWindowCovered(c),()=>{});
 const TAB_VIEWS={storage:['workspace','tabStorage'],activity:['activity','tabActivity'],history:['history','tabHistory'],events:['events','tabEvents']};
 function setTab(t){
   if(!TAB_VIEWS[t])return;
@@ -47,7 +55,7 @@ for(const [name,[,button]] of Object.entries(TAB_VIEWS)){
   $(button).onclick=()=>setTab(name);
   $(button).onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const current=tabButtons.indexOf(button),next=e.key==='Home'?0:e.key==='End'?tabButtons.length-1:(current+(e.key==='ArrowRight'?1:-1)+tabButtons.length)%tabButtons.length;$(tabButtons[next]).click();$(tabButtons[next]).focus()};
 }
-if(typeof document.addEventListener==='function')document.addEventListener('visibilitychange',showActivity);
+if(typeof document.addEventListener==='function')document.addEventListener('visibilitychange',pageShownAgain);
 function paintNotice(text,kind){const n=$('actNotice');$('actNoticeText').textContent=text;n.classList.toggle('error',kind==='error');n.classList.toggle('busy',kind==='busy');n.classList.toggle('hidden',!text)}
 function notice(text,kind){const s=monitorSessions[target];s.noticeText=text;s.noticeKind=kind||'';paintNotice(text,kind)}
 function monitorNotice(t,text,kind){const s=monitorSessions[t];s.noticeText=text;s.noticeKind=kind||'';if(t===target)paintNotice(text,kind)}
@@ -65,6 +73,7 @@ function paintMonitorHello(){
   const [label,detail]=privilegeInfo();p.textContent=label;p.title=detail;p.dataset.level=hello.privilege;
   $('elevateButton').classList.toggle('hidden',!(onWindows()&&hello.privilege==='none'));
   $('cpuModel').textContent=hello.cpuModel||'';
+  if(monitorTarget==='local'&&hello.system)$('actHost').textContent=hello.system;
 }
 function switchMonitorTarget(t){
   const s=monitorSessions[t];syncMonitorGlobals(t);
@@ -131,7 +140,7 @@ function meterLine(label,value,text){const d=el('div','meterline');d.append(el('
 function renderActivity(){
   const s=sample,m=s.memory||{},cpu=s.cpu||{},cores=cpu.cores||[],priv=privilegeOf(),[rx,tx]=netTotals(s);
   $('actEmpty').classList.add('hidden');$('actBody').classList.remove('hidden');Dash.available(true);
-  $('actSub').textContent=[hello&&hello.system,s.uptime?'up '+duration(s.uptime):'',(s.load||[]).length?'load '+s.load.map(v=>v.toFixed(2)).join(' '):'','updated '+new Date(s.time*1000).toLocaleTimeString()].filter(Boolean).join(' · ');
+  $('actSub').textContent=[monitorTarget!=='local'&&hello&&hello.system,s.uptime?'up '+duration(s.uptime):'',(s.load||[]).length?'load '+s.load.map(v=>v.toFixed(2)).join(' '):'','updated '+new Date(s.time*1000).toLocaleTimeString()].filter(Boolean).join(' · ');
   // Tiles
   $('tCpu').textContent=pct0(cpu.total);$('tCpuSub').textContent=`${cores.length} ${onWindows()?'logical processors':'cores'}${(s.load||[]).length?' · load '+s.load[0].toFixed(2):''}`;
   $('tMem').textContent=pct0(m.total?100*m.used/m.total:0);$('tMemSub').textContent=`${size(m.used)} of ${size(m.total)} in use`;
@@ -140,7 +149,7 @@ function renderActivity(){
   $('tGpu').textContent=gpus.length?pct0(g):'None';
   $('tGpuSub').textContent=gpus.length?(gpus.length>1?gpus.length+' GPUs':gpus[0].name)+(gpus[0].memTotal?` · ${size(gpus.reduce((a,x)=>a+(x.memUsed||0),0))} VRAM`:''):(s.gpuNote||'');
   $('tGpuSub').title=$('tGpuSub').textContent;
-  $('tNet').textContent='↓ '+rate(rx);$('tNetSub').textContent=`↑ ${rate(tx)} · ${(s.network||[]).length} interfaces`;
+  $('tNetRx').textContent=rate(rx);$('tNetTx').textContent=rate(tx);$('tNetSub').textContent=`${(s.network||[]).length} interfaces`;
   drawSparks();
   // Processor
   const k1=$('cpuStats');
@@ -154,8 +163,7 @@ function renderActivity(){
   const k2=el('div','kvs');k2.append(kv('Total',size(m.total)),kv('Available',size(m.available)));if(m.shmem!==undefined)k2.append(kv('Shared',size(m.shmem)));if(m.dirty!==undefined)k2.append(kv(onWindows()?'Modified':'Waiting to be written',size(m.dirty)));if(m.wired!==undefined)k2.append(kv('Wired',size(m.wired)),kv('Compressed',size(m.compressed)));
   const parts=[meter([[m.total?100*m.used/m.total:0],[m.total?100*Math.min(cache,m.total-m.used)/m.total:0,'s2']]),keys,k2];
   if(m.commitLimit)parts.push(meterLine('Committed',100*m.commitUsed/m.commitLimit,`${size(m.commitUsed)} of ${size(m.commitLimit)}`));
-  else parts.push(m.swapTotal?meterLine('Swap',100*m.swapUsed/m.swapTotal,`${size(m.swapUsed)} of ${size(m.swapTotal)}`):el('p','muted','No swap space is configured.'));
-  if(!canFreeCache(priv))parts.push(el('p','muted',onWindows()?'Freeing the cache needs administrator rights.':'Freeing the cache needs root or sudo access.'));
+  else parts.push(m.swapTotal?meterLine('Swap',100*m.swapUsed/m.swapTotal,`${size(m.swapUsed)} of ${size(m.swapTotal)}`):el('p','muted','No swap'));
   mp.replaceChildren(...parts);
   $('freeCacheButton').classList.toggle('hidden',!canFreeCache(priv));
   // Graphics
@@ -205,7 +213,7 @@ function procRow(){
 function renderProcesses(){
   if(!sample)return;
   const priv=privilegeOf(),all=sample.processes||[],list=filterProcesses(all,procFilter).sort((a,b)=>procSort.dir*PROC_SORTS[procSort.key](a,b)||b.cpu-a.cpu||b.rss-a.rss);
-  $('procCount').textContent=`The busiest ${count(all.length)} of ${count(sample.processCount)}`;
+  $('procCount').textContent=`Top ${count(all.length)} of ${count(sample.processCount)}`;
   procHead();
   const body=procTable.tBodies[0],seen=new Set();let prev=null;
   if(procEmpty){procEmpty.remove();procEmpty=null}
@@ -243,7 +251,7 @@ async function sendAction(action,label,t=target){
 async function endProcess(p,force){
   const t=target,priv=privilegeOf(),password=needsSudoPassword(p,priv);
   const r=await confirmAction({title:(force?'Force end ':'End ')+p.name+'?',label:force?'Force end':'End process',password,
-    text:(force?'The process is stopped immediately and any unsaved work is lost.':onWindows()?'Its windows are asked to close, so it can save its work first. Programs without a window have to be force-ended.':'The process is asked to exit, so it can save its work first. Some programs ignore this; use Force end if it keeps running.')+(p.own?'':' It belongs to '+(p.user||'another account')+(onWindows()?'.':', so sudo is used.')),
+    text:(force?'It stops immediately; unsaved work is lost.':onWindows()?'Its windows are asked to close so it can save its work.':'It is asked to exit so it can save its work.')+(p.own?'':' It belongs to '+(p.user||'another account')+(onWindows()?'.':', so sudo is used.')),
     detail:`PID ${p.pid} · ${p.user} · ${size(p.rss)}\n${p.cmd||p.name}`});
   if(!r)return;
   await sendAction({type:'kill',pid:p.pid,start:p.start,signal:force?'KILL':'TERM',password:password?r.password:''},`${force?'Force-ending':'Ending'} ${p.name} (PID ${p.pid})…`,t);
@@ -251,7 +259,7 @@ async function endProcess(p,force){
 $('freeCacheButton').onclick=async()=>{
   const t=target,priv=privilegeOf(),password=needsSudoPassword(null,priv);
   const r=await confirmAction({title:'Free the memory cache?',label:'Free cache',password,
-    text:hello&&hello.platform==='darwin'?'Runs purge, which writes pending data to disk and clears the file cache. Programs keep their memory. The cache refills as files are read again, so the Mac may be slower for a while. macOS frees cached memory by itself whenever programs need it, so this is rarely necessary.':onWindows()?'Modified pages are written to disk, then the standby list (file data Windows keeps in spare memory) is cleared. Programs keep their memory. The cache refills as files are read again, so the PC may be slower for a while. Windows frees standby memory by itself whenever programs need it, so this is rarely necessary.':'Pending writes are saved to disk, then the file cache is cleared (drop_caches). Programs keep their memory. The cache refills as files are read again, so the server may be slower for a while. Linux frees cache by itself when programs need memory, so this is rarely necessary.'});
+    text:(hello&&hello.platform==='darwin'?'Runs purge.':onWindows()?'Clears the standby list.':'Runs drop_caches.')+' Programs keep their memory, but file access may be slower for a while. Rarely needed: the system frees cache by itself.'});
   if(!r)return;
   await sendAction({type:'dropcaches',password:password?r.password:''},'Freeing the memory cache…',t);
 };

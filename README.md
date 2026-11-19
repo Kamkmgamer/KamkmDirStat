@@ -20,7 +20,7 @@ Choose **This PC**, then under **Open** choose the disk usage scan, the live act
 
 Local sizes are file sizes, as in Explorer. Junctions, symbolic links and volumes mounted in a folder are not followed, so nothing is counted twice through them.
 
-**Run as administrator for fast scans of whole NTFS drives.** The app then reads the drive's master file table (MFT) directly in large sequential reads instead of opening every folder. On a test system drive with 3.5 million files this took about 10 seconds, against about 75 seconds listing folders. Reading the table also sees folders that are closed even to administrators, such as `System Volume Information`, and counts each hard-linked file once, at its first name, so totals are close to the drive's used space. The footer says "read from the NTFS file table" when this was used.
+**Run as administrator for fast scans of whole NTFS drives.** **Restart as administrator**, under **Scan**, opens the app again with administrator rights after Windows asks for approval; results in the current window are closed. The app then reads the drive's master file table (MFT) directly in large sequential reads instead of opening every folder. On a test system drive with 3.5 million files this took about 10 seconds, against about 75 seconds listing folders. Reading the table also sees folders that are closed even to administrators, such as `System Volume Information`, and counts each hard-linked file once, at its first name, so totals are close to the drive's used space. The footer says "read from the NTFS file table" when this was used.
 
 Without administrator rights, for folders rather than whole drives, and for other file systems, the app lists folders instead and says how to get the faster scan. Listing counts hard-linked files at each of their names, so a whole system drive can total more than its used space, mostly because of `C:\Windows\WinSxS`, and folders Windows does not let you read are marked incomplete.
 
@@ -30,21 +30,34 @@ Choose **SSH server**. Enter an SSH config alias or hostname and an absolute rem
 
 Connecting does not stop this PC's monitor and does not discard its scan. Each machine keeps its own monitor, its own history, its own scan and its own folder; switching tabs brings the other one back as it was.
 
-Under **Open**, choose the disk usage scan, the live activity monitor, or both. Select **Connect**, then compare the resolved server and displayed SHA-256 host-key fingerprint with a trusted fingerprint for that server before choosing **Trust for this scan**. Credentials are not saved and an agent never signs an authentication request until after the host key is checked.
+Under **Open**, choose the disk usage scan, the live activity monitor, or both. Select **Connect**. A server whose host key you already trust, in `~/.ssh/known_hosts` or through **Always trust**, connects at once. Otherwise the app asks first: **Trust once** connects this time, and **Always trust** also saves the key, with the host name hashed, in `known_hosts` beside the app settings. If a server presents a different key from the one trusted, the app warns before connecting. Credentials are not saved and an agent never signs an authentication request until after the host key is checked.
 
 The report appears when the remote scan is complete. Click a folder in the list or the map to open it, use the path at the top to go back up, and hover over the map to see what each block is. Switch back to **This PC** at any time: the server scan, and the server monitor, carry on in the background.
 
 ### Map, search and opening files
 
-The storage map labels each folder with a band across its top, such as `Users\ (120.8 GB)`, and puts its contents below; large files show their names too. **Names** in the map's title bar turns the labels off. Click a block to open its folder.
+The storage map labels each folder with a band across its top, such as `Users\ (120.8 GB)`, and puts its contents below; large files show their names too. **Names** in the map's title bar turns the labels off. Click a block to open its folder. The arrows in the map's title bar go **Back**, **Forward** and **Up** a folder. Alt+Left and Alt+Right, Alt+click and Alt+right-click, and the mouse's back and forward buttons go back and forward too, and Backspace or Alt+Up goes up.
 
 The folder list, the map, the search results and opening files all belong to the tab selected in the panel on the left, so browsing the server's folders leaves this PC's scan untouched, and the other way round.
 
-Double-click a file in the list or the map to open it with its usual program, or right-click for **Show in Explorer** (Finder, or the file manager) and **Copy path**. Programs and scripts, such as `.exe`, `.bat` or `.sh` files, are run only after you confirm. On an SSH server, pictures, videos and music can be opened too: after you confirm, the file is copied over SFTP to a temporary folder on this computer and opened there. Other server files stay on the server.
+Double-click a file in the list or the map to open it with its usual program, or right-click for **Open with…** (Windows), **Show in Explorer** (Finder, or the file manager) and **Copy path**. Programs and scripts, such as `.exe`, `.bat` or `.sh` files, are run only after you confirm. On an SSH server, pictures, videos and music can be opened too: after you confirm, the file is copied over SFTP to a temporary folder on this computer and opened there. Other server files stay on the server.
 
 Type in the search box, or press Ctrl+F, to search every file and folder in the scan. Matching is fuzzy: the letters you type must appear in order, so `pkgjsn` finds `pnpmPkgJson.ts`, and whole words and word starts rank first. Several words must all match. **All**, **Folders**, **Images**, **Videos**, **Audio**, **Documents** and **Archives** narrow the list, as does the list of extensions, largest first. With nothing typed, the largest files are listed. Double-click a result to open it, or use the arrow at its end to show it in its folder. Esc returns to the folder list.
 
 Searching a scan of a million files takes well under a tenth of a second. The search index is kept on disk with the scan and leaves memory when you stop searching. On SSH servers the scan itself is searched on the server, so only the results cross the network.
+
+### Deleting files and cleaning up
+
+In a finished scan of this PC, right-click a file or folder for **Move to Recycle Bin** (Trash on macOS and Linux) or **Delete permanently**, or select its row and press Delete (Shift+Delete for permanently). The app asks first. What is deleted leaves the list, the map and search results straight away, and the folders above it shrink, without scanning again. A scanned drive or folder itself, anything reached through a junction or link, and files on SSH servers are never deleted.
+
+**Clean up**, beside the search box, lists what the scan holds that programs download or build again, sized and grouped, in place of the folder list:
+
+- `node_modules`, Rust `target` folders, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.parcel-cache` and `.angular` folders, and Python virtual environments, in projects anywhere in the scan except programs' and the system's own folders
+- Worktrees of T3 Code, Codex, Cursor, Conductor, Claude Code and other coding agents that have no changes, are on a branch and were not used for 3 days (their branches stay), and worktrees whose repository no longer lists them
+- Package caches (npm, pnpm, Yarn, bun, Go, Cargo, uv, pip, Gradle, Maven, NuGet, Deno, Composer, pub, Homebrew, CocoaPods, Electron), build and editor caches (Go, Bazel, ccache, sccache, JetBrains, VS Code, TypeScript), Xcode data and Android emulators that are not running, browser caches and browsers downloaded for tests, and downloaded AI models (Hugging Face, Ollama, LM Studio, PyTorch)
+- Temporary files, crash dumps, installers in Downloads unchanged for 30 days, Docker's build cache and unused images (never volumes or containers), and the Recycle Bin
+
+Caches are looked for in your user folder, so scan the drive or folder that holds it to see them. Choose items, or **Recommended** for everything without a warning, then **Clear**. Cleared items are deleted permanently rather than moved to the Recycle Bin, since that would free nothing. Expand an item to see each folder and show it in Explorer.
 
 ### Searching every drive (Windows)
 
@@ -65,9 +78,9 @@ On this PC the monitor uses the same system information as Task Manager. Memory 
 
 On an SSH server, the monitor runs Python 3 over its own SSH connection and reads `/proc`, so it needs a Linux server. GPUs are read with `nvidia-smi` for NVIDIA cards and from sysfs for AMD cards. Nothing is installed or written to disk.
 
-The monitor stops when you select **Stop monitoring**, start again, or close the app. Switching between **This PC** and **SSH server** does not stop either monitor: both keep sampling, both keep their own history and their own process list, and the numbers are waiting when you switch back.
+The monitor stops when you select **Stop monitoring**, start again, or exit the app. On Windows, closing the window hides it in the notification area and monitoring and history keep running; click the icon to bring the window back, or right-click it and choose **Exit** to quit. Starting the app again while it runs in the background reopens the existing window. Switching between **This PC** and **SSH server** does not stop either monitor: both keep sampling, both keep their own history and their own process list, and the numbers are waiting when you switch back.
 
-Select **Customize** to change the layout. Drag a section by its handle to move it, or drag any edge or corner to resize it on a grid of 12 columns. The other sections adjust so no gaps are left: those in the same row shrink or widen, sections that no longer fit move to a row of their own, and a section taller than its neighbours has the next sections stack up beside it. Dragging an edge past the opposite one grows the section the other way. Hold Shift while resizing to change only that section. From the keyboard, the arrow keys move the focused section's handle and Shift with the arrow keys resizes it. Hidden sections are listed in the bar at the top, and **Reset layout** restores the default. The layout is saved with the other settings.
+Select **Customize** (the layout icon) to change the layout. Drag a section by its handle to move it, or drag any edge or corner to resize it on a grid of 12 columns. The other sections adjust so no gaps are left: those in the same row shrink or widen, sections that no longer fit move to a row of their own, and a section taller than its neighbours has the next sections stack up beside it. Dragging an edge past the opposite one grows the section the other way. Hold Shift while resizing to change only that section. From the keyboard, the arrow keys move the focused section's handle and Shift with the arrow keys resizes it. Hidden sections are listed in the bar at the top, and **Reset** restores the default. The layout is saved with the other settings.
 
 On this PC, what you can change depends on whether the app runs as administrator:
 

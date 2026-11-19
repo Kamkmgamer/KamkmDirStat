@@ -32,6 +32,9 @@ type Tree struct {
 	local    bool      // a scan of this computer, whose files can be opened
 	index    treeIndex // for searching a finished scan
 	closed   bool
+	roots    []string     // the folders or drives a local scan started from
+	clutter  *clutterPlan // what Clean up can offer, found when a local scan finishes
+	edits    treeEdits    // what was deleted since the scan finished
 }
 
 func newTree(rootPath string) *Tree {
